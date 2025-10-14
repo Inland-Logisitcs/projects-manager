@@ -1,0 +1,74 @@
+:root {
+  /* Colores del tema Sync */
+  --primary-color: #015E7C;
+  --primary-light: #015570;
+  --primary-dark: #014055;
+  --accent-color: #0099CC;
+  --accent-light: #008bb9;
+  --accent-dark: #00698b;
+
+  /* Colores de fondo */
+  --bg-primary: #F1F5F9;
+  --bg-secondary: #FFFFFF;
+  --bg-card: #FFFFFF;
+
+  /* Colores de texto */
+  --text-primary: #1E293B;
+  --text-secondary: #64748B;
+  --text-light: #94A3B8;
+
+  /* Colores de bordes */
+  --border-color: #E2E8F0;
+
+  /* Estados Kanban */
+  --status-pending: #ffd166;
+  --status-in-progress: #118ab2;
+  --status-completed: #06d6a0;
+  --status-blocked: #ef476f;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Utilidades */
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+/* Scrollbar personalizado */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-light);
+}
