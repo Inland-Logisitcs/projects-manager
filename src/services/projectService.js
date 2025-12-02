@@ -69,7 +69,6 @@ export const subscribeToProjects = (callback) => {
             ...doc.data()
           });
         });
-        console.log('📊 Proyectos cargados:', projects.length);
         callback(projects);
       },
       (error) => {

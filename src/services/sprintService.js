@@ -16,8 +16,8 @@ const SPRINTS_COLLECTION = 'sprints';
 
 /**
  * Suscribirse a cambios en los sprints
- * @param {Function} callback - Función que recibe los sprints actualizados
- * @returns {Function} - Función para cancelar la suscripción
+ * @param {Function} callback - Funciï¿½n que recibe los sprints actualizados
+ * @returns {Function} - Funciï¿½n para cancelar la suscripciï¿½n
  */
 export const subscribeToSprints = (callback) => {
   try {
@@ -32,7 +32,6 @@ export const subscribeToSprints = (callback) => {
             ...doc.data()
           });
         });
-        console.log('<Ã Sprints cargados:', sprints.length);
         callback(sprints);
       },
       (error) => {
@@ -41,7 +40,7 @@ export const subscribeToSprints = (callback) => {
       }
     );
   } catch (error) {
-    console.error('L Error al inicializar subscripción de sprints:', error);
+    console.error('L Error al inicializar subscripciï¿½n de sprints:', error);
     callback([]);
     return () => {};
   }
@@ -50,7 +49,7 @@ export const subscribeToSprints = (callback) => {
 /**
  * Crear un nuevo sprint
  * @param {Object} sprintData - Datos del sprint
- * @returns {Object} - Resultado de la operación
+ * @returns {Object} - Resultado de la operaciï¿½n
  */
 export const createSprint = async (sprintData) => {
   try {
@@ -75,7 +74,7 @@ export const createSprint = async (sprintData) => {
  * Actualizar un sprint
  * @param {string} sprintId - ID del sprint
  * @param {Object} updates - Datos a actualizar
- * @returns {Object} - Resultado de la operación
+ * @returns {Object} - Resultado de la operaciï¿½n
  */
 export const updateSprint = async (sprintId, updates) => {
   try {
@@ -94,7 +93,7 @@ export const updateSprint = async (sprintId, updates) => {
 /**
  * Eliminar un sprint
  * @param {string} sprintId - ID del sprint
- * @returns {Object} - Resultado de la operación
+ * @returns {Object} - Resultado de la operaciï¿½n
  */
 export const deleteSprint = async (sprintId) => {
   try {
@@ -112,7 +111,7 @@ export const deleteSprint = async (sprintId) => {
  * @param {string} sprintId - ID del sprint
  * @param {string} startDate - Fecha de inicio
  * @param {string} endDate - Fecha de fin
- * @returns {Object} - Resultado de la operación
+ * @returns {Object} - Resultado de la operaciï¿½n
  */
 export const startSprint = async (sprintId, startDate, endDate) => {
   return updateSprint(sprintId, {
@@ -125,7 +124,7 @@ export const startSprint = async (sprintId, startDate, endDate) => {
 /**
  * Completar un sprint
  * @param {string} sprintId - ID del sprint
- * @returns {Object} - Resultado de la operación
+ * @returns {Object} - Resultado de la operaciï¿½n
  */
 export const completeSprint = async (sprintId) => {
   return updateSprint(sprintId, {
