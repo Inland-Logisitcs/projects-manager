@@ -1,0 +1,69 @@
+/* Toast - estilos específicos de posicionamiento y animación */
+.toast {
+  position: fixed;
+  top: 2rem;
+  right: 2rem;
+  z-index: 9999;
+  min-width: 300px;
+  max-width: 500px;
+  animation: slideInRight 0.3s ease-out;
+  border-radius: var(--radius-base);
+  box-shadow: var(--shadow-xl);
+}
+
+.toast-error {
+  background-color: var(--color-error);
+  color: var(--text-inverse);
+}
+
+.toast-success {
+  background-color: var(--color-success);
+  color: var(--text-inverse);
+}
+
+.toast-info {
+  background-color: var(--color-info);
+  color: var(--text-inverse);
+}
+
+.toast-warning {
+  background-color: var(--color-warning);
+  color: var(--text-inverse);
+}
+
+.toast-close {
+  background: transparent;
+  border: none;
+  color: var(--text-inverse);
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  transition: var(--transition-base);
+  flex-shrink: 0;
+}
+
+.toast-close:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@media (max-width: 640px) {
+  .toast {
+    left: var(--space-base);
+    right: var(--space-base);
+    min-width: auto;
+  }
+}

@@ -1,3 +1,4 @@
+/* Sidebar - Estilos específicos */
 .sidebar {
   width: 250px;
   background-color: var(--bg-secondary);
@@ -17,33 +18,18 @@
 }
 
 .sidebar-header {
-  padding: 1.5rem 1rem;
   border-bottom: 1px solid var(--border-color);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
 }
 
 .sidebar-logo {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
   min-width: 0;
+  flex: 1;
 }
 
-.sidebar-logo img {
+.sidebar-logo-img {
   width: 32px;
   height: 32px;
   flex-shrink: 0;
-}
-
-.sidebar-logo span {
-  font-weight: 700;
-  font-size: 1rem;
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .sidebar.collapsed .sidebar-logo span {
@@ -58,9 +44,6 @@
   background-color: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   transition: all 0.2s ease;
   font-size: 0.75rem;
   flex-shrink: 0;
@@ -72,20 +55,17 @@
   color: var(--accent-color);
 }
 
-.sidebar.collapsed .sidebar-toggle {
-  margin: 0 auto;
+.sidebar.collapsed .sidebar-header {
+  flex-direction: column;
+  gap: var(--space-sm);
+  align-items: center;
 }
 
 .sidebar-nav {
-  flex: 1;
-  padding: 1rem 0;
   overflow-y: auto;
 }
 
 .sidebar-item {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
   padding: 0.875rem 1.25rem;
   color: var(--text-secondary);
   text-decoration: none;

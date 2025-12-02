@@ -1,3 +1,4 @@
+/* Projects - Estilos específicos */
 .projects-page {
   width: 100%;
   max-width: 100%;
@@ -5,32 +6,6 @@
   padding: 0;
   overflow-x: hidden;
   overflow-y: visible;
-}
-
-/* Header moderno */
-.projects-header {
-  margin-bottom: 2rem;
-  padding: 0 2rem;
-}
-
-.header-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-}
-
-.header-title {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.header-title h1 {
-  font-size: 1.75rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin: 0;
 }
 
 .project-count {
@@ -45,31 +20,6 @@
   border-radius: 12px;
   min-width: 24px;
   text-align: center;
-}
-
-.btn-create-new {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
-  background-color: var(--accent-color);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 0.95rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.btn-create-new:hover {
-  background-color: var(--accent-dark);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 153, 204, 0.3);
-}
-
-.btn-create-new:active {
-  transform: translateY(0);
 }
 
 /* View Tabs */

@@ -1,5 +1,5 @@
+/* MainLayout - Estilos específicos */
 .main-layout {
-  display: flex;
   min-height: 100vh;
   background-color: var(--bg-primary);
 }
@@ -21,32 +21,10 @@
 .main-header {
   background-color: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
-  padding: 1rem 1.5rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   position: sticky;
   top: 0;
   z-index: 50;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-}
-
-.header-left {
-  display: flex;
-  align-items: center;
-}
-
-.header-title {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin: 0;
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
 }
 
 .user-menu {
@@ -54,9 +32,6 @@
 }
 
 .user-button {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
   padding: 0.5rem 1rem;
   background-color: transparent;
   border: 1px solid var(--border-color);
@@ -68,25 +43,6 @@
 .user-button:hover {
   background-color: var(--bg-primary);
   border-color: var(--accent-color);
-}
-
-.user-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  font-size: 0.875rem;
-}
-
-.user-email {
-  color: var(--text-primary);
-  font-size: 0.875rem;
-  font-weight: 500;
 }
 
 .dropdown-menu {
@@ -103,14 +59,7 @@
 }
 
 .menu-header {
-  padding: 1rem;
   border-bottom: 1px solid var(--border-color);
-}
-
-.menu-email {
-  font-size: 0.875rem;
-  color: var(--text-secondary);
-  word-break: break-all;
 }
 
 .menu-item {
@@ -130,8 +79,6 @@
 }
 
 .main-container {
-  flex: 1;
-  padding: 2rem 1.5rem;
   overflow-y: auto;
   overflow-x: hidden;
   max-width: 100%;

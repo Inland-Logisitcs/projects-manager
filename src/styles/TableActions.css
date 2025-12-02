@@ -1,0 +1,280 @@
+/* ============================================
+   COMPONENTE GENÉRICO DE ACCIONES DE TABLA
+   ============================================ */
+
+/* Contenedor de acciones - layouts específicos */
+.table-actions-container.table-actions-horizontal {
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+.table-actions-container.table-actions-vertical {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+/* Botón de acción base */
+.table-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  font-family: inherit;
+}
+
+.table-action-btn:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(1, 94, 124, 0.15);
+}
+
+/* Tamaños */
+.table-action-btn.table-action-small {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  border-radius: 4px;
+}
+
+.table-action-btn.table-action-medium {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.813rem;
+}
+
+.table-action-btn.table-action-large {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+}
+
+/* Modo solo icono - más compacto */
+.table-action-btn.table-action-icon-only {
+  padding: 0.5rem;
+  min-width: 2rem;
+  min-height: 2rem;
+  border-radius: 6px;
+}
+
+.table-action-btn.table-action-icon-only.table-action-small {
+  padding: 0.375rem;
+  min-width: 1.75rem;
+  min-height: 1.75rem;
+  border-radius: 4px;
+}
+
+.table-action-btn.table-action-icon-only.table-action-large {
+  padding: 0.625rem;
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  border-radius: 8px;
+}
+
+/* Ocultar label en botones pequeños en móvil */
+@media (max-width: 768px) {
+  .table-action-btn.table-action-small .table-action-label {
+    display: none;
+  }
+}
+
+/* Variantes de color */
+
+/* Primary - Azul principal */
+.table-action-primary {
+  background: var(--primary-color, #015E7C);
+  color: white;
+  border-color: var(--primary-color, #015E7C);
+}
+
+.table-action-primary:hover:not(.table-action-disabled) {
+  background: #014152;
+  border-color: #014152;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(1, 94, 124, 0.2);
+}
+
+.table-action-primary:active:not(.table-action-disabled) {
+  transform: translateY(0);
+}
+
+/* Secondary - Gris neutro */
+.table-action-secondary {
+  background: white;
+  color: #475569;
+  border-color: #e2e8f0;
+}
+
+.table-action-secondary:hover:not(.table-action-disabled) {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #334155;
+}
+
+/* Success - Verde */
+.table-action-success {
+  background: #06d6a0;
+  color: white;
+  border-color: #06d6a0;
+}
+
+.table-action-success:hover:not(.table-action-disabled) {
+  background: #05a57a;
+  border-color: #05a57a;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(6, 214, 160, 0.2);
+}
+
+/* Warning - Amarillo */
+.table-action-warning {
+  background: #ffd166;
+  color: #7c5d1a;
+  border-color: #ffd166;
+}
+
+.table-action-warning:hover:not(.table-action-disabled) {
+  background: #e6b84f;
+  border-color: #e6b84f;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(255, 209, 102, 0.3);
+}
+
+/* Danger - Rojo */
+.table-action-danger {
+  background: #ef476f;
+  color: white;
+  border-color: #ef476f;
+}
+
+.table-action-danger:hover:not(.table-action-disabled) {
+  background: #d63557;
+  border-color: #d63557;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(239, 71, 111, 0.3);
+}
+
+/* Info - Azul claro */
+.table-action-info {
+  background: #118ab2;
+  color: white;
+  border-color: #118ab2;
+}
+
+.table-action-info:hover:not(.table-action-disabled) {
+  background: #0d6e8f;
+  border-color: #0d6e8f;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(17, 138, 178, 0.3);
+}
+
+/* Ghost - Transparente con borde */
+.table-action-ghost {
+  background: transparent;
+  color: #64748b;
+  border-color: transparent;
+}
+
+.table-action-ghost:hover:not(.table-action-disabled) {
+  background: #f1f5f9;
+  color: #334155;
+}
+
+/* Estado deshabilitado */
+.table-action-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Label del botón */
+.table-action-label {
+  line-height: 1;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .table-actions-container.table-actions-horizontal {
+    gap: 0.25rem;
+  }
+
+  .table-action-btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+  }
+
+  /* En móvil, mostrar solo iconos por defecto */
+  .table-action-label {
+    display: none;
+  }
+
+  /* A menos que sea layout vertical */
+  .table-actions-vertical .table-action-label {
+    display: inline;
+  }
+}
+
+/* Tooltips mejorados para botones solo icono */
+.table-action-btn.table-action-icon-only {
+  position: relative;
+}
+
+.table-action-btn.table-action-icon-only:hover::before {
+  content: attr(title);
+  position: absolute;
+  bottom: calc(100% + 0.5rem);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.375rem 0.625rem;
+  background: #1e293b;
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 6px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 1000;
+  opacity: 0;
+  animation: tooltip-fade-in 0.15s ease-in-out 0.3s forwards;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.table-action-btn.table-action-icon-only:hover::after {
+  content: '';
+  position: absolute;
+  bottom: calc(100% + 0.125rem);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 0.25rem solid transparent;
+  border-top-color: #1e293b;
+  pointer-events: none;
+  z-index: 1000;
+  opacity: 0;
+  animation: tooltip-fade-in 0.15s ease-in-out 0.3s forwards;
+}
+
+@keyframes tooltip-fade-in {
+  to {
+    opacity: 1;
+  }
+}
+
+/* Estilos específicos para acciones comunes */
+
+/* Botón de editar */
+.table-action-btn[aria-label*="Editar"],
+.table-action-btn[aria-label*="Edit"] {
+  /* Estilos específicos si se necesitan */
+}
+
+/* Botón de eliminar */
+.table-action-btn[aria-label*="Eliminar"],
+.table-action-btn[aria-label*="Delete"] {
+  /* Estilos específicos si se necesitan */
+}
+
+/* Botón de ver/visualizar */
+.table-action-btn[aria-label*="Ver"],
+.table-action-btn[aria-label*="View"] {
+  /* Estilos específicos si se necesitan */
+}
