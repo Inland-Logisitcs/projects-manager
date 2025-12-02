@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { Gantt, ViewMode } from 'gantt-task-react';
 import 'gantt-task-react/dist/index.css';
-import Icon from './Icon';
-import '../styles/GanttTimeline.css';
+import Icon from '../common/Icon';
+import '../../styles/GanttTimeline.css';
 
 const GanttTimeline = ({ projects, onUpdate }) => {
   const [viewMode, setViewMode] = useState(ViewMode.Day);
@@ -16,15 +16,49 @@ const GanttTimeline = ({ projects, onUpdate }) => {
   const dragCounterRef = React.useRef(0);
 
   // Filtrar proyectos con y sin fechas
-  // Color según estado
-  const getStatusColor = (status) => {
-    const colors = {
-      planning: '#ffd166',
-      'in-progress': '#118ab2',
-      completed: '#06d6a0',
-      'on-hold': '#ef476f'
+  // Color según tipo y estado
+  const getProjectColor = (project) => {
+    // Colores base por tipo
+    const typeColors = {
+      'ID': {
+        base: '#0099CC',        // Azul Sync para ID
+        light: '#d4eef5',
+        dark: '#007ba3'
+      },
+      'Functionality': {
+        base: '#8b5cf6',        // Morado para Functionality
+        light: '#ede9fe',
+        dark: '#7c3aed'
+      }
     };
-    return colors[status] || '#94A3B8';
+
+    // Obtener colores del tipo
+    const colors = typeColors[project.type] || typeColors['ID'];
+
+    // Ajustar opacidad según estado
+    if (project.status === 'completed') {
+      return colors.dark;
+    } else if (project.status === 'on-hold') {
+      return '#94A3B8'; // Gris para en pausa
+    }
+
+    return colors.base;
+  };
+
+  const getTypeColor = (type) => {
+    const colors = {
+      'ID': '#0099CC',
+      'Functionality': '#8b5cf6'
+    };
+    return colors[type] || '#0099CC';
+  };
+
+  const getTypeLabelColor = (type) => {
+    const colors = {
+      'ID': { bg: '#d4eef5', text: '#014152' },
+      'Functionality': { bg: '#ede9fe', text: '#5b21b6' }
+    };
+    return colors[type] || colors['ID'];
   };
 
   const { scheduledProjects, unscheduledProjects } = useMemo(() => {
@@ -56,6 +90,8 @@ const GanttTimeline = ({ projects, onUpdate }) => {
       const [endYear, endMonth, endDay] = project.endDate.split('-').map(Number);
       const end = new Date(endYear, endMonth - 1, endDay, 23, 59, 59, 999);
 
+      const projectColor = getProjectColor(project);
+
       return {
         id: project.id,
         name: project.name,
@@ -64,8 +100,8 @@ const GanttTimeline = ({ projects, onUpdate }) => {
         progress: project.progress || 0,
         type: 'task',
         styles: {
-          backgroundColor: getStatusColor(project.status),
-          backgroundSelectedColor: getStatusColor(project.status),
+          backgroundColor: projectColor,
+          backgroundSelectedColor: projectColor,
           progressColor: 'rgba(255, 255, 255, 0.3)',
           progressSelectedColor: 'rgba(255, 255, 255, 0.4)',
         },
@@ -101,27 +137,6 @@ const GanttTimeline = ({ projects, onUpdate }) => {
     await onUpdate(project.id, {
       progress: task.progress
     });
-  };
-
-  // Handler para doble click en tarea
-  const handleDblClick = (task) => {
-    console.log('Task double clicked:', task);
-    // Aquí podrías abrir un modal de detalles
-  };
-
-  // Handler para click en tarea
-  const handleClick = (task) => {
-    console.log('Task clicked:', task);
-  };
-
-  // Handler para seleccionar tarea
-  const handleSelect = (task, isSelected) => {
-    console.log('Task selected:', task, isSelected);
-  };
-
-  // Handler para expandir/colapsar
-  const handleExpanderClick = (task) => {
-    console.log('Expander clicked:', task);
   };
 
   // Handlers para drag & drop
@@ -189,30 +204,24 @@ const GanttTimeline = ({ projects, onUpdate }) => {
     if (!project) return null;
 
     return (
-      <div style={{
-        padding: '12px',
-        backgroundColor: 'white',
-        borderRadius: '8px',
-        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-        minWidth: '200px'
-      }}>
-        <div style={{ fontWeight: 700, fontSize: '1rem', marginBottom: '8px', color: 'var(--text-primary)' }}>
+      <div className="gantt-tooltip">
+        <div className="tooltip-title">
           {project.name}
         </div>
-        <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>
+        <div className="tooltip-detail">
           <strong>Tipo:</strong> {project.type}
         </div>
-        <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>
+        <div className="tooltip-detail">
           <strong>Estado:</strong> {project.status}
         </div>
-        <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>
+        <div className="tooltip-detail">
           <strong>Inicio:</strong> {new Date(project.startDate).toLocaleDateString('es')}
         </div>
-        <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>
+        <div className="tooltip-detail">
           <strong>Fin:</strong> {new Date(project.endDate).toLocaleDateString('es')}
         </div>
         {project.progress !== undefined && (
-          <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+          <div className="tooltip-detail">
             <strong>Progreso:</strong> {project.progress}%
           </div>
         )}
@@ -437,7 +446,6 @@ const GanttTimeline = ({ projects, onUpdate }) => {
 
             {/* Botón para remover del Gantt */}
             <div style={{
-              width: '28px',
               opacity: hoveredRow === index ? 1 : 0,
               transition: 'opacity 0.2s ease',
               pointerEvents: hoveredRow === index ? 'auto' : 'none',
@@ -446,31 +454,38 @@ const GanttTimeline = ({ projects, onUpdate }) => {
               <button
                 onClick={() => handleRemoveFromGantt(task.project)}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'scale(1.15)';
-                  e.currentTarget.style.backgroundColor = 'rgba(239, 71, 111, 0.1)';
+                  e.currentTarget.style.transform = 'scale(1.1)';
+                  e.currentTarget.style.backgroundColor = 'var(--color-error)';
+                  e.currentTarget.style.borderColor = 'var(--color-error)';
+                  e.currentTarget.style.color = 'white';
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.transform = 'scale(1)';
                   e.currentTarget.style.backgroundColor = 'transparent';
+                  e.currentTarget.style.borderColor = 'var(--border-medium)';
+                  e.currentTarget.style.color = 'var(--text-secondary)';
                 }}
                 onMouseDown={(e) => {
                   e.currentTarget.style.transform = 'scale(0.95)';
                 }}
                 onMouseUp={(e) => {
-                  e.currentTarget.style.transform = 'scale(1.15)';
+                  e.currentTarget.style.transform = 'scale(1.1)';
                 }}
                 style={{
-                  background: 'none',
-                  border: 'none',
+                  background: 'transparent',
+                  border: '1px solid var(--border-medium)',
                   cursor: 'pointer',
-                  color: '#ef476f',
-                  fontSize: '1rem',
-                  padding: '4px',
+                  color: 'var(--text-secondary)',
+                  fontSize: '1.1rem',
+                  padding: '0.25rem',
+                  width: '24px',
+                  height: '24px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   transition: 'all 0.15s ease',
-                  borderRadius: '4px'
+                  borderRadius: '4px',
+                  lineHeight: 1
                 }}
                 title="Quitar del cronograma"
               >
@@ -498,6 +513,16 @@ const GanttTimeline = ({ projects, onUpdate }) => {
             <div className="toolbar-left">
               <span className="toolbar-title">Cronograma</span>
               <span className="toolbar-count">{scheduledProjects.length} proyectos</span>
+              <div className="legend-container flex gap-base items-center">
+                <div className="flex items-center gap-xs">
+                  <div className="legend-color legend-color-id"></div>
+                  <span className="text-xs text-secondary">ID</span>
+                </div>
+                <div className="flex items-center gap-xs">
+                  <div className="legend-color legend-color-functionality"></div>
+                  <span className="text-xs text-secondary">Functionality</span>
+                </div>
+              </div>
             </div>
             <div className="toolbar-right">
               <div className="zoom-control">
@@ -505,16 +530,7 @@ const GanttTimeline = ({ projects, onUpdate }) => {
                 <select
                   value={viewMode}
                   onChange={(e) => handleViewModeChange(e.target.value)}
-                  style={{
-                    padding: '0.5rem 0.75rem',
-                    borderRadius: '8px',
-                    border: '1px solid var(--border-color)',
-                    backgroundColor: 'white',
-                    color: 'var(--text-primary)',
-                    fontWeight: 500,
-                    cursor: 'pointer',
-                    fontSize: '0.85rem'
-                  }}
+                  className="view-mode-select"
                 >
                   <option value={ViewMode.Day}>Vista Día</option>
                   <option value={ViewMode.Week}>Vista Semana</option>
@@ -532,10 +548,6 @@ const GanttTimeline = ({ projects, onUpdate }) => {
                 viewMode={viewMode}
                 onDateChange={handleTaskChange}
                 onProgressChange={handleProgressChange}
-                onDoubleClick={handleDblClick}
-                onClick={handleClick}
-                onSelect={handleSelect}
-                onExpanderClick={handleExpanderClick}
                 listCellWidth="280px"
                 columnWidth={viewMode === ViewMode.Day ? 60 : viewMode === ViewMode.Week ? 250 : 300}
                 rowHeight={50}
@@ -604,9 +616,12 @@ const GanttTimeline = ({ projects, onUpdate }) => {
                   </div>
                   <span
                     className="unscheduled-status"
-                    style={{ backgroundColor: getStatusColor(project.status) }}
+                    style={{
+                      backgroundColor: getTypeLabelColor(project.type).bg,
+                      color: getTypeLabelColor(project.type).text
+                    }}
                   >
-                    {project.status}
+                    {project.type}
                   </span>
                 </div>
                 {project.description && (
@@ -681,7 +696,7 @@ const DateAssignModal = ({ project, onClose, onSave }) => {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={e => e.stopPropagation()}>
         <h3>Programar Proyecto</h3>
-        <p style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>
+        <p className="text-base text-secondary mb-base">
           Asigna fechas a <strong>{project.name}</strong>
         </p>
         <form onSubmit={handleSubmit}>
@@ -727,10 +742,10 @@ const ConfirmRemoveModal = ({ project, onClose, onConfirm }) => {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={e => e.stopPropagation()}>
         <h3>¿Regresar a No Iniciados?</h3>
-        <p style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>
+        <p className="text-base text-secondary mb-base">
           ¿Estás seguro que deseas quitar <strong>{project.name}</strong> del cronograma?
         </p>
-        <p style={{ marginBottom: '1.5rem', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+        <p className="text-sm text-secondary mb-lg">
           El proyecto regresará al área de "No Iniciados" y se eliminarán sus fechas de inicio y fin.
         </p>
 
@@ -741,8 +756,7 @@ const ConfirmRemoveModal = ({ project, onClose, onConfirm }) => {
           <button
             type="button"
             onClick={onConfirm}
-            className="btn-primary"
-            style={{ backgroundColor: '#ef476f' }}
+            className="btn-primary btn-danger-bg"
           >
             Sí, quitar
           </button>

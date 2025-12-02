@@ -4,8 +4,11 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Backlog from './pages/Backlog';
 import Projects from './pages/Projects';
-import MainLayout from './components/MainLayout';
-import ProtectedRoute from './components/ProtectedRoute';
+import ArchivedTasks from './pages/ArchivedTasks';
+import Users from './pages/Users';
+import MainLayout from './components/layout/MainLayout';
+import ProtectedRoute from './components/routing/ProtectedRoute';
+import AdminRoute from './components/routing/AdminRoute';
 
 function App() {
   return (
@@ -25,6 +28,15 @@ function App() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/backlog" element={<Backlog />} />
             <Route path="/projects" element={<Projects />} />
+            <Route path="/archived" element={<ArchivedTasks />} />
+            <Route
+              path="/users"
+              element={
+                <AdminRoute>
+                  <Users />
+                </AdminRoute>
+              }
+            />
           </Route>
 
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
