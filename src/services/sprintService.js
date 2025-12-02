@@ -8,7 +8,9 @@ import {
   query,
   orderBy,
   serverTimestamp,
-  where
+  where,
+  getDocs,
+  arrayUnion
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
@@ -114,11 +116,56 @@ export const deleteSprint = async (sprintId) => {
  * @returns {Object} - Resultado de la operaci�n
  */
 export const startSprint = async (sprintId, startDate, endDate) => {
-  return updateSprint(sprintId, {
-    status: 'active',
-    startDate,
-    endDate
-  });
+  try {
+    // Primero actualizar el estado del sprint
+    const sprintResult = await updateSprint(sprintId, {
+      status: 'active',
+      startDate,
+      endDate
+    });
+
+    if (!sprintResult.success) {
+      return sprintResult;
+    }
+
+    // Luego actualizar todas las tareas del sprint a 'pending'
+    const tasksQuery = query(
+      collection(db, 'tasks'),
+      where('sprintId', '==', sprintId),
+      where('archived', '==', false)
+    );
+
+    const tasksSnapshot = await getDocs(tasksQuery);
+
+    // Actualizar cada tarea a 'pending' si no tiene estado
+    const updatePromises = tasksSnapshot.docs.map(async (taskDoc) => {
+      const taskData = taskDoc.data();
+
+      // Solo actualizar si la tarea no tiene estado (null)
+      if (!taskData.status) {
+        const taskRef = doc(db, 'tasks', taskDoc.id);
+        await updateDoc(taskRef, {
+          status: 'pending',
+          previousStatus: null,
+          lastStatusChange: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          movementHistory: arrayUnion({
+            type: 'status_change',
+            from: null,
+            to: 'pending',
+            timestamp: new Date()
+          })
+        });
+      }
+    });
+
+    await Promise.all(updatePromises);
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error al iniciar sprint:', error);
+    return { success: false, error: error.message };
+  }
 };
 
 /**

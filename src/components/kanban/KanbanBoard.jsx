@@ -214,7 +214,25 @@ const KanbanBoard = ({ activeSprintId = null }) => {
     // Guardar en Firebase (la tarea aparecerá vía sincronización en tiempo real)
     const result = await createTaskInDB({
       ...taskData,
-      status: columnId
+      status: columnId,
+      sprintId: activeSprintId
+    });
+
+    if (!result.success) {
+      setToast({
+        isOpen: true,
+        message: `Error al crear la tarea: ${result.error}`,
+        type: 'error'
+      });
+    }
+  };
+
+  // Función para crear tarea inline desde KanbanColumn
+  const handleCreateTaskInline = async (taskTitle, columnId) => {
+    const result = await createTaskInDB({
+      title: taskTitle,
+      status: columnId,
+      sprintId: activeSprintId
     });
 
     if (!result.success) {
@@ -378,6 +396,7 @@ const KanbanBoard = ({ activeSprintId = null }) => {
                 tasks={tasks.filter(task => task.status === column.id)}
                 onAddTask={handleAddTask}
                 onDeleteTask={archiveTask}
+                onCreateTask={handleCreateTaskInline}
               />
             ))}
           </div>

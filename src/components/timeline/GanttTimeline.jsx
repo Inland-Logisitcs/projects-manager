@@ -428,7 +428,7 @@ const GanttTimeline = ({ projects, onUpdate }) => {
                 color: 'var(--text-primary)',
                 marginBottom: '4px'
               }}>
-                {task.name}
+                {task.title}
               </div>
               <div style={{
                 fontSize: '0.75rem',

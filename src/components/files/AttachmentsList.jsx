@@ -6,7 +6,14 @@ import ConfirmDialog from '../common/ConfirmDialog';
 import { uploadAttachment, formatFileSize, getFileIcon, deleteFile } from '../../services/storageService';
 import '../../styles/AttachmentsList.css';
 
-const AttachmentsList = ({ attachments = [], taskId, onAttachmentsChange, readOnly = false }) => {
+const AttachmentsList = ({
+  attachments = [],
+  taskId,
+  onAttachmentsChange,
+  readOnly = false,
+  showUploadButton = true,
+  fileInputId = null
+}) => {
   const [isUploading, setIsUploading] = useState(false);
   const [pdfToView, setPdfToView] = useState(null);
   const [toast, setToast] = useState(null);
@@ -80,16 +87,19 @@ const AttachmentsList = ({ attachments = [], taskId, onAttachmentsChange, readOn
     <div className="attachments-list">
       {!readOnly && (
         <div className="mb-xs">
-          <button
-            className="btn btn-secondary btn-sm flex items-center gap-xs"
-            onClick={handleFileSelect}
-            disabled={isUploading}
-          >
-            <Icon name="paperclip" size={16} />
-            {isUploading ? 'Subiendo...' : 'Adjuntar archivo'}
-          </button>
+          {showUploadButton && (
+            <button
+              className="btn btn-secondary btn-sm flex items-center gap-xs"
+              onClick={handleFileSelect}
+              disabled={isUploading}
+            >
+              <Icon name="paperclip" size={16} />
+              {isUploading ? 'Subiendo...' : 'Adjuntar archivo'}
+            </button>
+          )}
           <input
             ref={fileInputRef}
+            id={fileInputId}
             type="file"
             style={{ display: 'none' }}
             onChange={handleFileChange}
@@ -134,9 +144,12 @@ const AttachmentsList = ({ attachments = [], taskId, onAttachmentsChange, readOn
           ))}
         </div>
       ) : (
-        <div className="empty-state p-lg">
-          <p className="text-sm text-secondary">Sin archivos adjuntos</p>
-        </div>
+        !readOnly && (
+          <div className="empty-attachments">
+            <Icon name="paperclip" size={32} className="empty-attachments-icon" />
+            <p className="text-sm text-secondary m-0">Sin archivos adjuntos</p>
+          </div>
+        )
       )}
 
       {/* Visor de PDF */}

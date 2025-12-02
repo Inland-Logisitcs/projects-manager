@@ -69,7 +69,10 @@ const KanbanCard = ({ task, isDragging, onDelete }) => {
   const timeInColumn = getTimeInColumn();
 
   const handleAssignUser = async (userId) => {
-    await updateTask(task.id, { assignedTo: userId });
+    await updateTask(task.id, {
+      assignedTo: userId,
+      previousAssignedTo: task.assignedTo
+    });
     setShowUserSelect(false);
   };
 

@@ -180,7 +180,7 @@ const ArchivedTasks = () => {
       />
 
       <div className="archived-tasks-page">
-        <div className="mb-2xl">
+        <div className="mb-md">
           <h1 className="heading-1 text-primary flex items-center gap-sm mb-xs">
             <Icon name="archive" size={32} />
             Tareas Archivadas

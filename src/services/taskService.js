@@ -10,7 +10,8 @@ import {
   orderBy,
   serverTimestamp,
   arrayUnion,
-  getDocs
+  getDocs,
+  getDoc
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
@@ -19,10 +20,27 @@ const TASKS_COLLECTION = 'tasks';
 // Crear una nueva tarea
 export const createTask = async (taskData) => {
   try {
+    const status = taskData.status || null;
+    const movementHistory = [];
+
+    // Si la tarea se crea con un estado (columna), registrar el movimiento inicial
+    if (status) {
+      movementHistory.push({
+        type: 'status_change',
+        from: null,
+        to: status,
+        timestamp: new Date()
+      });
+    }
+
+    // Normalizar: siempre usar 'title' (aceptar 'name' por compatibilidad)
+    const title = taskData.title || taskData.name || '';
+
     const docRef = await addDoc(collection(db, TASKS_COLLECTION), {
       ...taskData,
+      title: title,
       sprintId: taskData.sprintId || null, // null = backlog
-      status: taskData.status || 'pending',
+      status: status,
       priority: taskData.priority || 'medium',
       projectId: taskData.projectId || null,
       assignee: taskData.assignee || null,
@@ -31,9 +49,9 @@ export const createTask = async (taskData) => {
       archived: false,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-      lastStatusChange: serverTimestamp(), // Registrar timestamp inicial
+      lastStatusChange: status ? serverTimestamp() : null, // Timestamp si tiene estado
       previousStatus: null,
-      movementHistory: [], // Inicializar historial de movimientos vacío
+      movementHistory: movementHistory, // Incluir movimiento inicial si tiene estado
       attachments: [] // Inicializar array de adjuntos vacío
     });
     return { success: true, id: docRef.id };
@@ -61,11 +79,22 @@ export const updateTask = async (taskId, updates) => {
       // Solo agregar al historial si el status cambió realmente
       if (updates.previousStatus && updates.previousStatus !== updates.status) {
         updateData.movementHistory = arrayUnion({
+          type: 'status_change',
           from: updates.previousStatus,
           to: updates.status,
           timestamp: new Date() // arrayUnion no acepta serverTimestamp(), usar Date del cliente
         });
       }
+    }
+
+    // Si se está actualizando el assignedTo, registrar en el historial
+    if (updates.hasOwnProperty('assignedTo')) {
+      updateData.movementHistory = arrayUnion({
+        type: 'assignment_change',
+        from: updates.previousAssignedTo || null,
+        to: updates.assignedTo || null,
+        timestamp: new Date()
+      });
     }
 
     await updateDoc(taskRef, updateData);
@@ -225,10 +254,50 @@ export const subscribeToArchivedTasks = (callback) => {
  * Mover tarea a un sprint
  * @param {string} taskId - ID de la tarea
  * @param {string|null} sprintId - ID del sprint (null para backlog)
+ * @param {boolean} isSprintActive - Si el sprint está activo
  * @returns {Object} - Resultado de la operación
  */
-export const moveTaskToSprint = async (taskId, sprintId) => {
-  return updateTask(taskId, { sprintId });
+export const moveTaskToSprint = async (taskId, sprintId, isSprintActive = false) => {
+  try {
+    // Obtener el estado actual de la tarea
+    const taskRef = doc(db, TASKS_COLLECTION, taskId);
+    const taskSnap = await getDoc(taskRef);
+
+    if (!taskSnap.exists()) {
+      return { success: false, error: 'Tarea no encontrada' };
+    }
+
+    const currentTask = taskSnap.data();
+    const updates = { sprintId };
+
+    // Si se mueve a un sprint activo y la tarea no tiene estado, asignar 'pending'
+    if (sprintId && isSprintActive && !currentTask.status) {
+      updates.status = 'pending';
+      updates.previousStatus = null;
+      updates.movementHistory = arrayUnion({
+        type: 'status_change',
+        from: null,
+        to: 'pending',
+        timestamp: new Date()
+      });
+    }
+    // Si se mueve al backlog, quitar el estado y registrar el movimiento
+    else if (!sprintId && currentTask.status) {
+      updates.status = null;
+      updates.previousStatus = currentTask.status;
+      updates.movementHistory = arrayUnion({
+        type: 'status_change',
+        from: currentTask.status,
+        to: null,
+        timestamp: new Date()
+      });
+    }
+
+    return updateTask(taskId, updates);
+  } catch (error) {
+    console.error('Error al mover tarea a sprint:', error);
+    return { success: false, error: error.message };
+  }
 };
 
 /**

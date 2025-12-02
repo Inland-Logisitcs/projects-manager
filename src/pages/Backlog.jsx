@@ -1,18 +1,25 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { subscribeToTasks, updateTask, createTask, archiveTask } from '../services/taskService';
+import { useState, useEffect, useRef } from 'react';
+import { subscribeToTasks, updateTask, createTask, archiveTask, moveTaskToSprint } from '../services/taskService';
 import { subscribeToSprints, createSprint, startSprint } from '../services/sprintService';
+import { subscribeToColumns } from '../services/columnService';
 import Icon from '../components/common/Icon';
 import UserSelect from '../components/common/UserSelect';
 import UserAvatar from '../components/common/UserAvatar';
 import ConfirmDialog from '../components/common/ConfirmDialog';
+import TaskDetailSidebar from '../components/kanban/TaskDetailSidebar';
 import '../styles/Backlog.css';
 
 const Backlog = () => {
   const [tasks, setTasks] = useState([]);
   const [sprints, setSprints] = useState([]);
+  const [columns, setColumns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [showSprintModal, setShowSprintModal] = useState(false);
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [isCreatingTask, setIsCreatingTask] = useState(false);
+  const [newTaskName, setNewTaskName] = useState('');
+  const newTaskInputRef = useRef(null);
 
   useEffect(() => {
     const unsubscribeTasks = subscribeToTasks((fetchedTasks) => {
@@ -24,9 +31,14 @@ const Backlog = () => {
       setSprints(fetchedSprints);
     });
 
+    const unsubscribeColumns = subscribeToColumns((fetchedColumns) => {
+      setColumns(fetchedColumns);
+    });
+
     return () => {
       unsubscribeTasks();
       unsubscribeSprints();
+      unsubscribeColumns();
     };
   }, []);
 
@@ -55,7 +67,11 @@ const Backlog = () => {
     e.preventDefault();
     const taskId = e.dataTransfer.getData('taskId');
     if (taskId) {
-      await updateTask(taskId, { sprintId });
+      // Determinar si el sprint está activo
+      const sprint = sprints.find(s => s.id === sprintId);
+      const isSprintActive = sprint?.status === 'active';
+
+      await moveTaskToSprint(taskId, sprintId, isSprintActive);
     }
   };
 
@@ -63,7 +79,8 @@ const Backlog = () => {
     e.preventDefault();
     const taskId = e.dataTransfer.getData('taskId');
     if (taskId) {
-      await updateTask(taskId, { sprintId: null });
+      // Al mover al backlog, quitar el sprint y el estado
+      await moveTaskToSprint(taskId, null, false);
     }
   };
 
@@ -81,6 +98,49 @@ const Backlog = () => {
     await createSprint(sprintData);
   };
 
+  // Función para iniciar creación inline
+  const handleStartInlineCreate = () => {
+    setIsCreatingTask(true);
+    setNewTaskName('');
+    // Focus en el input después de que se renderice
+    setTimeout(() => {
+      newTaskInputRef.current?.focus();
+    }, 0);
+  };
+
+  // Función para guardar tarea inline
+  const handleSaveInlineTask = async () => {
+    const trimmedName = newTaskName.trim();
+    if (trimmedName) {
+      await createTask({ title: trimmedName });
+      setNewTaskName('');
+      // Mantener el input activo para seguir creando
+      setTimeout(() => {
+        newTaskInputRef.current?.focus();
+      }, 0);
+    } else {
+      // Si está vacío, cancelar
+      setIsCreatingTask(false);
+      setNewTaskName('');
+    }
+  };
+
+  // Función para cancelar creación inline
+  const handleCancelInlineCreate = () => {
+    setIsCreatingTask(false);
+    setNewTaskName('');
+  };
+
+  // Manejar teclas en el input inline
+  const handleInlineInputKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleSaveInlineTask();
+    } else if (e.key === 'Escape') {
+      handleCancelInlineCreate();
+    }
+  };
+
   if (loading) {
     return (
       <div className="backlog-page">
@@ -95,7 +155,7 @@ const Backlog = () => {
   return (
     <div className="backlog-page">
       {/* Header */}
-      <div className="backlog-header flex justify-between items-center mb-2xl pb-base">
+      <div className="backlog-header flex justify-between items-center mb-md pb-base">
         <div className="flex items-center gap-base">
           <h2 className="heading-1 text-primary">Backlog</h2>
           <span className="task-count">
@@ -106,10 +166,6 @@ const Backlog = () => {
           <button className="btn btn-primary flex items-center gap-xs" onClick={() => setShowSprintModal(true)}>
             <Icon name="plus" size={18} />
             Crear Sprint
-          </button>
-          <button className="btn btn-primary flex items-center gap-xs" onClick={() => setShowTaskModal(true)}>
-            <Icon name="plus" size={18} />
-            Crear Tarea
           </button>
         </div>
       </div>
@@ -123,6 +179,7 @@ const Backlog = () => {
           onDragOver={handleDragOver}
           onDrop={(e) => handleDropToSprint(e, sprint.id)}
           onStartSprint={startSprint}
+          onTaskClick={setSelectedTask}
         />
       ))}
 
@@ -136,16 +193,23 @@ const Backlog = () => {
           <div className="flex items-center gap-base flex-1">
             <Icon name="list" size={20} />
             <h3 className="heading-3 text-primary m-0">Backlog</h3>
+            <button
+              className="btn btn-icon btn-sm"
+              onClick={handleStartInlineCreate}
+              title="Crear tarea rápida"
+            >
+              <Icon name="plus" size={18} />
+            </button>
             <span className="count-badge">{backlogTasks.length}</span>
           </div>
         </div>
 
         <div className="tasks-table p-base">
-          {backlogTasks.length === 0 ? (
+          {backlogTasks.length === 0 && !isCreatingTask ? (
             <div className="empty-state text-center p-3xl text-secondary">
               <Icon name="inbox" size={48} />
               <p className="my-base text-base">No hay tareas en el backlog</p>
-              <button onClick={() => setShowTaskModal(true)} className="btn btn-primary btn-sm mt-base">
+              <button onClick={handleStartInlineCreate} className="btn btn-primary btn-sm mt-base">
                 Crear primera tarea
               </button>
             </div>
@@ -163,6 +227,33 @@ const Backlog = () => {
                 </tr>
               </thead>
               <tbody>
+                {isCreatingTask && (
+                  <tr className="inline-create-row">
+                    <td>
+                      <Icon name="plus-circle" size={16} className="inline-create-icon" />
+                    </td>
+                    <td colSpan="6">
+                      <div className="inline-create-wrapper">
+                        <input
+                          ref={newTaskInputRef}
+                          type="text"
+                          className="inline-create-input"
+                          placeholder="Nombre de la tarea..."
+                          value={newTaskName}
+                          onChange={(e) => setNewTaskName(e.target.value)}
+                          onKeyDown={handleInlineInputKeyDown}
+                          onBlur={handleSaveInlineTask}
+                          autoFocus
+                        />
+                        <div className="inline-create-hint">
+                          <span className="hint-text">Presiona Enter para crear</span>
+                          <span className="hint-text">·</span>
+                          <span className="hint-text">Esc para cancelar</span>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                )}
                 {backlogTasks.map(task => (
                   <TaskRow
                     key={task.id}
@@ -170,6 +261,7 @@ const Backlog = () => {
                     onDragStart={handleDragStart}
                     onArchive={archiveTask}
                     onUpdateTask={updateTask}
+                    onTaskClick={setSelectedTask}
                   />
                 ))}
               </tbody>
@@ -192,13 +284,25 @@ const Backlog = () => {
           onSave={handleCreateSprint}
         />
       )}
+
+      {/* Task Detail Sidebar */}
+      {selectedTask && (
+        <TaskDetailSidebar
+          task={selectedTask}
+          columns={columns}
+          onClose={() => setSelectedTask(null)}
+        />
+      )}
     </div>
   );
 };
 
 // Componente de Sprint Section
-const SprintSection = ({ sprint, tasks, onDragOver, onDrop, onStartSprint }) => {
+const SprintSection = ({ sprint, tasks, onDragOver, onDrop, onStartSprint, onTaskClick }) => {
   const [expanded, setExpanded] = useState(true);
+  const [isCreatingTask, setIsCreatingTask] = useState(false);
+  const [newTaskName, setNewTaskName] = useState('');
+  const newTaskInputRef = useRef(null);
 
   const handleStartSprint = () => {
     const today = new Date();
@@ -213,6 +317,54 @@ const SprintSection = ({ sprint, tasks, onDragOver, onDrop, onStartSprint }) => 
     };
 
     onStartSprint(sprint.id, formatDate(today), formatDate(twoWeeksLater));
+  };
+
+  // Función para iniciar creación inline
+  const handleStartInlineCreate = () => {
+    setIsCreatingTask(true);
+    setNewTaskName('');
+    setTimeout(() => {
+      newTaskInputRef.current?.focus();
+    }, 0);
+  };
+
+  // Función para guardar tarea inline
+  const handleSaveInlineTask = async () => {
+    const trimmedName = newTaskName.trim();
+    if (trimmedName) {
+      // Crear tarea asignada al sprint
+      const taskData = {
+        title: trimmedName,
+        sprintId: sprint.id
+      };
+
+      // Si el sprint está activo, asignar estado 'pending'
+      if (sprint.status === 'active') {
+        taskData.status = 'pending';
+      }
+
+      await createTask(taskData);
+      setNewTaskName('');
+      // Mantener el input activo para seguir creando
+      setTimeout(() => {
+        newTaskInputRef.current?.focus();
+      }, 0);
+    } else {
+      // Si está vacío, cancelar
+      setIsCreatingTask(false);
+      setNewTaskName('');
+    }
+  };
+
+  // Manejar teclas en el input inline
+  const handleInlineInputKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleSaveInlineTask();
+    } else if (e.key === 'Escape') {
+      setIsCreatingTask(false);
+      setNewTaskName('');
+    }
   };
 
   return (
@@ -231,6 +383,13 @@ const SprintSection = ({ sprint, tasks, onDragOver, onDrop, onStartSprint }) => 
         <div className="flex items-center gap-base flex-1">
           <Icon name="zap" size={20} />
           <h3 className="heading-3 text-primary m-0">{sprint.name}</h3>
+          <button
+            className="btn btn-icon btn-sm"
+            onClick={handleStartInlineCreate}
+            title="Crear tarea rápida"
+          >
+            <Icon name="plus" size={18} />
+          </button>
           <span className={`status-badge ${sprint.status}`}>
             {sprint.status === 'planned' && 'Planificado'}
             {sprint.status === 'active' && 'Activo'}
@@ -247,9 +406,12 @@ const SprintSection = ({ sprint, tasks, onDragOver, onDrop, onStartSprint }) => 
 
       {expanded && (
         <div className="sprint-tasks p-base">
-          {tasks.length === 0 ? (
+          {tasks.length === 0 && !isCreatingTask ? (
             <div className="empty-sprint text-center p-3xl text-secondary">
               <p className="my-base text-base">Arrastra tareas aquí para agregarlas al sprint</p>
+              <button onClick={handleStartInlineCreate} className="btn btn-primary btn-sm mt-base">
+                Crear primera tarea
+              </button>
             </div>
           ) : (
             <table>
@@ -265,6 +427,33 @@ const SprintSection = ({ sprint, tasks, onDragOver, onDrop, onStartSprint }) => 
                 </tr>
               </thead>
               <tbody>
+                {isCreatingTask && (
+                  <tr className="inline-create-row">
+                    <td>
+                      <Icon name="plus-circle" size={16} className="inline-create-icon" />
+                    </td>
+                    <td colSpan="6">
+                      <div className="inline-create-wrapper">
+                        <input
+                          ref={newTaskInputRef}
+                          type="text"
+                          className="inline-create-input"
+                          placeholder="Nombre de la tarea..."
+                          value={newTaskName}
+                          onChange={(e) => setNewTaskName(e.target.value)}
+                          onKeyDown={handleInlineInputKeyDown}
+                          onBlur={handleSaveInlineTask}
+                          autoFocus
+                        />
+                        <div className="inline-create-hint">
+                          <span className="hint-text">Presiona Enter para crear</span>
+                          <span className="hint-text">·</span>
+                          <span className="hint-text">Esc para cancelar</span>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                )}
                 {tasks.map(task => (
                   <TaskRow
                     key={task.id}
@@ -272,6 +461,7 @@ const SprintSection = ({ sprint, tasks, onDragOver, onDrop, onStartSprint }) => 
                     onDragStart={(e) => e.dataTransfer.setData('taskId', task.id)}
                     onArchive={archiveTask}
                     onUpdateTask={updateTask}
+                    onTaskClick={onTaskClick}
                   />
                 ))}
               </tbody>
@@ -284,7 +474,7 @@ const SprintSection = ({ sprint, tasks, onDragOver, onDrop, onStartSprint }) => 
 };
 
 // Componente de fila de tarea
-const TaskRow = ({ task, onDragStart, onArchive, onUpdateTask }) => {
+const TaskRow = ({ task, onDragStart, onArchive, onUpdateTask, onTaskClick }) => {
   const [showConfirm, setShowConfirm] = useState(false);
   const [showUserSelect, setShowUserSelect] = useState(false);
   const userSelectRef = useRef(null);
@@ -322,7 +512,10 @@ const TaskRow = ({ task, onDragStart, onArchive, onUpdateTask }) => {
   };
 
   const handleAssignUser = async (userId) => {
-    await onUpdateTask(task.id, { assignedTo: userId });
+    await onUpdateTask(task.id, {
+      assignedTo: userId,
+      previousAssignedTo: task.assignedTo
+    });
     setShowUserSelect(false);
   };
 
@@ -343,10 +536,10 @@ const TaskRow = ({ task, onDragStart, onArchive, onUpdateTask }) => {
         draggable
         onDragStart={(e) => onDragStart(e, task)}
       >
-        <td>
+        <td onClick={(e) => e.stopPropagation()}>
           <Icon name="grip-vertical" size={16} style={{ opacity: 0.5, cursor: 'grab' }} />
         </td>
-        <td>
+        <td onClick={() => onTaskClick(task)} style={{ cursor: 'pointer' }}>
           <div className="task-title font-semibold text-primary">{task.title || task.name}</div>
         </td>
         <td>
@@ -409,15 +602,13 @@ const TaskModal = ({ onClose, onSave }) => {
     title: '',
     description: '',
     priority: 'medium',
-    storyPoints: '',
-    status: 'pending'
+    storyPoints: ''
   });
 
   const handleSubmit = (e) => {
     e.preventDefault();
     onSave({
       ...formData,
-      name: formData.title,
       storyPoints: formData.storyPoints ? parseInt(formData.storyPoints) : null
     });
   };

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { subscribeToUsers } from '../../services/userService';
 import UserAvatar from './UserAvatar';
+import '../../styles/UserSelect.css';
 
 const UserSelect = ({
   value,
@@ -20,8 +21,6 @@ const UserSelect = ({
 
     return () => unsubscribe();
   }, []);
-
-  const selectedUser = users.find(user => user.id === value);
 
   // Modo lista - muestra listado directo de usuarios
   if (mode === 'list') {

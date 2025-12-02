@@ -7,6 +7,7 @@ import UserAvatar from '../common/UserAvatar';
 import Toast from '../common/Toast';
 import ConfirmDialog from '../common/ConfirmDialog';
 import { updateTask, archiveTask } from '../../services/taskService';
+import { subscribeToUsers } from '../../services/userService';
 import { cleanupUnusedImages } from '../../utils/imageCleanup';
 import '../../styles/TaskDetailSidebar.css';
 
@@ -25,6 +26,16 @@ const TaskDetailSidebar = ({ task, columns, onClose }) => {
   const [toast, setToast] = useState(null);
   const [showUserSelect, setShowUserSelect] = useState(false);
   const [showArchiveDialog, setShowArchiveDialog] = useState(false);
+  const [showAllHistory, setShowAllHistory] = useState(false);
+  const [users, setUsers] = useState([]);
+
+  // Cargar usuarios
+  useEffect(() => {
+    const unsubscribe = subscribeToUsers((fetchedUsers) => {
+      setUsers(fetchedUsers);
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Actualizar descripción cuando cambia la tarea externamente
   useEffect(() => {
@@ -93,6 +104,19 @@ const TaskDetailSidebar = ({ task, columns, onClose }) => {
     return column ? column.title : columnId;
   };
 
+  // Obtener el color de la columna por su ID
+  const getColumnColor = (columnId) => {
+    const column = columns.find(c => c.id === columnId);
+    return column ? column.color : '#3b82f6';
+  };
+
+  // Obtener el nombre de usuario por su ID
+  const getUserName = (userId) => {
+    if (!userId) return 'Sin asignar';
+    const user = users.find(u => u.id === userId);
+    return user ? (user.displayName || user.email) : 'Usuario desconocido';
+  };
+
   // Formatear duración de tiempo
   const formatDuration = (ms) => {
     const mins = Math.floor(ms / 60000);
@@ -119,20 +143,25 @@ const TaskDetailSidebar = ({ task, columns, onClose }) => {
     // Ordenar por fecha (más reciente primero)
     history.sort((a, b) => b.timestamp - a.timestamp);
 
-    // Calcular duración en cada estado
+    // Calcular duración solo para cambios de estado
     return history.map((entry, index) => {
       let duration = null;
 
-      if (index === 0) {
-        // Es el movimiento más reciente (estado actual), calcular hasta ahora
-        const now = new Date();
-        const diffMs = now - entry.timestamp;
-        duration = formatDuration(diffMs);
-      } else {
-        // Hay un movimiento anterior (más reciente), calcular duración
-        const prevEntry = history[index - 1];
-        const diffMs = prevEntry.timestamp - entry.timestamp;
-        duration = formatDuration(diffMs);
+      // Solo calcular duración para cambios de estado
+      if (entry.type === 'status_change' || !entry.type) { // !entry.type para mantener compatibilidad con datos antiguos
+        if (index === 0) {
+          // Es el movimiento más reciente (estado actual), calcular hasta ahora
+          const now = new Date();
+          const diffMs = now - entry.timestamp;
+          duration = formatDuration(diffMs);
+        } else {
+          // Buscar el siguiente cambio de estado (hacia atrás en el tiempo)
+          const nextStatusChange = history.slice(0, index).find(h => h.type === 'status_change' || !h.type);
+          if (nextStatusChange) {
+            const diffMs = nextStatusChange.timestamp - entry.timestamp;
+            duration = formatDuration(diffMs);
+          }
+        }
       }
 
       return {
@@ -141,6 +170,15 @@ const TaskDetailSidebar = ({ task, columns, onClose }) => {
       };
     });
   }, [task.movementHistory]);
+
+  // Calcular tiempo en la columna actual
+  const timeInCurrentColumn = useMemo(() => {
+    if (!task.lastStatusChange) return null;
+    const lastChange = task.lastStatusChange.toDate ? task.lastStatusChange.toDate() : new Date(task.lastStatusChange);
+    const now = new Date();
+    const diffMs = now - lastChange;
+    return formatDuration(diffMs);
+  }, [task.lastStatusChange]);
 
   // Formatear fecha y hora
   const formatDateTime = (date) => {
@@ -224,56 +262,62 @@ const TaskDetailSidebar = ({ task, columns, onClose }) => {
         {/* Content */}
         <div className="sidebar-content">
           {/* Información principal */}
-          <section className="sidebar-section">
-            <h3 className="heading-3 text-primary mb-base">{task.title}</h3>
-
-            <div className="task-meta flex flex-col gap-base">
-              <div className="flex items-center gap-sm">
-                <span className="text-sm text-secondary font-medium">Estado:</span>
-                <span className="text-base text-primary">{getColumnName(task.status)}</span>
-              </div>
-              <div className="flex items-center gap-sm">
-                <span className="text-sm text-secondary font-medium">Prioridad:</span>
-                <span className={`priority-badge priority-${task.priority}`}>
+          <section className="sidebar-section section-header-integrated">
+            <div className="task-header-row">
+              <h2 className="task-title-integrated">{task.title}</h2>
+              <div className="task-meta-badges">
+                <span
+                  className={`priority-badge priority-${task.priority}`}
+                  title={`Prioridad: ${priorityLabels[task.priority]}`}
+                >
                   {priorityLabels[task.priority]}
                 </span>
+                <span
+                  className="status-badge-integrated"
+                  title="Estado actual"
+                  style={{ backgroundColor: getColumnColor(task.status) }}
+                >
+                  {getColumnName(task.status)}
+                </span>
               </div>
-              <div className="flex items-center gap-sm">
-                <span className="text-sm text-secondary font-medium">Asignado a:</span>
-                <div className="user-assignment" ref={userSelectRef}>
-                  {task.assignedTo ? (
-                    <div
-                      onClick={() => setShowUserSelect(!showUserSelect)}
-                      style={{ cursor: 'pointer' }}
-                    >
-                      <UserAvatar userId={task.assignedTo} size={28} showName={true} />
-                    </div>
-                  ) : (
-                    <button
-                      className="btn-assign-user-sidebar"
-                      onClick={() => setShowUserSelect(!showUserSelect)}
-                    >
-                      <Icon name="user-plus" size={16} />
-                      <span>Asignar usuario</span>
-                    </button>
-                  )}
-                  {showUserSelect && (
-                    <div className="user-select-dropdown-sidebar">
-                      <UserSelect
-                        value={task.assignedTo}
-                        onChange={async (userId) => {
-                          const result = await updateTask(task.id, { assignedTo: userId });
-                          if (!result.success) {
-                            setToast({ message: 'Error al asignar usuario: ' + result.error, type: 'error' });
-                          }
-                          setShowUserSelect(false);
-                        }}
-                        mode="list"
-                      />
-                    </div>
-                  )}
+            </div>
+
+            <div className="task-assignee-row" ref={userSelectRef}>
+              {task.assignedTo ? (
+                <div
+                  onClick={() => setShowUserSelect(!showUserSelect)}
+                  className="assignee-chip-integrated"
+                  title="Cambiar asignación"
+                >
+                  <UserAvatar userId={task.assignedTo} size={24} showName={true} />
                 </div>
-              </div>
+              ) : (
+                <div
+                  className="btn-assign-integrated"
+                  onClick={() => setShowUserSelect(!showUserSelect)}
+                  title="Asignar a un usuario"
+                >
+                  <span>Sin asignar</span>
+                </div>
+              )}
+              {showUserSelect && (
+                <div className="user-select-dropdown-sidebar">
+                  <UserSelect
+                    value={task.assignedTo}
+                    onChange={async (userId) => {
+                      const result = await updateTask(task.id, {
+                        assignedTo: userId,
+                        previousAssignedTo: task.assignedTo
+                      });
+                      if (!result.success) {
+                        setToast({ message: 'Error al asignar usuario: ' + result.error, type: 'error' });
+                      }
+                      setShowUserSelect(false);
+                    }}
+                    mode="list"
+                  />
+                </div>
+              )}
             </div>
 
             <div className="description-section">
@@ -314,7 +358,12 @@ const TaskDetailSidebar = ({ task, columns, onClose }) => {
                   taskId={task.id}
                 />
               ) : (
-                <div className="description-content">
+                <div
+                  className="description-content"
+                  onClick={() => setIsEditingDescription(true)}
+                  style={{ cursor: 'pointer' }}
+                  title="Click para editar"
+                >
                   {description ? (
                     <RichTextEditor
                       value={description}
@@ -331,14 +380,25 @@ const TaskDetailSidebar = ({ task, columns, onClose }) => {
 
           {/* Archivos adjuntos */}
           <section className="sidebar-section">
-            <h4 className="heading-4 text-secondary flex items-center gap-xs mb-base">
-              <Icon name="paperclip" size={18} />
-              Archivos Adjuntos
-            </h4>
+            <div className="flex items-center justify-between mb-base">
+              <h4 className="heading-4 text-secondary flex items-center gap-xs m-0">
+                <Icon name="paperclip" size={18} />
+                Archivos Adjuntos
+              </h4>
+              <button
+                className="btn-add-attachment"
+                onClick={() => document.getElementById(`file-input-${task.id}`)?.click()}
+                title="Adjuntar archivo"
+              >
+                <Icon name="plus" size={16} />
+              </button>
+            </div>
             <AttachmentsList
               attachments={task.attachments || []}
               taskId={task.id}
               onAttachmentsChange={handleAttachmentsChange}
+              showUploadButton={false}
+              fileInputId={`file-input-${task.id}`}
             />
           </section>
 
@@ -357,7 +417,10 @@ const TaskDetailSidebar = ({ task, columns, onClose }) => {
                 <Icon name="clock" size={16} />
                 <div>
                   <span className="date-label">En columna actual desde:</span>
-                  <span className="date-value">{formatDateTime(task.lastStatusChange)}</span>
+                  <span className="date-value">
+                    {formatDateTime(task.lastStatusChange)}
+                    {timeInCurrentColumn && <span className="text-tertiary"> ({timeInCurrentColumn})</span>}
+                  </span>
                 </div>
               </div>
             </div>
@@ -368,38 +431,73 @@ const TaskDetailSidebar = ({ task, columns, onClose }) => {
             <h4 className="heading-4 text-secondary flex items-center gap-xs mb-base">
               <Icon name="timeline" size={18} />
               Historial de Movimientos
+              {historyWithDuration.length > 0 && (
+                <span className="history-count">{historyWithDuration.length}</span>
+              )}
             </h4>
 
             {historyWithDuration.length > 0 ? (
-              <div className="movement-timeline">
-                {historyWithDuration.map((entry, index) => (
-                  <div key={index} className="timeline-entry">
-                    <div className="timeline-marker"></div>
-                    <div className="timeline-content">
-                      <span className="timeline-movement">
-                        <strong>{getColumnName(entry.from)}</strong>
-                        <Icon name="arrow-right" size={12} />
-                        <strong>{getColumnName(entry.to)}</strong>
-                      </span>
-                      <div className="timeline-details">
-                        <span className="timeline-date">
-                          {entry.timestamp.toLocaleDateString('es-ES', {
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </span>
-                        {entry.duration && (
-                          <span className="timeline-duration">
-                            • {entry.duration}
+              <>
+                <div className="movement-timeline">
+                  {(showAllHistory ? historyWithDuration : historyWithDuration.slice(0, 5)).map((entry, index) => (
+                    <div key={index} className="timeline-entry">
+                      <div className="timeline-marker" style={{
+                        backgroundColor: entry.type === 'assignment_change' ? '#f59e0b' : '#015E7C'
+                      }}></div>
+                      <div className="timeline-content">
+                        {entry.type === 'assignment_change' ? (
+                          <span className="timeline-movement">
+                            <Icon name="user" size={12} />
+                            <strong>{getUserName(entry.from)}</strong>
+                            <Icon name="arrow-right" size={12} />
+                            <strong>{getUserName(entry.to)}</strong>
+                          </span>
+                        ) : entry.from === null && entry.to !== null ? (
+                          <span className="timeline-movement">
+                            <Icon name="check-circle" size={12} />
+                            Registrado en <strong>{getColumnName(entry.to)}</strong>
+                          </span>
+                        ) : entry.to === null && entry.from !== null ? (
+                          <span className="timeline-movement">
+                            <Icon name="x-circle" size={12} />
+                            Removido de <strong>{getColumnName(entry.from)}</strong>
+                          </span>
+                        ) : (
+                          <span className="timeline-movement">
+                            <strong>{getColumnName(entry.from)}</strong>
+                            <Icon name="arrow-right" size={12} />
+                            <strong>{getColumnName(entry.to)}</strong>
                           </span>
                         )}
+                        <div className="timeline-details">
+                          <span className="timeline-date">
+                            {entry.timestamp.toLocaleDateString('es-ES', {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                          {entry.duration && (
+                            <span className="timeline-duration">
+                              • {entry.duration}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+                {historyWithDuration.length > 5 && (
+                  <button
+                    className="btn-show-more"
+                    onClick={() => setShowAllHistory(!showAllHistory)}
+                  >
+                    <Icon name={showAllHistory ? 'chevron-up' : 'chevron-down'} size={16} />
+                    {showAllHistory ? 'Ver menos' : `Ver ${historyWithDuration.length - 5} más`}
+                  </button>
+                )}
+              </>
             ) : (
               <div className="empty-history flex flex-col items-center justify-center p-3xl text-secondary text-center">
                 <Icon name="empty" size={32} className="mb-base opacity-50" />

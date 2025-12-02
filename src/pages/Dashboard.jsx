@@ -50,7 +50,7 @@ const Dashboard = () => {
     <div className="dashboard-page">
       {activeSprint ? (
         <>
-          <div className="sprint-header flex justify-between items-center pb-lg mb-2xl">
+          <div className="sprint-header flex justify-between items-center pb-lg mb-md">
             <div className="flex items-center gap-lg">
               <h2 className="heading-2 text-primary flex items-center gap-sm">
                 <Icon name="zap" size={20} />
@@ -82,7 +82,7 @@ const Dashboard = () => {
           <div className="text-center p-3xl">
             <Icon name="zap" size={80} className="dashboard-empty-icon" />
             <h2 className="heading-2 text-primary mb-sm">No hay sprint activo</h2>
-            <p className="text-base text-secondary mb-2xl">Ve al Backlog para crear un sprint y comenzar a trabajar</p>
+            <p className="text-base text-secondary mb-xl">Ve al Backlog para crear un sprint y comenzar a trabajar</p>
             <a href="/backlog" className="btn btn-primary btn-lg flex items-center gap-sm" style={{display: 'inline-flex'}}>
               <Icon name="list" size={20} />
               Ir al Backlog
@@ -156,12 +156,10 @@ const CompleteSprintModal = ({ sprint, tasks, onClose }) => {
     try {
       // 1. Manejar tareas incompletas según la opción elegida
       if (selectedOption === 'backlog') {
-        // Mover al backlog y cambiar status a pending
+        // Mover al backlog y eliminar el estado (queda en null)
+        const { moveTaskToSprint } = await import('../services/taskService');
         for (const task of incompleteTasks) {
-          await updateTask(task.id, {
-            sprintId: null,
-            status: 'pending'
-          });
+          await moveTaskToSprint(task.id, null, false);
         }
       } else if (selectedOption === 'new-sprint') {
         // Crear nuevo sprint ya iniciado y mover las tareas

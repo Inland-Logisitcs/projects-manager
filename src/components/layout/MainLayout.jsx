@@ -59,7 +59,7 @@ const MainLayout = () => {
         </header>
 
         {/* Contenido principal */}
-        <main className="main-container flex-1 p-2xl px-lg">
+        <main className="main-container flex-1">
           <Outlet />
         </main>
       </div>

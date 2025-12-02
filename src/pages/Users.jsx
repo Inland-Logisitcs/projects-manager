@@ -218,7 +218,7 @@ const Users = () => {
 
   return (
     <div className="users-container">
-      <div className="users-header mb-2xl">
+      <div className="users-header mb-md">
         <div className="flex items-start justify-between gap-lg">
           <div>
             <h1 className="heading-1 text-primary mb-xs">Gestión de Usuarios</h1>

@@ -77,7 +77,7 @@ const Projects = () => {
       )}
 
       <div className="projects-page">
-        <div className="projects-header mb-2xl px-2xl">
+        <div className="projects-header mb-md">
           <div className="flex justify-between items-center mb-lg">
             <div className="flex items-center gap-base">
               <h1 className="heading-1 text-primary">Cronograma</h1>

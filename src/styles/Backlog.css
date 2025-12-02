@@ -28,7 +28,7 @@
   border-radius: 12px;
   border: 2px solid transparent;
   margin-bottom: 1.5rem;
-  overflow: hidden;
+  overflow: visible;
   transition: all 0.2s ease;
 }
 
@@ -118,7 +118,7 @@ table {
   border-collapse: collapse;
   background-color: white;
   border-radius: 8px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 thead {
@@ -152,6 +152,7 @@ th {
 .task-row td {
   padding: 1rem;
   vertical-align: middle;
+  overflow: visible;
 }
 
 .task-title {
@@ -159,6 +160,11 @@ th {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.task-row td[style*="cursor: pointer"]:hover .task-title {
+  color: var(--primary-color);
+  text-decoration: underline;
 }
 
 .priority-badge {
@@ -250,8 +256,78 @@ th {
   border: 1px solid var(--border-color);
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  z-index: 10;
+  z-index: 100;
   min-width: 200px;
   max-height: 300px;
   overflow-y: auto;
+}
+
+/* Inline task creation row */
+.inline-create-row {
+  background-color: rgba(0, 153, 204, 0.03);
+  border-bottom: 1px solid var(--border-color);
+  animation: slideDown 0.2s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.inline-create-row td {
+  padding: 0.75rem 1rem;
+  vertical-align: middle;
+}
+
+.inline-create-icon {
+  color: var(--accent-color);
+  opacity: 0.6;
+}
+
+.inline-create-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.inline-create-input {
+  border: 2px solid var(--accent-color);
+  border-radius: 6px;
+  padding: 0.75rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  background-color: white;
+  outline: none;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 153, 204, 0.1);
+}
+
+.inline-create-input:focus {
+  border-color: var(--accent-color);
+  box-shadow: 0 4px 12px rgba(0, 153, 204, 0.2);
+}
+
+.inline-create-input::placeholder {
+  color: var(--text-tertiary);
+  font-weight: 400;
+}
+
+.inline-create-hint {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  padding-left: 0.25rem;
+}
+
+.hint-text {
+  color: var(--text-tertiary);
 }

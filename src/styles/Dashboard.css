@@ -3,6 +3,9 @@
   width: 100%;
   max-width: 100%;
   height: 100%;
+  padding: 2rem;
+  overflow-x: hidden;
+  overflow-y: visible;
 }
 
 .sprint-header {
@@ -94,6 +97,10 @@
 
 /* Responsive */
 @media (max-width: 768px) {
+  .dashboard-page {
+    padding: 1rem;
+  }
+
   .sprint-header {
     flex-direction: column;
     align-items: flex-start !important;
