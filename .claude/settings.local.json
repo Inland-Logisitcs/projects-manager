@@ -3,7 +3,12 @@
     "allow": [
       "Read(//Users/kevinmoran/Documents/INLAND/**)",
       "Bash(npm create:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run build:*)",
+      "Bash(git commit:*)",
+      "Bash(git add:*)",
+      "Bash(git rm:*)"
     ],
     "deny": [],
     "ask": []
