@@ -1,0 +1,84 @@
+/* ========================================
+   TARJETAS - Sistema de utilidades
+   ======================================== */
+
+.card {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--transition-base);
+}
+
+.card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.card-header {
+  padding: var(--space-base) var(--space-md);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.card-title {
+  font-size: var(--font-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.card-body {
+  padding: var(--space-md);
+}
+
+.card-footer {
+  padding: var(--space-base) var(--space-md);
+  border-top: 1px solid var(--border-light);
+  background: var(--bg-secondary);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+}
+
+/* Variantes */
+.card-flat {
+  box-shadow: none;
+  border: 1px solid var(--border-light);
+}
+
+.card-bordered {
+  border: 2px solid var(--border-medium);
+  box-shadow: none;
+}
+
+.card-elevated {
+  box-shadow: var(--shadow-lg);
+  border: none;
+}
+
+/* Tamaños de padding */
+.card-compact .card-header,
+.card-compact .card-body,
+.card-compact .card-footer {
+  padding: var(--space-sm) var(--space-base);
+}
+
+.card-loose .card-header,
+.card-loose .card-body,
+.card-loose .card-footer {
+  padding: var(--space-lg) var(--space-xl);
+}
+
+/* Estado clickeable */
+.card-clickable {
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.card-clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--color-primary-light);
+}
+
+.card-clickable:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-md);
+}

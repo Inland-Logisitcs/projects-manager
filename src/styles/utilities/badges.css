@@ -1,0 +1,108 @@
+/* ========================================
+   BADGES - Sistema de utilidades
+   ======================================== */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.625rem;
+  font-size: var(--font-xs);
+  font-weight: var(--font-weight-medium);
+  line-height: 1;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+
+/* Variantes de color */
+.badge-primary {
+  background: var(--color-primary-lighter);
+  color: var(--color-primary-dark);
+}
+
+.badge-success {
+  background: var(--color-success-light);
+  color: var(--color-success-dark);
+}
+
+.badge-warning {
+  background: var(--color-warning-light);
+  color: var(--color-warning-dark);
+}
+
+.badge-danger {
+  background: var(--color-error-light);
+  color: var(--color-error-dark);
+}
+
+.badge-info {
+  background: var(--color-info-light);
+  color: var(--color-info);
+}
+
+.badge-neutral {
+  background: var(--gray-100);
+  color: var(--gray-700);
+}
+
+/* Prioridades */
+.badge-priority-low {
+  background: var(--priority-low-light);
+  color: var(--priority-low-dark);
+}
+
+.badge-priority-medium {
+  background: var(--priority-medium-light);
+  color: var(--priority-medium-dark);
+}
+
+.badge-priority-high {
+  background: var(--priority-high-light);
+  color: var(--color-error-dark);
+}
+
+.badge-priority-critical {
+  background: var(--priority-critical-light);
+  color: var(--priority-critical);
+}
+
+/* Estados de tareas */
+.badge-status-pending {
+  background: var(--status-pending-bg);
+  color: var(--status-pending-text);
+}
+
+.badge-status-in-progress {
+  background: var(--status-in-progress-bg);
+  color: var(--status-in-progress-text);
+}
+
+.badge-status-qa {
+  background: var(--status-qa-bg);
+  color: var(--status-qa-text);
+}
+
+.badge-status-completed {
+  background: var(--status-completed-bg);
+  color: var(--status-completed-text);
+}
+
+/* Tamaños */
+.badge-sm {
+  padding: 0.125rem 0.5rem;
+  font-size: 0.625rem;
+}
+
+.badge-lg {
+  padding: 0.375rem 0.75rem;
+  font-size: var(--font-sm);
+}
+
+/* Badge con punto */
+.badge-dot::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}

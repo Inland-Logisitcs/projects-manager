@@ -1,0 +1,148 @@
+/* ========================================
+   TIPOGRAFÍA - Sistema de utilidades
+   ======================================== */
+
+/* Títulos */
+.heading-1 {
+  font-size: var(--font-3xl);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.2;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.heading-2 {
+  font-size: var(--font-2xl);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.3;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.heading-3 {
+  font-size: var(--font-xl);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.4;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.heading-4 {
+  font-size: var(--font-lg);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.4;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+/* Texto del cuerpo */
+.text-base {
+  font-size: var(--font-base);
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+
+.text-sm {
+  font-size: var(--font-sm);
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.text-xs {
+  font-size: var(--font-xs);
+  line-height: 1.5;
+  color: var(--text-tertiary);
+}
+
+/* Colores de texto */
+.text-primary {
+  color: var(--text-primary);
+}
+
+.text-secondary {
+  color: var(--text-secondary);
+}
+
+.text-tertiary {
+  color: var(--text-tertiary);
+}
+
+.text-disabled {
+  color: var(--text-disabled);
+}
+
+.text-inverse {
+  color: var(--text-inverse);
+}
+
+.text-success {
+  color: var(--color-success);
+}
+
+.text-warning {
+  color: var(--color-warning-dark);
+}
+
+.text-error {
+  color: var(--color-error);
+}
+
+.text-info {
+  color: var(--color-info);
+}
+
+/* Pesos de fuente */
+.font-normal {
+  font-weight: var(--font-weight-normal);
+}
+
+.font-medium {
+  font-weight: var(--font-weight-medium);
+}
+
+.font-semibold {
+  font-weight: var(--font-weight-semibold);
+}
+
+.font-bold {
+  font-weight: var(--font-weight-bold);
+}
+
+/* Alineación de texto */
+.text-left {
+  text-align: left;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.text-right {
+  text-align: right;
+}
+
+/* Truncado de texto */
+.text-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.text-break {
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+/* Etiquetas (labels) */
+.label {
+  display: inline-block;
+  font-size: var(--font-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-xs);
+}
+
+.label-required::after {
+  content: " *";
+  color: var(--color-error);
+}

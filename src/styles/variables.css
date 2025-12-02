@@ -1,0 +1,160 @@
+/* ========================================
+   SISTEMA DE DISEÑO - SYNC PROJECTS
+   ======================================== */
+
+:root {
+  /* ===== Colores Primarios ===== */
+  --color-primary: #015E7C;        /* Azul principal Sync */
+  --color-primary-dark: #014152;   /* Azul oscuro */
+  --color-primary-light: #0099CC;  /* Azul claro - Accent Sync */
+  --color-primary-lighter: #b3e5f5; /* Azul muy claro */
+
+  /* Aliases para compatibilidad con componentes existentes */
+  --primary-color: #015E7C;        /* Alias de color-primary */
+  --accent-color: #0099CC;         /* Alias de color-primary-light */
+  --accent-dark: #007ba3;          /* Versión oscura del accent */
+
+  --color-secondary: #073b4c;      /* Gris azulado oscuro */
+  --color-secondary-dark: #012a36;
+  --color-secondary-light: #118ab2;
+
+  /* ===== Colores de Estado ===== */
+  --color-success: #06d6a0;        /* Verde Sync */
+  --color-success-dark: #05a57a;
+  --color-success-light: #d1fae5;
+
+  --color-warning: #ffd166;        /* Amarillo Sync */
+  --color-warning-dark: #e6b84f;
+  --color-warning-light: #fff3d9;
+
+  --color-error: #ef476f;          /* Rojo Sync */
+  --color-error-dark: #d63557;
+  --color-error-light: #fde0e7;
+
+  --color-info: #118ab2;           /* Azul info Sync */
+  --color-info-light: #d4eef5;
+
+  /* ===== Colores de Prioridad ===== */
+  --priority-low: #06d6a0;         /* Verde Sync */
+  --priority-low-light: #d1fae5;
+  --priority-low-dark: #05a57a;
+
+  --priority-medium: #ffd166;      /* Amarillo Sync */
+  --priority-medium-light: #fff3d9;
+  --priority-medium-dark: #e6b84f;
+
+  --priority-high: #ef476f;        /* Rojo Sync */
+  --priority-high-light: #fde0e7;
+
+  --priority-critical: #d63557;    /* Rojo oscuro Sync */
+  --priority-critical-light: #fccdd9;
+
+  /* ===== Colores de Estado de Tareas ===== */
+  --status-pending: #ffd166;       /* Amarillo Sync */
+  --status-pending-bg: #fff3d9;
+  --status-pending-text: #9c7a2f;
+
+  --status-in-progress: #118ab2;   /* Azul Sync */
+  --status-in-progress-bg: #d4eef5;
+  --status-in-progress-text: #014152;
+
+  --status-qa: #8b5cf6;            /* Morado */
+  --status-qa-bg: #ede9fe;
+  --status-qa-text: #5b21b6;
+
+  --status-completed: #06d6a0;     /* Verde Sync */
+  --status-completed-bg: #d1fae5;
+  --status-completed-text: #035a47;
+
+  /* ===== Colores Neutros ===== */
+  --gray-50: #f9fafb;
+  --gray-100: #f3f4f6;
+  --gray-200: #e5e7eb;
+  --gray-300: #d1d5db;
+  --gray-400: #9ca3af;
+  --gray-500: #6b7280;
+  --gray-600: #4b5563;
+  --gray-700: #374151;
+  --gray-800: #1f2937;
+  --gray-900: #111827;
+
+  /* ===== Colores de Texto ===== */
+  --text-primary: var(--gray-900);
+  --text-secondary: var(--gray-600);
+  --text-tertiary: var(--gray-500);
+  --text-disabled: var(--gray-400);
+  --text-inverse: #ffffff;
+  --text-light: var(--gray-500);       /* Alias de text-tertiary */
+
+  /* ===== Colores de Fondo ===== */
+  --bg-primary: #ffffff;
+  --bg-secondary: var(--gray-50);
+  --bg-tertiary: var(--gray-100);
+  --bg-overlay: rgba(0, 0, 0, 0.5);
+
+  /* ===== Colores de Bordes ===== */
+  --border-light: var(--gray-200);
+  --border-medium: var(--gray-300);
+  --border-dark: var(--gray-400);
+  --border-color: var(--gray-200);     /* Alias de border-light */
+
+  /* ===== Colores de Acción ===== */
+  --action-hover: var(--gray-100);
+  --action-active: var(--gray-200);
+  --action-disabled: var(--gray-300);
+
+  /* ===== Sombras ===== */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-base: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+
+  /* ===== Radius ===== */
+  --radius-sm: 0.25rem;   /* 4px */
+  --radius-base: 0.5rem;  /* 8px */
+  --radius-md: 0.75rem;   /* 12px */
+  --radius-lg: 1rem;      /* 16px */
+  --radius-full: 9999px;
+
+  /* ===== Espaciado ===== */
+  --space-xs: 0.25rem;    /* 4px */
+  --space-sm: 0.5rem;     /* 8px */
+  --space-base: 1rem;     /* 16px */
+  --space-md: 1.5rem;     /* 24px */
+  --space-lg: 2rem;       /* 32px */
+  --space-xl: 3rem;       /* 48px */
+  --space-2xl: 4rem;      /* 64px */
+
+  /* ===== Tipografía ===== */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+
+  --font-xs: 0.75rem;     /* 12px */
+  --font-sm: 0.875rem;    /* 14px */
+  --font-base: 1rem;      /* 16px */
+  --font-lg: 1.125rem;    /* 18px */
+  --font-xl: 1.25rem;     /* 20px */
+  --font-2xl: 1.5rem;     /* 24px */
+  --font-3xl: 1.875rem;   /* 30px */
+  --font-4xl: 2.25rem;    /* 36px */
+
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* ===== Transiciones ===== */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ===== Z-Index ===== */
+  --z-dropdown: 1000;
+  --z-sticky: 1020;
+  --z-fixed: 1030;
+  --z-modal-backdrop: 1040;
+  --z-modal: 1050;
+  --z-popover: 1060;
+  --z-tooltip: 1070;
+}

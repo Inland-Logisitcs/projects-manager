@@ -1,0 +1,16 @@
+/* ========================================
+   UTILIDADES - Importación central
+   ======================================== */
+
+/* Variables del sistema de diseño */
+@import './variables.css';
+
+/* Componentes de utilidad */
+@import './utilities/layout.css';
+@import './utilities/typography.css';
+@import './utilities/buttons.css';
+@import './utilities/forms.css';
+@import './utilities/cards.css';
+@import './utilities/badges.css';
+@import './utilities/modals.css';
+@import './utilities/misc.css';
