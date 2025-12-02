@@ -346,24 +346,21 @@ const KanbanBoard = ({ activeSprintId = null }) => {
       )}
 
       <div className="kanban-board">
-        <div className="kanban-header flex justify-between items-center mb-xl pb-base border-b-light">
-          <div className="flex flex-col gap-sm">
-            <h2 className="heading-2 text-primary">Tablero de Proyectos</h2>
-            <div className="kanban-stats flex gap-base">
-              <span className="stat text-sm text-secondary">
-                <strong className="text-primary">{tasks.length}</strong> tareas totales
-              </span>
-              <span className="stat text-sm text-secondary">
-                <strong className="text-primary">{tasks.filter(t => t.status === 'completed').length}</strong> completadas
-              </span>
-            </div>
+        <div className="kanban-header flex justify-between items-center pb-lg border-b-light">
+          <div className="kanban-stats flex gap-lg">
+            <span className="stat text-sm text-secondary">
+              <strong className="text-primary">{tasks.length}</strong> tareas totales
+            </span>
+            <span className="stat text-sm text-secondary">
+              <strong className="text-primary">{tasks.filter(t => t.status === 'completed').length}</strong> completadas
+            </span>
           </div>
           <button
             className="btn btn-secondary flex items-center gap-xs"
             onClick={() => setShowColumnManager(true)}
             title="Gestionar columnas"
           >
-            <Icon name="settings" size={20} />
+            <Icon name="settings" size={18} />
             <span>Gestionar Columnas</span>
           </button>
         </div>

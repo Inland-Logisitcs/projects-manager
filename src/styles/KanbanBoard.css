@@ -3,9 +3,20 @@
 }
 
 /* Kanban Stats - Component specific */
+.kanban-stats {
+  align-items: center;
+}
+
+.kanban-stats .stat {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
 .kanban-stats .stat strong {
-  font-size: 1.25rem;
-  margin-right: 0.25rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .kanban-columns {
@@ -15,6 +26,11 @@
   overflow-x: auto;
   overflow-y: visible;
   padding-bottom: 1rem;
+}
+
+.kanban-header {
+  margin: 1rem 0;
+  padding: 0 0.5rem;
 }
 
 .kanban-columns::-webkit-scrollbar {

@@ -55,10 +55,10 @@ const Sidebar = ({ collapsed, onToggle }) => {
 
   return (
     <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
-      <div className="sidebar-header flex items-center justify-between p-lg px-base">
+      <div className="sidebar-header flex items-center justify-between p-base">
         <div className="sidebar-logo flex items-center gap-sm">
           <img src={logo} alt="Sync Projects" className="sidebar-logo-img" />
-          {!collapsed && <span className="font-bold text-base text-primary">Sync Projects</span>}
+          {!collapsed && <span className="font-bold text-lg text-primary">Sync Projects</span>}
         </div>
         <button className="sidebar-toggle flex items-center justify-center" onClick={onToggle}>
           {collapsed ? '▶' : '◀'}

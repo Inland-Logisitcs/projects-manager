@@ -19,17 +19,20 @@
 
 .sidebar-header {
   border-bottom: 1px solid var(--border-color);
+  min-height: 83px;
 }
 
 .sidebar-logo {
   min-width: 0;
   flex: 1;
+  align-items: center;
 }
 
 .sidebar-logo-img {
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   flex-shrink: 0;
+  display: block;
 }
 
 .sidebar.collapsed .sidebar-logo span {
