@@ -1,0 +1,105 @@
+/* ArchivedTasks - Estilos específicos */
+.archived-tasks-page {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.task-title {
+  font-weight: 500;
+  color: #333;
+  max-width: 250px;
+}
+
+.task-description {
+  color: #666;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-description em {
+  color: #999;
+}
+
+.task-date {
+  color: #666;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+/* Badges */
+.priority-badge,
+.status-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.priority-low {
+  background: var(--priority-low-light);
+  color: var(--priority-low);
+}
+
+.priority-medium {
+  background: var(--priority-medium-light);
+  color: var(--priority-medium-dark);
+}
+
+.priority-high {
+  background: var(--priority-high-light);
+  color: var(--priority-high);
+}
+
+.priority-critical {
+  background: var(--priority-critical-light);
+  color: var(--priority-critical);
+}
+
+.status-pending {
+  background: var(--status-pending-bg);
+  color: var(--status-pending-text);
+}
+
+.status-in-progress {
+  background: var(--status-in-progress-bg);
+  color: var(--status-in-progress-text);
+}
+
+.status-qa {
+  background: var(--status-qa-bg);
+  color: var(--status-qa-text);
+}
+
+.status-completed {
+  background: var(--status-completed-bg);
+  color: var(--status-completed-text);
+}
+
+
+/* Error State específico */
+.archived-error-state {
+  text-align: center;
+  padding: 4rem 2rem;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin: 2rem auto;
+  max-width: 600px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .archived-tasks-page {
+    padding: 1rem;
+  }
+
+  .task-title,
+  .task-description {
+    max-width: 150px;
+  }
+}
