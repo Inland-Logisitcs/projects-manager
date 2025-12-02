@@ -64,6 +64,28 @@ Users cannot self-register. Create users manually in Firebase Console > Authenti
 
 ## Architecture
 
+### Component Organization
+Components are organized by domain/functionality in a modular structure:
+
+```
+src/components/
+├── common/          # Reusable UI components (Icon, Toast, ConfirmDialog, UserAvatar, UserSelect)
+├── editors/         # Rich text and content editors (RichTextEditor)
+├── files/           # File handling components (AttachmentsList, PdfViewer)
+├── kanban/          # Kanban board components (KanbanBoard, KanbanCard, KanbanColumn, ColumnManager, TaskDetailSidebar)
+├── layout/          # Layout components (MainLayout, Sidebar)
+├── modals/          # Modal dialogs (CreateUserModal)
+├── routing/         # Route guards (ProtectedRoute, AdminRoute)
+├── tables/          # Table components (Table, TableActions)
+└── timeline/        # Gantt timeline (GanttTimeline)
+```
+
+**When creating new components:**
+1. Place in the appropriate domain folder (create new folder if needed)
+2. Use PascalCase for component files (e.g., `MyComponent.jsx`)
+3. Create corresponding CSS file in `src/styles/` if component-specific styles are needed
+4. Prefer using utility classes over custom CSS (see Design System below)
+
 ### Core Data Flow
 1. **Real-time subscriptions**: All data syncing uses Firestore's `onSnapshot` for real-time updates
 2. **Service layer pattern**: Business logic is centralized in `src/services/`:
@@ -73,7 +95,7 @@ Users cannot self-register. Create users manually in Firebase Console > Authenti
    - [storageService.js](src/services/storageService.js) - File uploads (images, PDFs, attachments)
    - [projectService.js](src/services/projectService.js) - Projects for Gantt view
    - [userService.js](src/services/userService.js) - User profile management and role updates
-3. **Optimistic updates**: UI updates immediately before Firebase confirms changes (see [KanbanBoard.jsx](src/components/KanbanBoard.jsx#L28))
+3. **Optimistic updates**: UI updates immediately before Firebase confirms changes (see [KanbanBoard.jsx](src/components/kanban/KanbanBoard.jsx#L28))
 
 ### Routing Structure
 The app uses React Router with protected routes wrapped in [MainLayout](src/components/MainLayout.jsx):
@@ -172,43 +194,189 @@ See [taskService.js](src/services/taskService.js#L144) for example error handlin
 ## Design System
 
 ### CSS Utilities System
-The project uses a **modular utility-first CSS system** located in [src/styles/utilities/](src/styles/utilities/). Always use utility classes instead of writing custom CSS when possible.
+The project uses a **modular utility-first CSS system** (similar to Tailwind) located in [src/styles/utilities/](src/styles/utilities/). **ALWAYS use utility classes instead of writing custom CSS or inline styles.**
 
-**Available utility modules:**
-- **[buttons.css](src/styles/utilities/buttons.css)** - Button styles (`.btn`, `.btn-primary`, `.btn-secondary`, `.btn-danger`, `.btn-icon`, etc.)
-- **[typography.css](src/styles/utilities/typography.css)** - Text styles (`.heading-1`, `.heading-2`, `.text-base`, `.text-sm`, `.font-bold`, etc.)
-- **[forms.css](src/styles/utilities/forms.css)** - Form elements (`.input`, `.select`, `.textarea`, `.form-group`, etc.)
-- **[layout.css](src/styles/utilities/layout.css)** - Layout utilities (`.flex`, `.grid`, `.gap-base`, `.p-md`, `.mb-lg`, etc.)
-- **[cards.css](src/styles/utilities/cards.css)** - Card components (`.card`, `.card-header`, `.card-body`, `.card-footer`, etc.)
-- **[badges.css](src/styles/utilities/badges.css)** - Status badges (`.badge`, `.badge-primary`, `.badge-priority-high`, etc.)
-- **[modals.css](src/styles/utilities/modals.css)** - Modal dialogs (`.modal-overlay`, `.modal-content`, `.modal-header`, etc.)
-- **[misc.css](src/styles/utilities/misc.css)** - Miscellaneous (`.empty-state`, `.spinner`, `.divider`, `.avatar`, etc.)
+#### Available Utility Modules
 
-All utilities are imported via [utilities.css](src/styles/utilities.css) which is loaded in [index.css](src/styles/index.css).
-
-**Design tokens** are defined in [variables.css](src/styles/variables.css):
-- Colors: `--color-primary`, `--color-success`, `--color-error`, etc.
-- Spacing: `--space-xs`, `--space-sm`, `--space-base`, `--space-md`, `--space-lg`, etc.
-- Typography: `--font-sm`, `--font-base`, `--font-lg`, `--font-weight-medium`, etc.
-- Shadows: `--shadow-sm`, `--shadow-base`, `--shadow-md`, `--shadow-lg`, etc.
-- Radius: `--radius-sm`, `--radius-base`, `--radius-md`, `--radius-lg`, etc.
-
-**Examples:**
+**[buttons.css](src/styles/utilities/buttons.css)** - Button styles
 ```jsx
-// ❌ DON'T write custom CSS
-<button style={{ background: '#015E7C', padding: '0.625rem 1rem' }}>Save</button>
-
-// ✅ DO use utility classes
-<button className="btn btn-primary">Save</button>
-
-// ❌ DON'T write custom CSS for common layouts
-<div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>...</div>
-
-// ✅ DO use utility classes
-<div className="flex gap-base items-center">...</div>
+<button className="btn btn-primary">Primary</button>
+<button className="btn btn-secondary">Secondary</button>
+<button className="btn btn-danger">Delete</button>
+<button className="btn btn-primary btn-sm">Small</button>
+<button className="btn btn-primary btn-lg">Large</button>
+<button className="btn btn-icon"><Icon name="x" /></button>
 ```
 
-**Component-specific CSS** should only be used for unique component styles that can't be achieved with utilities. Store these in `src/styles/[ComponentName].css`.
+**[typography.css](src/styles/utilities/typography.css)** - Text styles
+```jsx
+<h1 className="heading-1 text-primary">Main Title</h1>
+<h2 className="heading-2 text-secondary">Subtitle</h2>
+<p className="text-base">Regular text</p>
+<p className="text-sm text-secondary">Small secondary text</p>
+<p className="text-xs text-tertiary">Extra small tertiary</p>
+<span className="font-bold">Bold text</span>
+<span className="font-medium">Medium weight</span>
+```
+
+**[forms.css](src/styles/utilities/forms.css)** - Form elements
+```jsx
+<div className="form-group">
+  <label className="label">Name *</label>
+  <input type="text" className="input" />
+</div>
+
+<div className="form-group">
+  <label className="label">Description</label>
+  <textarea className="textarea" rows={3}></textarea>
+</div>
+
+<select className="select">
+  <option>Option 1</option>
+</select>
+```
+
+**[layout.css](src/styles/utilities/layout.css)** - Layout utilities
+```jsx
+// Flexbox
+<div className="flex items-center justify-between gap-base">
+<div className="flex flex-col gap-sm">
+
+// Grid
+<div className="grid grid-cols-2 gap-base">
+
+// Spacing (xs, sm, base, md, lg, xl, 2xl, 3xl, 4xl)
+<div className="p-base">Padding all sides</div>
+<div className="px-lg py-sm">Padding x and y</div>
+<div className="m-base">Margin all sides</div>
+<div className="mb-lg">Margin bottom</div>
+<div className="gap-sm">Gap between flex/grid children</div>
+
+// Border utilities
+<div className="border-b-light">Bottom border</div>
+<div className="border-t-medium">Top border</div>
+```
+
+**[cards.css](src/styles/utilities/cards.css)** - Card components
+```jsx
+<div className="card">
+  <div className="card-header">Header</div>
+  <div className="card-body">Content</div>
+  <div className="card-footer">Footer</div>
+</div>
+```
+
+**[badges.css](src/styles/utilities/badges.css)** - Status badges
+```jsx
+<span className="badge badge-primary">Primary</span>
+<span className="badge badge-success">Success</span>
+<span className="badge badge-warning">Warning</span>
+<span className="badge badge-error">Error</span>
+<span className="badge badge-priority-high">High Priority</span>
+```
+
+**[modals.css](src/styles/utilities/modals.css)** - Modal dialogs
+```jsx
+<div className="modal-overlay" onClick={onClose}>
+  <div className="modal-content" onClick={e => e.stopPropagation()}>
+    <h3 className="modal-header">Title</h3>
+    <p className="text-base text-secondary mb-base">Content</p>
+    <div className="modal-footer flex justify-end gap-sm">
+      <button className="btn btn-secondary">Cancel</button>
+      <button className="btn btn-primary">Confirm</button>
+    </div>
+  </div>
+</div>
+```
+
+**[misc.css](src/styles/utilities/misc.css)** - Miscellaneous utilities
+```jsx
+<div className="empty-state">
+  <div className="spinner"></div>
+  <p>Loading...</p>
+</div>
+
+<div className="divider"></div>
+<div className="avatar">JD</div>
+```
+
+#### Design Tokens
+All design tokens are defined in [variables.css](src/styles/variables.css):
+
+**Colors:**
+- `--color-primary`, `--color-accent`, `--color-success`, `--color-warning`, `--color-error`
+- `--text-primary`, `--text-secondary`, `--text-tertiary`, `--text-inverse`
+- `--bg-primary`, `--bg-secondary`, `--bg-tertiary`
+- `--border-light`, `--border-medium`, `--border-dark`
+
+**Spacing:** `--space-xs` (0.25rem), `--space-sm` (0.5rem), `--space-base` (1rem), `--space-md` (1.5rem), `--space-lg` (2rem), `--space-xl` (3rem), `--space-2xl` (4rem), `--space-3xl` (6rem), `--space-4xl` (8rem)
+
+**Typography:** `--font-xs` (0.75rem), `--font-sm` (0.875rem), `--font-base` (1rem), `--font-lg` (1.125rem), `--font-xl` (1.25rem), etc.
+
+**Shadows:** `--shadow-sm`, `--shadow-base`, `--shadow-md`, `--shadow-lg`, `--shadow-xl`
+
+**Border radius:** `--radius-sm`, `--radius-base`, `--radius-md`, `--radius-lg`
+
+#### Best Practices
+
+**✅ DO: Use utility classes**
+```jsx
+// Good - uses utilities
+<div className="flex items-center justify-between gap-base p-lg border-b-light">
+  <h2 className="heading-2 text-primary">Title</h2>
+  <button className="btn btn-primary">Action</button>
+</div>
+```
+
+**❌ DON'T: Write inline styles**
+```jsx
+// Bad - inline styles
+<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', padding: '2rem', borderBottom: '1px solid var(--border-color)' }}>
+  <h2 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)' }}>Title</h2>
+  <button style={{ background: '#015E7C', padding: '0.625rem 1rem' }}>Action</button>
+</div>
+```
+
+**✅ DO: Combine utilities**
+```jsx
+// Good - composing utilities
+<div className="card">
+  <div className="flex justify-between items-center p-base border-b-light">
+    <h3 className="heading-3 text-primary">Card Title</h3>
+    <button className="btn btn-icon"><Icon name="x" /></button>
+  </div>
+  <div className="p-base">
+    <p className="text-base text-secondary mb-sm">Content here</p>
+  </div>
+</div>
+```
+
+**When to create component-specific CSS:**
+Only create custom CSS in `src/styles/[ComponentName].css` for:
+- Complex positioning (fixed, absolute, sticky)
+- Custom animations and transitions
+- Library-specific styles (react-pdf, gantt-task-react, tiptap)
+- Complex pseudo-elements (::before, ::after)
+- Media queries with component-specific behavior
+- Styles that can't be achieved with utilities
+
+**Example of good component-specific CSS:**
+```css
+/* MyComponent.css - only unique styles */
+.my-component-special {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+```
+
+**Migration status:** 100% of components have been migrated to use utilities where applicable (see [CSS_MIGRATION.md](CSS_MIGRATION.md)).
 
 ## Common Patterns
 
