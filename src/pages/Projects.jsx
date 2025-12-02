@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
 import { subscribeToProjects, createProject, updateProject, deleteProject } from '../services/projectService';
-import GanttTimeline from '../components/GanttTimeline';
-import Icon from '../components/Icon';
+import GanttTimeline from '../components/timeline/GanttTimeline';
+import Icon from '../components/common/Icon';
+import Toast from '../components/common/Toast';
 import '../styles/Projects.css';
 
 const Projects = () => {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [toast, setToast] = useState({ isOpen: false, message: '', type: 'error' });
 
   useEffect(() => {
     const unsubscribe = subscribeToProjects((fetchedProjects) => {
@@ -23,30 +25,40 @@ const Projects = () => {
     if (result.success) {
       setShowModal(false);
     } else {
-      alert('Error al crear proyecto: ' + result.error);
+      setToast({
+        isOpen: true,
+        message: `Error al crear proyecto: ${result.error}`,
+        type: 'error'
+      });
     }
   };
 
   const handleUpdateProject = async (projectId, updates) => {
     const result = await updateProject(projectId, updates);
     if (!result.success) {
-      alert('Error al actualizar proyecto: ' + result.error);
+      setToast({
+        isOpen: true,
+        message: `Error al actualizar proyecto: ${result.error}`,
+        type: 'error'
+      });
     }
   };
 
   const handleDeleteProject = async (projectId) => {
-    if (window.confirm('¿Estás seguro de eliminar este proyecto?')) {
-      const result = await deleteProject(projectId);
-      if (!result.success) {
-        alert('Error al eliminar proyecto: ' + result.error);
-      }
+    const result = await deleteProject(projectId);
+    if (!result.success) {
+      setToast({
+        isOpen: true,
+        message: `Error al eliminar proyecto: ${result.error}`,
+        type: 'error'
+      });
     }
   };
 
   if (loading) {
     return (
       <div className="projects-page">
-        <div className="loading-state">
+        <div className="empty-state">
           <div className="spinner"></div>
           <p>Cargando cronograma...</p>
         </div>
@@ -55,22 +67,31 @@ const Projects = () => {
   }
 
   return (
-    <div className="projects-page">
-      <div className="projects-header">
-        <div className="header-top">
-          <div className="header-title">
-            <h1>Cronograma</h1>
-            <span className="project-count">
-              <Icon name="folder" size={16} />
-              {projects.length}
-            </span>
+    <>
+      {toast.isOpen && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast({ isOpen: false, message: '', type: 'error' })}
+        />
+      )}
+
+      <div className="projects-page">
+        <div className="projects-header mb-2xl px-2xl">
+          <div className="flex justify-between items-center mb-lg">
+            <div className="flex items-center gap-base">
+              <h1 className="heading-1 text-primary">Cronograma</h1>
+              <span className="project-count">
+                <Icon name="folder" size={16} />
+                {projects.length}
+              </span>
+            </div>
+            <button className="btn btn-primary flex items-center gap-xs" onClick={() => setShowModal(true)}>
+              <Icon name="plus" size={20} />
+              <span>Nuevo Proyecto</span>
+            </button>
           </div>
-          <button className="btn-create-new" onClick={() => setShowModal(true)}>
-            <Icon name="plus" size={20} />
-            <span>Nuevo Proyecto</span>
-          </button>
         </div>
-      </div>
 
       {projects.length === 0 ? (
         <div className="empty-state-container">
@@ -102,7 +123,8 @@ const Projects = () => {
           onSave={handleCreateProject}
         />
       )}
-    </div>
+      </div>
+    </>
   );
 };
 

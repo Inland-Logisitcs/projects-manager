@@ -7,6 +7,7 @@ import '../styles/Login.css';
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
@@ -23,7 +24,7 @@ const Login = () => {
       return;
     }
 
-    const result = await login(email, password);
+    const result = await login(email, password, rememberMe);
 
     if (result.success) {
       navigate('/dashboard');
@@ -36,22 +37,22 @@ const Login = () => {
 
   return (
     <div className="login-container">
-      <div className="login-card">
-        <div className="login-header">
+      <div className="card login-card">
+        <div className="text-center mb-lg">
           <img src={logo} alt="Sync Projects" className="login-logo" />
-          <h1>Sync Projects</h1>
-          <p>Gestor de Proyectos Kanban</p>
+          <h1 className="heading-2 mb-xs">Sync Projects</h1>
+          <p className="text-base text-secondary">Gestor de Proyectos Kanban</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="login-form">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-md">
           {error && (
-            <div className="error-message">
+            <div className="login-error text-center">
               {error}
             </div>
           )}
 
           <div className="form-group">
-            <label htmlFor="email">Correo electrónico</label>
+            <label htmlFor="email" className="label">Correo electrónico</label>
             <input
               id="email"
               type="email"
@@ -60,11 +61,12 @@ const Login = () => {
               placeholder="tu@email.com"
               disabled={loading}
               autoComplete="email"
+              className="input"
             />
           </div>
 
           <div className="form-group">
-            <label htmlFor="password">Contraseña</label>
+            <label htmlFor="password" className="label">Contraseña</label>
             <input
               id="password"
               type="password"
@@ -73,20 +75,32 @@ const Login = () => {
               placeholder="••••••••"
               disabled={loading}
               autoComplete="current-password"
+              className="input"
             />
+          </div>
+
+          <div className="checkbox">
+            <input
+              type="checkbox"
+              id="rememberMe"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              disabled={loading}
+            />
+            <label htmlFor="rememberMe">Recordarme</label>
           </div>
 
           <button
             type="submit"
-            className="login-button"
+            className="btn btn-primary btn-lg mt-sm"
             disabled={loading}
           >
             {loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
           </button>
         </form>
 
-        <div className="login-footer">
-          <p>Los usuarios deben ser creados desde el panel de administración</p>
+        <div className="login-footer mt-md pt-md text-center">
+          <p className="text-xs text-secondary">Los usuarios deben ser creados desde el panel de administración</p>
         </div>
       </div>
     </div>

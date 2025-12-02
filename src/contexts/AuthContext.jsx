@@ -2,9 +2,13 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import {
   signInWithEmailAndPassword,
   signOut,
-  onAuthStateChanged
+  onAuthStateChanged,
+  setPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence
 } from 'firebase/auth';
 import { auth } from '../config/firebase';
+import { getUserProfile, createUserProfile } from '../services/userService';
 
 const AuthContext = createContext({});
 
@@ -18,19 +22,47 @@ export const useAuth = () => {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      setUser(firebaseUser);
+
+      if (firebaseUser) {
+        // Cargar perfil de usuario desde Firestore
+        const result = await getUserProfile(firebaseUser.uid);
+        if (result.success) {
+          setUserProfile(result.user);
+        } else {
+          // Si no existe perfil, crear uno básico
+          await createUserProfile(firebaseUser.uid, {
+            email: firebaseUser.email,
+            displayName: firebaseUser.displayName || '',
+            role: 'user' // Por defecto, usuarios son 'user', no 'admin'
+          });
+          // Volver a cargar el perfil
+          const retryResult = await getUserProfile(firebaseUser.uid);
+          if (retryResult.success) {
+            setUserProfile(retryResult.user);
+          }
+        }
+      } else {
+        setUserProfile(null);
+      }
+
       setLoading(false);
     });
 
     return unsubscribe;
   }, []);
 
-  const login = async (email, password) => {
+  const login = async (email, password, rememberMe = false) => {
     try {
+      // Configurar persistencia de la sesión
+      const persistence = rememberMe ? browserLocalPersistence : browserSessionPersistence;
+      await setPersistence(auth, persistence);
+
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       return { success: true, user: userCredential.user };
     } catch (error) {
@@ -73,6 +105,8 @@ export const AuthProvider = ({ children }) => {
 
   const value = {
     user,
+    userProfile,
+    isAdmin: userProfile?.role === 'admin',
     loading,
     login,
     logout
