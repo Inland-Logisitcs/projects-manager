@@ -50,9 +50,69 @@
   text-align: center;
 }
 
+.legend-container {
+  margin-left: 1.5rem;
+}
+
+.legend-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.legend-color-id {
+  background-color: #0099CC;
+}
+
+.legend-color-functionality {
+  background-color: #8b5cf6;
+}
+
+.view-mode-select {
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background-color: white;
+  color: var(--text-primary);
+  font-weight: 500;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
 .toolbar-right {
   display: flex;
   gap: 1rem;
+}
+
+/* Tooltip */
+.gantt-tooltip {
+  padding: 12px;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 200px;
+}
+
+.tooltip-title {
+  font-weight: 700;
+  font-size: 1rem;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+
+.tooltip-detail {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.tooltip-detail:last-child {
+  margin-bottom: 0;
+}
+
+/* Button override for danger */
+.btn-danger-bg {
+  background-color: #ef476f !important;
 }
 
 /* Control de zoom */
