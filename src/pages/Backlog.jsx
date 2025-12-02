@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { subscribeToTasks, updateTask, createTask, deleteTask } from '../services/taskService';
+import React, { useState, useEffect, useRef } from 'react';
+import { subscribeToTasks, updateTask, createTask, archiveTask } from '../services/taskService';
 import { subscribeToSprints, createSprint, startSprint } from '../services/sprintService';
-import Icon from '../components/Icon';
+import Icon from '../components/common/Icon';
+import UserSelect from '../components/common/UserSelect';
+import UserAvatar from '../components/common/UserAvatar';
+import ConfirmDialog from '../components/common/ConfirmDialog';
 import '../styles/Backlog.css';
 
 const Backlog = () => {
@@ -81,7 +84,7 @@ const Backlog = () => {
   if (loading) {
     return (
       <div className="backlog-page">
-        <div className="loading-state">
+        <div className="empty-state">
           <div className="spinner"></div>
           <p>Cargando backlog...</p>
         </div>
@@ -92,19 +95,19 @@ const Backlog = () => {
   return (
     <div className="backlog-page">
       {/* Header */}
-      <div className="backlog-header">
-        <div className="header-left">
-          <h2>Backlog</h2>
+      <div className="backlog-header flex justify-between items-center mb-2xl pb-base">
+        <div className="flex items-center gap-base">
+          <h2 className="heading-1 text-primary">Backlog</h2>
           <span className="task-count">
             {backlogTasks.length} tareas
           </span>
         </div>
-        <div className="header-actions">
-          <button className="btn-create" onClick={() => setShowSprintModal(true)}>
+        <div className="flex gap-sm">
+          <button className="btn btn-primary flex items-center gap-xs" onClick={() => setShowSprintModal(true)}>
             <Icon name="plus" size={18} />
             Crear Sprint
           </button>
-          <button className="btn-create" onClick={() => setShowTaskModal(true)}>
+          <button className="btn btn-primary flex items-center gap-xs" onClick={() => setShowTaskModal(true)}>
             <Icon name="plus" size={18} />
             Crear Tarea
           </button>
@@ -129,20 +132,20 @@ const Backlog = () => {
         onDragOver={handleDragOver}
         onDrop={handleDropToBacklog}
       >
-        <div className="section-header">
-          <div className="section-title">
+        <div className="section-header flex items-center gap-base p-lg bg-white border-b-light">
+          <div className="flex items-center gap-base flex-1">
             <Icon name="list" size={20} />
-            <h3>Backlog</h3>
+            <h3 className="heading-3 text-primary m-0">Backlog</h3>
             <span className="count-badge">{backlogTasks.length}</span>
           </div>
         </div>
 
-        <div className="tasks-table">
+        <div className="tasks-table p-base">
           {backlogTasks.length === 0 ? (
-            <div className="empty-state">
+            <div className="empty-state text-center p-3xl text-secondary">
               <Icon name="inbox" size={48} />
-              <p>No hay tareas en el backlog</p>
-              <button onClick={() => setShowTaskModal(true)} className="btn-create-small">
+              <p className="my-base text-base">No hay tareas en el backlog</p>
+              <button onClick={() => setShowTaskModal(true)} className="btn btn-primary btn-sm mt-base">
                 Crear primera tarea
               </button>
             </div>
@@ -155,6 +158,7 @@ const Backlog = () => {
                   <th style={{ width: '120px' }}>Prioridad</th>
                   <th style={{ width: '100px' }}>Story Points</th>
                   <th style={{ width: '120px' }}>Estado</th>
+                  <th style={{ width: '150px' }}>Asignado a</th>
                   <th style={{ width: '60px' }}></th>
                 </tr>
               </thead>
@@ -164,7 +168,8 @@ const Backlog = () => {
                     key={task.id}
                     task={task}
                     onDragStart={handleDragStart}
-                    onDelete={deleteTask}
+                    onArchive={archiveTask}
+                    onUpdateTask={updateTask}
                   />
                 ))}
               </tbody>
@@ -216,16 +221,16 @@ const SprintSection = ({ sprint, tasks, onDragOver, onDrop, onStartSprint }) => 
       onDragOver={onDragOver}
       onDrop={onDrop}
     >
-      <div className="section-header">
+      <div className="section-header flex items-center gap-base p-lg bg-white border-b-light">
         <button
           className="expand-btn"
           onClick={() => setExpanded(!expanded)}
         >
           <Icon name={expanded ? 'chevron-down' : 'chevron-right'} size={16} />
         </button>
-        <div className="section-title">
+        <div className="flex items-center gap-base flex-1">
           <Icon name="zap" size={20} />
-          <h3>{sprint.name}</h3>
+          <h3 className="heading-3 text-primary m-0">{sprint.name}</h3>
           <span className={`status-badge ${sprint.status}`}>
             {sprint.status === 'planned' && 'Planificado'}
             {sprint.status === 'active' && 'Activo'}
@@ -233,7 +238,7 @@ const SprintSection = ({ sprint, tasks, onDragOver, onDrop, onStartSprint }) => 
           <span className="count-badge">{tasks.length}</span>
         </div>
         {sprint.status === 'planned' && tasks.length > 0 && (
-          <button className="btn-start-sprint" onClick={handleStartSprint}>
+          <button className="btn btn-primary flex items-center gap-xs" onClick={handleStartSprint}>
             <Icon name="play" size={16} />
             Iniciar Sprint
           </button>
@@ -241,10 +246,10 @@ const SprintSection = ({ sprint, tasks, onDragOver, onDrop, onStartSprint }) => 
       </div>
 
       {expanded && (
-        <div className="sprint-tasks">
+        <div className="sprint-tasks p-base">
           {tasks.length === 0 ? (
-            <div className="empty-sprint">
-              <p>Arrastra tareas aquí para agregarlas al sprint</p>
+            <div className="empty-sprint text-center p-3xl text-secondary">
+              <p className="my-base text-base">Arrastra tareas aquí para agregarlas al sprint</p>
             </div>
           ) : (
             <table>
@@ -255,6 +260,7 @@ const SprintSection = ({ sprint, tasks, onDragOver, onDrop, onStartSprint }) => 
                   <th style={{ width: '120px' }}>Prioridad</th>
                   <th style={{ width: '100px' }}>Story Points</th>
                   <th style={{ width: '120px' }}>Estado</th>
+                  <th style={{ width: '150px' }}>Asignado a</th>
                   <th style={{ width: '60px' }}></th>
                 </tr>
               </thead>
@@ -264,7 +270,8 @@ const SprintSection = ({ sprint, tasks, onDragOver, onDrop, onStartSprint }) => 
                     key={task.id}
                     task={task}
                     onDragStart={(e) => e.dataTransfer.setData('taskId', task.id)}
-                    onDelete={deleteTask}
+                    onArchive={archiveTask}
+                    onUpdateTask={updateTask}
                   />
                 ))}
               </tbody>
@@ -277,56 +284,122 @@ const SprintSection = ({ sprint, tasks, onDragOver, onDrop, onStartSprint }) => 
 };
 
 // Componente de fila de tarea
-const TaskRow = ({ task, onDragStart, onDelete }) => {
-  const getPriorityColor = (priority) => {
-    const colors = {
-      low: '#06d6a0',
-      medium: '#ffd166',
-      high: '#ef476f',
-      critical: '#9d0208'
+const TaskRow = ({ task, onDragStart, onArchive, onUpdateTask }) => {
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [showUserSelect, setShowUserSelect] = useState(false);
+  const userSelectRef = useRef(null);
+
+  const priorityLabels = {
+    low: 'Baja',
+    medium: 'Media',
+    high: 'Alta',
+    critical: 'Crítica'
+  };
+
+  // Cerrar menú al hacer click fuera
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (userSelectRef.current && !userSelectRef.current.contains(event.target)) {
+        setShowUserSelect(false);
+      }
     };
-    return colors[priority] || colors.medium;
+
+    if (showUserSelect) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [showUserSelect]);
+
+  const handleArchive = () => {
+    setShowConfirm(true);
+  };
+
+  const confirmArchive = () => {
+    onArchive(task.id);
+    setShowConfirm(false);
+  };
+
+  const handleAssignUser = async (userId) => {
+    await onUpdateTask(task.id, { assignedTo: userId });
+    setShowUserSelect(false);
   };
 
   return (
-    <tr
-      className="task-row"
-      draggable
-      onDragStart={(e) => onDragStart(e, task)}
-    >
-      <td>
-        <Icon name="grip-vertical" size={16} style={{ opacity: 0.5, cursor: 'grab' }} />
-      </td>
-      <td>
-        <div className="task-title">{task.title || task.name}</div>
-        {task.description && (
-          <div className="task-description">{task.description}</div>
-        )}
-      </td>
-      <td>
-        <span
-          className="priority-badge"
-          style={{ backgroundColor: getPriorityColor(task.priority) }}
-        >
-          {task.priority}
-        </span>
-      </td>
-      <td className="text-center">{task.storyPoints || '-'}</td>
-      <td>
-        <span className={`status-badge ${task.status}`}>
-          {task.status}
-        </span>
-      </td>
-      <td>
-        <button
-          className="btn-icon"
-          onClick={() => onDelete(task.id)}
-          title="Eliminar"
-        >
-          <Icon name="trash" size={16} />
-        </button>
-      </td>
-    </tr>
+    <>
+      <ConfirmDialog
+        isOpen={showConfirm}
+        title="Archivar tarea"
+        message="¿Archivar esta tarea? Podrás recuperarla después desde la vista de archivados."
+        confirmText="Archivar"
+        cancelText="Cancelar"
+        confirmVariant="primary"
+        onConfirm={confirmArchive}
+        onCancel={() => setShowConfirm(false)}
+      />
+      <tr
+        className="task-row"
+        draggable
+        onDragStart={(e) => onDragStart(e, task)}
+      >
+        <td>
+          <Icon name="grip-vertical" size={16} style={{ opacity: 0.5, cursor: 'grab' }} />
+        </td>
+        <td>
+          <div className="task-title font-semibold text-primary">{task.title || task.name}</div>
+        </td>
+        <td>
+          <span className={`priority-badge priority-${task.priority}`}>
+            {priorityLabels[task.priority]}
+          </span>
+        </td>
+        <td className="text-center text-secondary">{task.storyPoints || '-'}</td>
+        <td>
+          <span className={`status-badge ${task.status}`}>
+            {task.status}
+          </span>
+        </td>
+        <td>
+          <div className="task-assignee" ref={userSelectRef}>
+            {task.assignedTo ? (
+              <div
+                onClick={() => setShowUserSelect(!showUserSelect)}
+                style={{ cursor: 'pointer' }}
+              >
+                <UserAvatar userId={task.assignedTo} size={24} showName={true} />
+              </div>
+            ) : (
+              <button
+                className="btn-assign-user-backlog"
+                onClick={() => setShowUserSelect(!showUserSelect)}
+              >
+                <Icon name="user-plus" size={16} />
+                <span>Asignar</span>
+              </button>
+            )}
+            {showUserSelect && (
+              <div className="user-select-dropdown-backlog">
+                <UserSelect
+                  value={task.assignedTo}
+                  onChange={handleAssignUser}
+                  mode="list"
+                />
+              </div>
+            )}
+          </div>
+        </td>
+        <td>
+          <button
+            className="btn-icon"
+            onClick={handleArchive}
+            title="Archivar esta tarea (podrás recuperarla después)"
+          >
+            <Icon name="archive" size={16} />
+          </button>
+        </td>
+      </tr>
+    </>
   );
 };
 
@@ -352,12 +425,13 @@ const TaskModal = ({ onClose, onSave }) => {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={e => e.stopPropagation()}>
-        <h3>Nueva Tarea</h3>
-        <form onSubmit={handleSubmit}>
+        <h3 className="modal-header">Nueva Tarea</h3>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-base">
           <div className="form-group">
-            <label>Título *</label>
+            <label className="label">Título *</label>
             <input
               type="text"
+              className="input"
               value={formData.title}
               onChange={e => setFormData({ ...formData, title: e.target.value })}
               required
@@ -366,18 +440,20 @@ const TaskModal = ({ onClose, onSave }) => {
           </div>
 
           <div className="form-group">
-            <label>Descripción</label>
+            <label className="label">Descripción</label>
             <textarea
+              className="textarea"
               value={formData.description}
               onChange={e => setFormData({ ...formData, description: e.target.value })}
               rows={3}
             />
           </div>
 
-          <div className="form-row">
+          <div className="form-row grid gap-base">
             <div className="form-group">
-              <label>Prioridad</label>
+              <label className="label">Prioridad</label>
               <select
+                className="select"
                 value={formData.priority}
                 onChange={e => setFormData({ ...formData, priority: e.target.value })}
               >
@@ -389,9 +465,10 @@ const TaskModal = ({ onClose, onSave }) => {
             </div>
 
             <div className="form-group">
-              <label>Story Points</label>
+              <label className="label">Story Points</label>
               <input
                 type="number"
+                className="input"
                 value={formData.storyPoints}
                 onChange={e => setFormData({ ...formData, storyPoints: e.target.value })}
                 min="1"
@@ -400,11 +477,11 @@ const TaskModal = ({ onClose, onSave }) => {
             </div>
           </div>
 
-          <div className="modal-actions">
-            <button type="button" onClick={onClose} className="btn-secondary">
+          <div className="modal-footer flex justify-end gap-sm">
+            <button type="button" onClick={onClose} className="btn btn-secondary">
               Cancelar
             </button>
-            <button type="submit" className="btn-primary">
+            <button type="submit" className="btn btn-primary">
               Crear Tarea
             </button>
           </div>
@@ -446,12 +523,13 @@ const SprintModal = ({ onClose, onSave }) => {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={e => e.stopPropagation()}>
-        <h3>Nuevo Sprint</h3>
-        <form onSubmit={handleSubmit}>
+        <h3 className="modal-header">Nuevo Sprint</h3>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-base">
           <div className="form-group">
-            <label>Nombre del Sprint *</label>
+            <label className="label">Nombre del Sprint *</label>
             <input
               type="text"
+              className="input"
               value={formData.name}
               onChange={e => setFormData({ ...formData, name: e.target.value })}
               placeholder="Sprint 1"
@@ -461,8 +539,9 @@ const SprintModal = ({ onClose, onSave }) => {
           </div>
 
           <div className="form-group">
-            <label>Objetivo</label>
+            <label className="label">Objetivo</label>
             <textarea
+              className="textarea"
               value={formData.goal}
               onChange={e => setFormData({ ...formData, goal: e.target.value })}
               placeholder="¿Qué se quiere lograr en este sprint?"
@@ -470,11 +549,12 @@ const SprintModal = ({ onClose, onSave }) => {
             />
           </div>
 
-          <div className="form-row">
+          <div className="form-row grid gap-base">
             <div className="form-group">
-              <label>Fecha de Inicio *</label>
+              <label className="label">Fecha de Inicio *</label>
               <input
                 type="date"
+                className="input"
                 value={formData.startDate}
                 onChange={e => setFormData({ ...formData, startDate: e.target.value })}
                 required
@@ -482,9 +562,10 @@ const SprintModal = ({ onClose, onSave }) => {
             </div>
 
             <div className="form-group">
-              <label>Fecha de Fin *</label>
+              <label className="label">Fecha de Fin *</label>
               <input
                 type="date"
+                className="input"
                 value={formData.endDate}
                 onChange={e => setFormData({ ...formData, endDate: e.target.value })}
                 required
@@ -493,11 +574,11 @@ const SprintModal = ({ onClose, onSave }) => {
             </div>
           </div>
 
-          <div className="modal-actions">
-            <button type="button" onClick={onClose} className="btn-secondary">
+          <div className="modal-footer flex justify-end gap-sm">
+            <button type="button" onClick={onClose} className="btn btn-secondary">
               Cancelar
             </button>
-            <button type="submit" className="btn-primary">
+            <button type="submit" className="btn btn-primary">
               Crear Sprint
             </button>
           </div>

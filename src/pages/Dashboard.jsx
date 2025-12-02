@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { subscribeToSprints, completeSprint } from '../services/sprintService';
-import { subscribeToTasks, updateTask, deleteTask } from '../services/taskService';
-import KanbanBoard from '../components/KanbanBoard';
-import Icon from '../components/Icon';
+import { subscribeToSprints } from '../services/sprintService';
+import { subscribeToTasks, updateTask } from '../services/taskService';
+import KanbanBoard from '../components/kanban/KanbanBoard';
+import Toast from '../components/common/Toast';
+import Icon from '../components/common/Icon';
 import '../styles/Dashboard.css';
 
 const Dashboard = () => {
@@ -37,7 +38,7 @@ const Dashboard = () => {
   if (loading) {
     return (
       <div className="dashboard-page">
-        <div className="loading-state">
+        <div className="empty-state">
           <div className="spinner"></div>
           <p>Cargando tablero...</p>
         </div>
@@ -49,20 +50,20 @@ const Dashboard = () => {
     <div className="dashboard-page">
       {activeSprint ? (
         <>
-          <div className="sprint-header">
-            <div className="sprint-title-section">
-              <h2>
+          <div className="sprint-header flex justify-between items-center pb-lg mb-2xl">
+            <div className="flex items-center gap-lg">
+              <h2 className="heading-2 text-primary flex items-center gap-sm">
                 <Icon name="zap" size={20} />
                 {activeSprint.name}
               </h2>
               {activeSprint.startDate && activeSprint.endDate && (
-                <div className="sprint-dates">
+                <div className="flex items-center gap-xs text-sm text-secondary">
                   <Icon name="calendar" size={16} />
-                  <span>{new Date(activeSprint.startDate).toLocaleDateString('es')} - {new Date(activeSprint.endDate).toLocaleDateString('es')}</span>
+                  <span className="font-medium">{new Date(activeSprint.startDate).toLocaleDateString('es')} - {new Date(activeSprint.endDate).toLocaleDateString('es')}</span>
                 </div>
               )}
             </div>
-            <button className="btn-complete-sprint" onClick={handleCompleteSprint}>
+            <button className="btn btn-primary flex items-center gap-xs" onClick={handleCompleteSprint}>
               <Icon name="check-circle" size={18} />
               Completar Sprint
             </button>
@@ -77,12 +78,12 @@ const Dashboard = () => {
           )}
         </>
       ) : (
-        <div className="empty-state-container">
-          <div className="empty-state-content">
-            <Icon name="zap" size={80} className="empty-icon" />
-            <h2>No hay sprint activo</h2>
-            <p>Ve al Backlog para crear un sprint y comenzar a trabajar</p>
-            <a href="/backlog" className="btn-create-first">
+        <div className="dashboard-empty-container flex items-center justify-center">
+          <div className="text-center p-3xl">
+            <Icon name="zap" size={80} className="dashboard-empty-icon" />
+            <h2 className="heading-2 text-primary mb-sm">No hay sprint activo</h2>
+            <p className="text-base text-secondary mb-2xl">Ve al Backlog para crear un sprint y comenzar a trabajar</p>
+            <a href="/backlog" className="btn btn-primary btn-lg flex items-center gap-sm" style={{display: 'inline-flex'}}>
               <Icon name="list" size={20} />
               Ir al Backlog
             </a>
@@ -104,6 +105,7 @@ const CompleteSprintModal = ({ sprint, tasks, onClose }) => {
     endDate: ''
   });
   const [processing, setProcessing] = useState(false);
+  const [toast, setToast] = useState(null);
 
   // Separar tareas por estado
   const completedTasks = tasks.filter(t => t.status === 'completed');
@@ -197,7 +199,7 @@ const CompleteSprintModal = ({ sprint, tasks, onClose }) => {
       onClose();
     } catch (error) {
       console.error('Error al completar sprint:', error);
-      alert('Error al completar el sprint. Inténtalo de nuevo.');
+      setToast({ message: 'Error al completar el sprint. Inténtalo de nuevo.', type: 'error' });
     } finally {
       setProcessing(false);
     }
@@ -208,33 +210,33 @@ const CompleteSprintModal = ({ sprint, tasks, onClose }) => {
       <div className="modal-content complete-sprint-modal" onClick={e => e.stopPropagation()}>
         {step === 'confirm' && (
           <>
-            <h3>Completar Sprint</h3>
+            <h3 className="modal-header">Completar Sprint</h3>
             <div className="sprint-summary">
-              <p><strong>{sprint.name}</strong></p>
-              <div className="task-summary">
-                <div className="summary-item completed">
+              <p className="mb-base text-lg"><strong>{sprint.name}</strong></p>
+              <div className="flex flex-col gap-sm">
+                <div className="summary-item summary-item-completed flex items-center gap-sm p-sm text-base font-medium">
                   <Icon name="check-circle" size={20} />
                   <span>{completedTasks.length} tareas completadas</span>
                 </div>
                 {incompleteTasks.length > 0 && (
-                  <div className="summary-item incomplete">
+                  <div className="summary-item summary-item-incomplete flex items-center gap-sm p-sm text-base font-medium">
                     <Icon name="alert-circle" size={20} />
                     <span>{incompleteTasks.length} tareas sin completar</span>
                   </div>
                 )}
               </div>
             </div>
-            <p className="modal-description">
+            <p className="text-base text-secondary mb-lg" style={{lineHeight: '1.6'}}>
               {incompleteTasks.length > 0
                 ? 'Las tareas completadas se archivarán. ¿Qué deseas hacer con las tareas sin completar?'
                 : 'Todas las tareas están completadas. Se archivarán y el sprint se marcará como finalizado.'
               }
             </p>
-            <div className="modal-actions">
-              <button type="button" onClick={onClose} className="btn-secondary">
+            <div className="modal-footer flex justify-end gap-sm">
+              <button type="button" onClick={onClose} className="btn btn-secondary">
                 Cancelar
               </button>
-              <button type="button" onClick={handleConfirm} className="btn-primary">
+              <button type="button" onClick={handleConfirm} className="btn btn-primary">
                 {incompleteTasks.length > 0 ? 'Continuar' : 'Completar Sprint'}
               </button>
             </div>
@@ -243,19 +245,19 @@ const CompleteSprintModal = ({ sprint, tasks, onClose }) => {
 
         {step === 'move-tasks' && (
           <>
-            <h3>¿Qué hacer con las tareas sin completar?</h3>
-            <p className="modal-description">
+            <h3 className="modal-header">¿Qué hacer con las tareas sin completar?</h3>
+            <p className="text-base text-secondary mb-lg">
               Tienes {incompleteTasks.length} tarea(s) que no se completaron en este sprint.
             </p>
-            <div className="move-options">
+            <div className="move-options grid gap-base mb-lg">
               <button
                 className="move-option-card"
                 onClick={() => handleMoveOptionSelect('backlog')}
                 disabled={processing}
               >
                 <Icon name="list" size={32} />
-                <h4>Mover al Backlog</h4>
-                <p>Las tareas volverán al backlog con estado "Pendiente"</p>
+                <h4 className="text-base font-semibold text-primary mb-xs">Mover al Backlog</h4>
+                <p className="text-sm text-secondary">Las tareas volverán al backlog con estado "Pendiente"</p>
               </button>
               <button
                 className="move-option-card"
@@ -263,12 +265,12 @@ const CompleteSprintModal = ({ sprint, tasks, onClose }) => {
                 disabled={processing}
               >
                 <Icon name="zap" size={32} />
-                <h4>Mover a Nuevo Sprint</h4>
-                <p>Crear un nuevo sprint y mantener el estado actual de las tareas</p>
+                <h4 className="text-base font-semibold text-primary mb-xs">Mover a Nuevo Sprint</h4>
+                <p className="text-sm text-secondary">Crear un nuevo sprint y mantener el estado actual de las tareas</p>
               </button>
             </div>
-            <div className="modal-actions">
-              <button type="button" onClick={onClose} className="btn-secondary" disabled={processing}>
+            <div className="modal-footer flex justify-end gap-sm">
+              <button type="button" onClick={onClose} className="btn btn-secondary" disabled={processing}>
                 Cancelar
               </button>
             </div>
@@ -277,15 +279,16 @@ const CompleteSprintModal = ({ sprint, tasks, onClose }) => {
 
         {step === 'create-sprint' && (
           <>
-            <h3>Crear Nuevo Sprint</h3>
-            <p className="modal-description">
+            <h3 className="modal-header">Crear Nuevo Sprint</h3>
+            <p className="text-base text-secondary mb-lg">
               Las {incompleteTasks.length} tarea(s) sin completar se moverán al nuevo sprint.
             </p>
-            <form onSubmit={(e) => { e.preventDefault(); handleComplete(); }}>
+            <form onSubmit={(e) => { e.preventDefault(); handleComplete(); }} className="flex flex-col gap-base">
               <div className="form-group">
-                <label>Nombre del Sprint *</label>
+                <label className="label">Nombre del Sprint *</label>
                 <input
                   type="text"
+                  className="input"
                   value={newSprintData.name}
                   onChange={e => setNewSprintData({ ...newSprintData, name: e.target.value })}
                   required
@@ -293,27 +296,30 @@ const CompleteSprintModal = ({ sprint, tasks, onClose }) => {
                 />
               </div>
               <div className="form-group">
-                <label>Objetivo</label>
+                <label className="label">Objetivo</label>
                 <textarea
+                  className="textarea"
                   value={newSprintData.goal}
                   onChange={e => setNewSprintData({ ...newSprintData, goal: e.target.value })}
                   rows={2}
                 />
               </div>
-              <div className="form-row">
+              <div className="dashboard-form-row grid gap-base">
                 <div className="form-group">
-                  <label>Fecha de Inicio *</label>
+                  <label className="label">Fecha de Inicio *</label>
                   <input
                     type="date"
+                    className="input"
                     value={newSprintData.startDate}
                     onChange={e => setNewSprintData({ ...newSprintData, startDate: e.target.value })}
                     required
                   />
                 </div>
                 <div className="form-group">
-                  <label>Fecha de Fin *</label>
+                  <label className="label">Fecha de Fin *</label>
                   <input
                     type="date"
+                    className="input"
                     value={newSprintData.endDate}
                     onChange={e => setNewSprintData({ ...newSprintData, endDate: e.target.value })}
                     required
@@ -321,21 +327,30 @@ const CompleteSprintModal = ({ sprint, tasks, onClose }) => {
                   />
                 </div>
               </div>
-              <div className="modal-actions">
+              <div className="modal-footer flex justify-end gap-sm">
                 <button
                   type="button"
                   onClick={() => setStep('move-tasks')}
-                  className="btn-secondary"
+                  className="btn btn-secondary"
                   disabled={processing}
                 >
                   Atrás
                 </button>
-                <button type="submit" className="btn-primary" disabled={processing}>
+                <button type="submit" className="btn btn-primary" disabled={processing}>
                   {processing ? 'Procesando...' : 'Completar Sprint'}
                 </button>
               </div>
             </form>
           </>
+        )}
+
+        {/* Toast para errores */}
+        {toast && (
+          <Toast
+            message={toast.message}
+            type={toast.type}
+            onClose={() => setToast(null)}
+          />
         )}
       </div>
     </div>
