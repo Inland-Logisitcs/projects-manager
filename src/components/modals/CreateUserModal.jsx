@@ -7,7 +7,9 @@ const CreateUserModal = ({ isOpen, onClose, onSave, user = null, mode = 'create'
     password: '',
     displayName: '',
     role: 'user',
-    disabled: false
+    disabled: false,
+    dailyCapacity: 8,
+    workingDays: [1, 2, 3, 4, 5]
   });
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -19,7 +21,9 @@ const CreateUserModal = ({ isOpen, onClose, onSave, user = null, mode = 'create'
         password: '',
         displayName: user.displayName || '',
         role: user.role || 'user',
-        disabled: user.disabled || false
+        disabled: user.disabled || false,
+        dailyCapacity: user.dailyCapacity || 8,
+        workingDays: user.workingDays || [1, 2, 3, 4, 5]
       });
     } else {
       setFormData({
@@ -27,7 +31,9 @@ const CreateUserModal = ({ isOpen, onClose, onSave, user = null, mode = 'create'
         password: '',
         displayName: '',
         role: 'user',
-        disabled: false
+        disabled: false,
+        dailyCapacity: 8,
+        workingDays: [1, 2, 3, 4, 5]
       });
     }
     setErrors({});
@@ -107,8 +113,17 @@ const CreateUserModal = ({ isOpen, onClose, onSave, user = null, mode = 'create'
     setIsSubmitting(false);
   };
 
+  const toggleWorkingDay = (day) => {
+    setFormData(prev => {
+      const workingDays = prev.workingDays.includes(day)
+        ? prev.workingDays.filter(d => d !== day)
+        : [...prev.workingDays, day].sort((a, b) => a - b);
+      return { ...prev, workingDays };
+    });
+  };
+
   const handleClose = () => {
-    setFormData({ email: '', password: '', displayName: '', role: 'user', disabled: false });
+    setFormData({ email: '', password: '', displayName: '', role: 'user', disabled: false, dailyCapacity: 8, workingDays: [1, 2, 3, 4, 5] });
     setErrors({});
     onClose();
   };
@@ -199,6 +214,49 @@ const CreateUserModal = ({ isOpen, onClose, onSave, user = null, mode = 'create'
                 <option value="user">Usuario</option>
                 <option value="admin">Administrador</option>
               </select>
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="dailyCapacity" className="label">Puntos por día</label>
+              <input
+                type="number"
+                id="dailyCapacity"
+                name="dailyCapacity"
+                value={formData.dailyCapacity}
+                onChange={handleChange}
+                className="input"
+                min="1"
+                max="24"
+                disabled={isSubmitting}
+              />
+              <span className="text-xs text-tertiary">Cantidad de puntos de historia que puede completar por día</span>
+            </div>
+
+            <div className="form-group">
+              <label className="label">Días laborales</label>
+              <div className="flex gap-sm" style={{ flexWrap: 'wrap' }}>
+                {[
+                  { day: 1, label: 'Lun' },
+                  { day: 2, label: 'Mar' },
+                  { day: 3, label: 'Mié' },
+                  { day: 4, label: 'Jue' },
+                  { day: 5, label: 'Vie' },
+                  { day: 6, label: 'Sáb' },
+                  { day: 0, label: 'Dom' }
+                ].map(({ day, label }) => (
+                  <button
+                    key={day}
+                    type="button"
+                    className={`btn btn-sm ${formData.workingDays.includes(day) ? 'btn-primary' : 'btn-secondary'}`}
+                    onClick={() => toggleWorkingDay(day)}
+                    disabled={isSubmitting}
+                    style={{ minWidth: '50px' }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <span className="text-xs text-tertiary">Selecciona los días en los que trabaja</span>
             </div>
 
             <div className="checkbox">

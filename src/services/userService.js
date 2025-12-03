@@ -36,6 +36,8 @@ export const createNewUser = async (userData) => {
       displayName: displayName || '',
       role: role || 'user',
       disabled: false,
+      dailyCapacity: userData.dailyCapacity || 8,
+      workingDays: userData.workingDays || [1, 2, 3, 4, 5],
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
@@ -83,6 +85,8 @@ export const createUserProfile = async (uid, userData) => {
       email: userData.email,
       displayName: userData.displayName || '',
       role: userData.role || 'user', // 'admin' o 'user'
+      dailyCapacity: userData.dailyCapacity || 8,
+      workingDays: userData.workingDays || [1, 2, 3, 4, 5],
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     }, { merge: true });
@@ -171,7 +175,7 @@ export const subscribeToUsers = (callback) => {
  */
 export const updateUser = async (uid, updates) => {
   try {
-    const { displayName, role } = updates;
+    const { displayName, role, dailyCapacity, workingDays } = updates;
 
     if (role && !['admin', 'user'].includes(role)) {
       return { success: false, error: 'Rol inválido' };
@@ -187,6 +191,14 @@ export const updateUser = async (uid, updates) => {
 
     if (role !== undefined) {
       firestoreUpdates.role = role;
+    }
+
+    if (dailyCapacity !== undefined) {
+      firestoreUpdates.dailyCapacity = dailyCapacity;
+    }
+
+    if (workingDays !== undefined) {
+      firestoreUpdates.workingDays = workingDays;
     }
 
     const userRef = doc(db, USERS_COLLECTION, uid);
