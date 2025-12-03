@@ -175,6 +175,7 @@
   overflow: auto;
   background-color: #fafbfc;
   max-height: 600px;
+  position: relative;
 }
 
 .gantt-sidebar {
@@ -759,10 +760,26 @@
 /* Personalizar las filas de la tabla */
 .gantt-chart-container :global(._36F-Y) {
   border-bottom: 1px solid var(--border-color) !important;
+  animation: fadeInRow 0.3s ease-out;
+  transform-origin: top;
 }
 
 .gantt-chart-container :global(._36F-Y:hover) {
   background-color: rgba(1, 94, 124, 0.03) !important;
+}
+
+/* Animación para filas que aparecen */
+@keyframes fadeInRow {
+  from {
+    opacity: 0;
+    transform: scaleY(0.8);
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    transform: scaleY(1);
+    max-height: 100px;
+  }
 }
 
 /* Personalizar el header del timeline */
@@ -778,10 +795,23 @@
   border-radius: 6px !important;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
   transition: all 0.2s ease;
+  animation: fadeInBar 0.3s ease-out;
 }
 
 .gantt-chart-container :global(._3lLk3:hover) {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
+}
+
+/* Animación para barras que aparecen */
+@keyframes fadeInBar {
+  from {
+    opacity: 0;
+    transform: scaleX(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(1);
+  }
 }
 
 /* Resaltar las líneas de la cuadrícula durante el drag */
@@ -886,3 +916,54 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Menú desplegable de opciones */
+.gantt-project-menu {
+  position: fixed !important;
+  z-index: 9999 !important;
+  background-color: white;
+  border: 1px solid var(--border-medium);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+  min-width: 180px;
+  overflow: visible !important;
+}
+
+.gantt-project-menu button {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  transition: background-color 0.15s ease;
+}
+
+.gantt-project-menu button:hover:not(:disabled) {
+  background-color: rgba(1, 94, 124, 0.08);
+}
+
+.gantt-project-menu button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.gantt-project-menu button.danger-option {
+  color: var(--color-error);
+}
+
+.gantt-project-menu button.danger-option:hover {
+  background-color: rgba(220, 53, 69, 0.08);
+}
+
+.gantt-project-menu .menu-divider {
+  height: 1px;
+  background-color: var(--border-light);
+  margin: 0;
+}
+

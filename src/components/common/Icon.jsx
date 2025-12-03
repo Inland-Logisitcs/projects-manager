@@ -27,6 +27,8 @@ import MusicNoteIcon from '@mui/icons-material/MusicNote';
 import RemoveIcon from '@mui/icons-material/Remove';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ChevronRightIconFilled from '@mui/icons-material/ChevronRight';
 import PeopleIcon from '@mui/icons-material/People';
 import SearchIcon from '@mui/icons-material/Search';
 import FilterAltIcon from '@mui/icons-material/FilterAlt';
@@ -37,6 +39,9 @@ import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import PersonOffIcon from '@mui/icons-material/PersonOff';
 import BoltIcon from '@mui/icons-material/Bolt';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 
 const Icon = ({ name, size = 20, className = '' }) => {
   const iconMap = {
@@ -69,6 +74,7 @@ const Icon = ({ name, size = 20, className = '' }) => {
     'minus': RemoveIcon,
     'chevron-left': ChevronLeftIcon,
     'chevron-right': ChevronRightIcon,
+    'chevron-down': ExpandMoreIcon,
     'users': PeopleIcon,
     'search': SearchIcon,
     'filter': FilterAltIcon,
@@ -79,7 +85,10 @@ const Icon = ({ name, size = 20, className = '' }) => {
     'user-check': CheckCircleOutlineIcon,
     'user-x': PersonOffIcon,
     'check-circle': CheckCircleOutlineIcon,
-    'zap': BoltIcon
+    'zap': BoltIcon,
+    'more-vertical': MoreVertIcon,
+    'arrow-up': ArrowUpwardIcon,
+    'arrow-down': ArrowDownwardIcon
   };
 
   const IconComponent = iconMap[name] || FolderIcon;

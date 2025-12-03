@@ -5,6 +5,7 @@ import { subscribeToColumns } from '../services/columnService';
 import Icon from '../components/common/Icon';
 import UserSelect from '../components/common/UserSelect';
 import UserAvatar from '../components/common/UserAvatar';
+import StoryPointsSelect from '../components/common/StoryPointsSelect';
 import ConfirmDialog from '../components/common/ConfirmDialog';
 import TaskDetailSidebar from '../components/kanban/TaskDetailSidebar';
 import '../styles/Backlog.css';
@@ -152,15 +153,15 @@ const Backlog = () => {
     );
   }
 
+  // Calcular story points totales del backlog
+  const backlogStoryPoints = backlogTasks.reduce((sum, task) => sum + (task.storyPoints || 0), 0);
+
   return (
     <div className="backlog-page">
       {/* Header */}
       <div className="backlog-header flex justify-between items-center mb-md pb-base">
         <div className="flex items-center gap-base">
           <h2 className="heading-1 text-primary">Backlog</h2>
-          <span className="task-count">
-            {backlogTasks.length} tareas
-          </span>
         </div>
         <div className="flex gap-sm">
           <button className="btn btn-primary flex items-center gap-xs" onClick={() => setShowSprintModal(true)}>
@@ -194,13 +195,20 @@ const Backlog = () => {
             <Icon name="list" size={20} />
             <h3 className="heading-3 text-primary m-0">Backlog</h3>
             <button
-              className="btn btn-icon btn-sm"
+              className="btn btn-icon btn-sm has-tooltip"
               onClick={handleStartInlineCreate}
-              title="Crear tarea rápida"
+              data-tooltip="Crear tarea rápida"
             >
               <Icon name="plus" size={18} />
             </button>
-            <span className="count-badge">{backlogTasks.length}</span>
+            <span className="text-sm font-semibold text-secondary">
+              {backlogTasks.length} tareas
+            </span>
+            {backlogStoryPoints > 0 && (
+              <span className="text-sm font-semibold text-secondary">
+                {backlogStoryPoints} story points
+              </span>
+            )}
           </div>
         </div>
 
@@ -367,6 +375,20 @@ const SprintSection = ({ sprint, tasks, onDragOver, onDrop, onStartSprint, onTas
     }
   };
 
+  // Calcular story points completados y totales
+  const completedPoints = tasks
+    .filter(task => task.status === 'completed')
+    .reduce((sum, task) => sum + (task.storyPoints || 0), 0);
+
+  const totalPoints = tasks.reduce((sum, task) => sum + (task.storyPoints || 0), 0);
+
+  // Formatear fechas
+  const formatSprintDate = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+  };
+
   return (
     <div
       className={`sprint-section ${sprint.status}`}
@@ -384,9 +406,9 @@ const SprintSection = ({ sprint, tasks, onDragOver, onDrop, onStartSprint, onTas
           <Icon name="zap" size={20} />
           <h3 className="heading-3 text-primary m-0">{sprint.name}</h3>
           <button
-            className="btn btn-icon btn-sm"
+            className="btn btn-icon btn-sm has-tooltip"
             onClick={handleStartInlineCreate}
-            title="Crear tarea rápida"
+            data-tooltip="Crear tarea rápida"
           >
             <Icon name="plus" size={18} />
           </button>
@@ -395,6 +417,16 @@ const SprintSection = ({ sprint, tasks, onDragOver, onDrop, onStartSprint, onTas
             {sprint.status === 'active' && 'Activo'}
           </span>
           <span className="count-badge">{tasks.length}</span>
+          {sprint.startDate && sprint.endDate && (
+            <span className="text-sm text-secondary">
+              {formatSprintDate(sprint.startDate)} - {formatSprintDate(sprint.endDate)}
+            </span>
+          )}
+          {totalPoints > 0 && (
+            <span className="text-sm font-semibold text-primary has-tooltip" data-tooltip="Story Points completados / totales">
+              {completedPoints}/{totalPoints} pts
+            </span>
+          )}
         </div>
         {sprint.status === 'planned' && tasks.length > 0 && (
           <button className="btn btn-primary flex items-center gap-xs" onClick={handleStartSprint}>
@@ -547,7 +579,17 @@ const TaskRow = ({ task, onDragStart, onArchive, onUpdateTask, onTaskClick }) =>
             {priorityLabels[task.priority]}
           </span>
         </td>
-        <td className="text-center text-secondary">{task.storyPoints || '-'}</td>
+        <td>
+          <div className="flex items-center justify-center">
+            <StoryPointsSelect
+              value={task.storyPoints}
+              onChange={async (storyPoints) => {
+                await onUpdateTask(task.id, { storyPoints });
+              }}
+              size="small"
+            />
+          </div>
+        </td>
         <td>
           <span className={`status-badge ${task.status}`}>
             {task.status}
@@ -584,9 +626,9 @@ const TaskRow = ({ task, onDragStart, onArchive, onUpdateTask, onTaskClick }) =>
         </td>
         <td>
           <button
-            className="btn-icon"
+            className="btn-icon has-tooltip"
             onClick={handleArchive}
-            title="Archivar esta tarea (podrás recuperarla después)"
+            data-tooltip="Archivar tarea"
           >
             <Icon name="archive" size={16} />
           </button>

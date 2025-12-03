@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { subscribeToProjects, createProject, updateProject, deleteProject } from '../services/projectService';
+import { subscribeToTasks } from '../services/taskService';
 import GanttTimeline from '../components/timeline/GanttTimeline';
 import Icon from '../components/common/Icon';
 import Toast from '../components/common/Toast';
@@ -7,17 +8,25 @@ import '../styles/Projects.css';
 
 const Projects = () => {
   const [projects, setProjects] = useState([]);
+  const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [toast, setToast] = useState({ isOpen: false, message: '', type: 'error' });
 
   useEffect(() => {
-    const unsubscribe = subscribeToProjects((fetchedProjects) => {
+    const unsubscribeProjects = subscribeToProjects((fetchedProjects) => {
       setProjects(fetchedProjects);
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    const unsubscribeTasks = subscribeToTasks((fetchedTasks) => {
+      setTasks(fetchedTasks);
+    });
+
+    return () => {
+      unsubscribeProjects();
+      unsubscribeTasks();
+    };
   }, []);
 
   const handleCreateProject = async (projectData) => {
@@ -111,6 +120,7 @@ const Projects = () => {
         <div className="projects-timeline">
           <GanttTimeline
             projects={projects}
+            tasks={tasks}
             onUpdate={handleUpdateProject}
             onDelete={handleDeleteProject}
           />

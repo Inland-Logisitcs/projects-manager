@@ -372,11 +372,17 @@ const KanbanBoard = ({ activeSprintId = null }) => {
             <span className="stat text-sm text-secondary">
               <strong className="text-primary">{tasks.filter(t => t.status === 'completed').length}</strong> completadas
             </span>
+            <span className="stat text-sm text-secondary">
+              <strong className="text-primary">
+                {tasks.filter(t => t.status === 'completed').reduce((sum, task) => sum + (task.storyPoints || 0), 0)}/
+                {tasks.reduce((sum, task) => sum + (task.storyPoints || 0), 0)}
+              </strong> story points
+            </span>
           </div>
           <button
-            className="btn btn-secondary flex items-center gap-xs"
+            className="btn btn-secondary flex items-center gap-xs has-tooltip"
             onClick={() => setShowColumnManager(true)}
-            title="Gestionar columnas"
+            data-tooltip="Gestionar columnas"
           >
             <Icon name="settings" size={18} />
             <span>Gestionar Columnas</span>

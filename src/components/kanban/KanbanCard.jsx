@@ -4,6 +4,7 @@ import { CSS } from '@dnd-kit/utilities';
 import Icon from '../common/Icon';
 import UserAvatar from '../common/UserAvatar';
 import UserSelect from '../common/UserSelect';
+import StoryPointsSelect from '../common/StoryPointsSelect';
 import { updateTask } from '../../services/taskService';
 
 const priorityLabels = {
@@ -143,8 +144,24 @@ const KanbanCard = ({ task, isDragging, onDelete }) => {
               </div>
             )}
           </div>
+          <div className="card-story-points"
+            onPointerDown={(e) => {
+              e.stopPropagation();
+            }}
+          >
+            <StoryPointsSelect
+              value={task.storyPoints}
+              onChange={async (storyPoints) => {
+                await updateTask(task.id, { storyPoints });
+              }}
+              size="small"
+            />
+          </div>
           {timeInColumn && (
-            <span className="card-time" title={`En esta columna desde: ${task.lastStatusChange?.toDate?.().toLocaleString('es-ES') || 'N/A'}`}>
+            <span
+              className="card-time has-tooltip"
+              data-tooltip={`En esta columna desde: ${task.lastStatusChange?.toDate?.().toLocaleString('es-ES') || 'N/A'}`}
+            >
               <Icon name="clock" size={14} />
               {timeInColumn}
             </span>

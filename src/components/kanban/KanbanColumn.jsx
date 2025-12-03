@@ -61,9 +61,9 @@ const KanbanColumn = ({ column, tasks, onAddTask, onDeleteTask, onCreateTask }) 
           <span className="task-count">{tasks.length}</span>
         </div>
         <button
-          className="add-task-btn"
+          className="add-task-btn has-tooltip"
           onClick={handleStartInlineCreate}
-          title="Agregar tarea rápida"
+          data-tooltip="Agregar tarea rápida"
         >
           +
         </button>

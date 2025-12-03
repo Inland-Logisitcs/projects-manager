@@ -52,7 +52,9 @@ export const createTask = async (taskData) => {
       lastStatusChange: status ? serverTimestamp() : null, // Timestamp si tiene estado
       previousStatus: null,
       movementHistory: movementHistory, // Incluir movimiento inicial si tiene estado
-      attachments: [] // Inicializar array de adjuntos vacío
+      attachments: [], // Inicializar array de adjuntos vacío
+      comments: [], // Inicializar array de comentarios vacío
+      dependencies: [] // Inicializar array de dependencias vacío
     });
     return { success: true, id: docRef.id };
   } catch (error) {
@@ -145,6 +147,55 @@ export const unarchiveTask = async (taskId) => {
     return { success: true };
   } catch (error) {
     console.error('Error al desarchivar tarea:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Agregar un comentario a una tarea
+export const addComment = async (taskId, commentData) => {
+  try {
+    const taskRef = doc(db, TASKS_COLLECTION, taskId);
+    const comment = {
+      id: Date.now().toString(), // ID único basado en timestamp
+      text: commentData.text,
+      userId: commentData.userId,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    await updateDoc(taskRef, {
+      comments: arrayUnion(comment),
+      updatedAt: serverTimestamp()
+    });
+
+    return { success: true, comment };
+  } catch (error) {
+    console.error('Error al agregar comentario:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Eliminar un comentario de una tarea
+export const deleteComment = async (taskId, commentId) => {
+  try {
+    const taskRef = doc(db, TASKS_COLLECTION, taskId);
+    const taskDoc = await getDoc(taskRef);
+
+    if (!taskDoc.exists()) {
+      return { success: false, error: 'Tarea no encontrada' };
+    }
+
+    const comments = taskDoc.data().comments || [];
+    const updatedComments = comments.filter(comment => comment.id !== commentId);
+
+    await updateDoc(taskRef, {
+      comments: updatedComments,
+      updatedAt: serverTimestamp()
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error al eliminar comentario:', error);
     return { success: false, error: error.message };
   }
 };
@@ -317,5 +368,73 @@ export const countTasksByStatus = async (status) => {
   } catch (error) {
     console.error('Error al contar tareas por estado:', error);
     return 0;
+  }
+};
+
+/**
+ * Agregar una dependencia a una tarea
+ * @param {string} taskId - ID de la tarea que depende
+ * @param {string} dependsOnTaskId - ID de la tarea de la que depende
+ * @returns {Object} - Resultado de la operación
+ */
+export const addTaskDependency = async (taskId, dependsOnTaskId) => {
+  try {
+    if (taskId === dependsOnTaskId) {
+      return { success: false, error: 'Una tarea no puede depender de sí misma' };
+    }
+
+    const taskRef = doc(db, TASKS_COLLECTION, taskId);
+    const taskDoc = await getDoc(taskRef);
+
+    if (!taskDoc.exists()) {
+      return { success: false, error: 'Tarea no encontrada' };
+    }
+
+    const dependencies = taskDoc.data().dependencies || [];
+
+    // Verificar que no exista ya esta dependencia
+    if (dependencies.includes(dependsOnTaskId)) {
+      return { success: false, error: 'Esta dependencia ya existe' };
+    }
+
+    await updateDoc(taskRef, {
+      dependencies: arrayUnion(dependsOnTaskId),
+      updatedAt: serverTimestamp()
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error al agregar dependencia:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Eliminar una dependencia de una tarea
+ * @param {string} taskId - ID de la tarea
+ * @param {string} dependsOnTaskId - ID de la tarea de la que ya no depende
+ * @returns {Object} - Resultado de la operación
+ */
+export const removeTaskDependency = async (taskId, dependsOnTaskId) => {
+  try {
+    const taskRef = doc(db, TASKS_COLLECTION, taskId);
+    const taskDoc = await getDoc(taskRef);
+
+    if (!taskDoc.exists()) {
+      return { success: false, error: 'Tarea no encontrada' };
+    }
+
+    const dependencies = taskDoc.data().dependencies || [];
+    const updatedDependencies = dependencies.filter(id => id !== dependsOnTaskId);
+
+    await updateDoc(taskRef, {
+      dependencies: updatedDependencies,
+      updatedAt: serverTimestamp()
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error al eliminar dependencia:', error);
+    return { success: false, error: error.message };
   }
 };

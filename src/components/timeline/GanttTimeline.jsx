@@ -1,10 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { Gantt, ViewMode } from 'gantt-task-react';
 import 'gantt-task-react/dist/index.css';
+import { createTask, addTaskDependency, removeTaskDependency } from '../../services/taskService';
 import Icon from '../common/Icon';
+import UserAvatar from '../common/UserAvatar';
 import '../../styles/GanttTimeline.css';
 
-const GanttTimeline = ({ projects, onUpdate }) => {
+const GanttTimeline = ({ projects, tasks = [], onUpdate }) => {
   const [viewMode, setViewMode] = useState(ViewMode.Day);
   const [showDateModal, setShowDateModal] = useState(false);
   const [selectedProject, setSelectedProject] = useState(null);
@@ -13,6 +15,20 @@ const GanttTimeline = ({ projects, onUpdate }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [showRemoveModal, setShowRemoveModal] = useState(false);
   const [projectToRemove, setProjectToRemove] = useState(null);
+  const [creatingTaskForProject, setCreatingTaskForProject] = useState(null);
+  const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [showDependencyModal, setShowDependencyModal] = useState(false);
+  const [selectedTaskForDependency, setSelectedTaskForDependency] = useState(null);
+  // Inicializar proyectos expandidos por defecto
+  const [expandedProjects, setExpandedProjects] = useState(() => {
+    const expanded = {};
+    projects.forEach(p => {
+      if (p.startDate && p.endDate) {
+        expanded[p.id] = true;
+      }
+    });
+    return expanded;
+  });
   const dragCounterRef = React.useRef(0);
 
   // Filtrar proyectos con y sin fechas
@@ -79,11 +95,12 @@ const GanttTimeline = ({ projects, onUpdate }) => {
     return { scheduledProjects: scheduled, unscheduledProjects: unscheduled };
   }, [projects]);
 
-  // Convertir proyectos a formato de gantt-task-react
-  const tasks = useMemo(() => {
-    return scheduledProjects.map((project) => {
+  // Convertir proyectos y tareas a formato de gantt-task-react con jerarquía
+  const ganttTasks = useMemo(() => {
+    const result = [];
+
+    scheduledProjects.forEach((project) => {
       // Crear fechas sin problemas de zona horaria
-      // Parsear la fecha manualmente para evitar conversión de zona horaria
       const [startYear, startMonth, startDay] = project.startDate.split('-').map(Number);
       const start = new Date(startYear, startMonth - 1, startDay, 0, 0, 0, 0);
 
@@ -92,23 +109,78 @@ const GanttTimeline = ({ projects, onUpdate }) => {
 
       const projectColor = getProjectColor(project);
 
-      return {
+      // Obtener tareas del proyecto (TODAS las tareas del proyecto, no solo las que tienen fechas)
+      // Ordenar por fecha de creación para que las nuevas aparezcan al final
+      const projectTasks = tasks
+        .filter(t => t.projectId === project.id && !t.archived)
+        .sort((a, b) => {
+          const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+          const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+          return dateA - dateB;
+        });
+
+      // Agregar proyecto como elemento padre
+      result.push({
         id: project.id,
         name: project.name,
         start: start,
         end: end,
         progress: project.progress || 0,
-        type: 'task',
+        type: 'project', // Tipo proyecto para que sea expandible
+        hideChildren: !expandedProjects[project.id], // Control de expansión
         styles: {
           backgroundColor: projectColor,
           backgroundSelectedColor: projectColor,
           progressColor: 'rgba(255, 255, 255, 0.3)',
           progressSelectedColor: 'rgba(255, 255, 255, 0.4)',
         },
-        project: project // Guardar referencia al proyecto original
-      };
+        project: project, // Guardar referencia al proyecto original
+        isProject: true
+      });
+
+      // Agregar tareas hijas
+      projectTasks.forEach((task) => {
+        // Si la tarea tiene fechas propias, usarlas; si no, usar las del proyecto
+        let tStart, tEnd;
+
+        if (task.startDate && task.endDate) {
+          const [tStartYear, tStartMonth, tStartDay] = task.startDate.split('-').map(Number);
+          tStart = new Date(tStartYear, tStartMonth - 1, tStartDay, 0, 0, 0, 0);
+
+          const [tEndYear, tEndMonth, tEndDay] = task.endDate.split('-').map(Number);
+          tEnd = new Date(tEndYear, tEndMonth - 1, tEndDay, 23, 59, 59, 999);
+        } else {
+          // Usar fechas del proyecto como fallback
+          tStart = start;
+          tEnd = end;
+        }
+
+        // Convertir dependencias a formato de la librería
+        const dependencies = (task.dependencies || []).map(depId => `task-${depId}`);
+
+        result.push({
+          id: `task-${task.id}`,
+          name: task.title,
+          start: tStart,
+          end: tEnd,
+          progress: task.status === 'completed' ? 100 : 0,
+          type: 'task',
+          project: project.id, // ID del proyecto padre
+          dependencies: dependencies, // Array de IDs de tareas de las que depende
+          styles: {
+            backgroundColor: '#94A3B8',
+            backgroundSelectedColor: '#64748b',
+            progressColor: 'rgba(255, 255, 255, 0.3)',
+            progressSelectedColor: 'rgba(255, 255, 255, 0.4)',
+          },
+          task: task, // Guardar referencia a la tarea original
+          isTask: true
+        });
+      });
     });
-  }, [scheduledProjects]);
+
+    return result;
+  }, [scheduledProjects, tasks, expandedProjects]);
 
   // Handler para cambio de fechas
   const handleTaskChange = async (task) => {
@@ -298,208 +370,538 @@ const GanttTimeline = ({ projects, onUpdate }) => {
     ]);
   };
 
+  // Handler para crear tarea inline
+  const handleCreateTaskClick = (project) => {
+    setCreatingTaskForProject(project.id);
+    setNewTaskTitle('');
+    // Expandir el proyecto automáticamente
+    setExpandedProjects(prev => ({
+      ...prev,
+      [project.id]: true
+    }));
+  };
+
+  const handleSaveNewTask = async (projectId) => {
+    if (!newTaskTitle.trim()) {
+      return;
+    }
+
+    const result = await createTask({
+      title: newTaskTitle.trim(),
+      projectId: projectId,
+      // No establecer status - las tareas se crean sin estado
+      priority: 'medium'
+    });
+
+    if (result.success) {
+      // Solo limpiar el input, mantener el modo de creación activo
+      setNewTaskTitle('');
+    }
+  };
+
+  const handleCancelNewTask = () => {
+    setCreatingTaskForProject(null);
+    setNewTaskTitle('');
+  };
+
+  // Dependency management uses modal-based approach
+  // The gantt-task-react library automatically shows dependency arrows
+
   // Fila personalizada para la tabla (solo nombre con fechas integradas)
-  const TaskListTable = ({ tasks, rowHeight }) => {
+  const TaskListTable = ({
+    tasks: ganttTasks,
+    rowHeight,
+    rowWidth,
+    selectedTaskId,
+    setSelectedTask,
+    onExpanderClick
+  }) => {
     const [hoveredRow, setHoveredRow] = React.useState(null);
+    const [openMenuIndex, setOpenMenuIndex] = React.useState(null);
+    const [menuPosition, setMenuPosition] = React.useState({ top: 0, left: 0 });
+    const inputContainerRef = React.useRef(null);
+    const menuRef = React.useRef(null);
+    const menuButtonRefs = React.useRef({});
+
+    // Detectar clics fuera del input para cerrarlo
+    React.useEffect(() => {
+      const handleClickOutside = (event) => {
+        if (creatingTaskForProject && inputContainerRef.current && !inputContainerRef.current.contains(event.target)) {
+          handleCancelNewTask();
+        }
+        if (openMenuIndex !== null && menuRef.current && !menuRef.current.contains(event.target)) {
+          setOpenMenuIndex(null);
+        }
+      };
+
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }, [creatingTaskForProject, openMenuIndex]);
+
+    // Determinar si debemos mostrar el input inline después de esta tarea
+    const shouldShowInputAfter = (task, index) => {
+      // Si no hay un proyecto en modo creación, no mostrar nada
+      if (!creatingTaskForProject) return false;
+
+      // Si este es el proyecto que está en modo creación
+      if (task.isProject && task.id === creatingTaskForProject) {
+        // Buscar la siguiente tarea en ganttTasks
+        const nextTask = ganttTasks[index + 1];
+
+        // Mostrar el input si no hay siguiente tarea O la siguiente no es una tarea hija
+        return !nextTask || !nextTask.isTask || nextTask.project !== task.id;
+      }
+
+      // Si esta es una tarea hija del proyecto en modo creación
+      if (task.isTask && task.project === creatingTaskForProject) {
+        // Buscar la siguiente tarea en ganttTasks
+        const nextTask = ganttTasks[index + 1];
+
+        // Mostrar el input si no hay siguiente tarea O la siguiente no pertenece a este proyecto
+        return !nextTask || !nextTask.isTask || nextTask.project !== creatingTaskForProject;
+      }
+
+      return false;
+    };
 
     return (
-      <div>
-        {tasks.map((task, index) => (
-          <div
-            key={task.id}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              height: rowHeight,
-              padding: '0.5rem 1rem',
-              borderBottom: '1px solid var(--border-color)',
-              transition: 'background-color 0.2s ease',
-              gap: '0.5rem'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'rgba(1, 94, 124, 0.03)';
-              setHoveredRow(index);
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'transparent';
-              setHoveredRow(null);
-            }}
-          >
-            {/* Botones de reordenar */}
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '2px',
-              width: '24px',
-              opacity: hoveredRow === index ? 1 : 0,
-              transition: 'opacity 0.2s ease',
-              pointerEvents: hoveredRow === index ? 'auto' : 'none',
-              flexShrink: 0
-            }}>
-              <button
-                onClick={() => handleMoveUp(index)}
-                disabled={index === 0}
-                onMouseEnter={(e) => {
-                  if (index !== 0) {
-                    e.currentTarget.style.transform = 'scale(1.15)';
-                    e.currentTarget.style.backgroundColor = 'rgba(1, 94, 124, 0.08)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'scale(1)';
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                }}
-                onMouseDown={(e) => {
-                  if (index !== 0) {
-                    e.currentTarget.style.transform = 'scale(0.95)';
-                  }
-                }}
-                onMouseUp={(e) => {
-                  if (index !== 0) {
-                    e.currentTarget.style.transform = 'scale(1.15)';
-                  }
-                }}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: index === 0 ? 'not-allowed' : 'pointer',
-                  color: index === 0 ? 'var(--text-secondary)' : 'var(--primary-color)',
-                  fontSize: '0.8rem',
-                  padding: '4px',
-                  opacity: index === 0 ? 0.3 : 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  transition: 'all 0.15s ease',
-                  borderRadius: '4px'
-                }}
-                title={index === 0 ? 'Ya está en la primera posición' : 'Mover arriba'}
-              >
-                ▲
-              </button>
-              <button
-                onClick={() => handleMoveDown(index)}
-                disabled={index === tasks.length - 1}
-                onMouseEnter={(e) => {
-                  if (index !== tasks.length - 1) {
-                    e.currentTarget.style.transform = 'scale(1.15)';
-                    e.currentTarget.style.backgroundColor = 'rgba(1, 94, 124, 0.08)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'scale(1)';
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                }}
-                onMouseDown={(e) => {
-                  if (index !== tasks.length - 1) {
-                    e.currentTarget.style.transform = 'scale(0.95)';
-                  }
-                }}
-                onMouseUp={(e) => {
-                  if (index !== tasks.length - 1) {
-                    e.currentTarget.style.transform = 'scale(1.15)';
-                  }
-                }}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: index === tasks.length - 1 ? 'not-allowed' : 'pointer',
-                  color: index === tasks.length - 1 ? 'var(--text-secondary)' : 'var(--primary-color)',
-                  fontSize: '0.8rem',
-                  padding: '4px',
-                  opacity: index === tasks.length - 1 ? 0.3 : 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  transition: 'all 0.15s ease',
-                  borderRadius: '4px'
-                }}
-                title={index === tasks.length - 1 ? 'Ya está en la última posición' : 'Mover abajo'}
-              >
-                ▼
-              </button>
-            </div>
-
-            {/* Información del proyecto */}
-            <div style={{ flex: 1 }}>
-              <div style={{
-                fontWeight: 600,
-                fontSize: '0.9rem',
-                color: 'var(--text-primary)',
-                marginBottom: '4px'
-              }}>
-                {task.title}
-              </div>
-              <div style={{
-                fontSize: '0.75rem',
-                color: 'var(--text-secondary)',
+      <div style={{ width: rowWidth }}>
+        {ganttTasks.map((task, index) => (
+          <React.Fragment key={task.id}>
+            <div
+              style={{
                 display: 'flex',
-                gap: '0.4rem',
                 alignItems: 'center',
-                whiteSpace: 'nowrap'
-              }}>
-                <span>{task.start.toLocaleDateString('es', { day: '2-digit', month: '2-digit', year: '2-digit' })}</span>
-                <span style={{ color: 'var(--primary-color)', fontWeight: 600 }}>→</span>
-                <span>{task.end.toLocaleDateString('es', { day: '2-digit', month: '2-digit', year: '2-digit' })}</span>
-              </div>
-            </div>
-
-            {/* Botón para remover del Gantt */}
-            <div style={{
-              opacity: hoveredRow === index ? 1 : 0,
-              transition: 'opacity 0.2s ease',
-              pointerEvents: hoveredRow === index ? 'auto' : 'none',
-              flexShrink: 0
-            }}>
+                height: rowHeight,
+                padding: '0.5rem 1rem',
+                borderBottom: task.isProject ? '2px solid var(--border-medium)' : '1px solid var(--border-light)',
+                backgroundColor: task.isProject ? 'rgba(1, 94, 124, 0.04)' : 'transparent',
+                transition: 'background-color 0.2s ease',
+                gap: '0.5rem'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = task.isProject ? 'rgba(1, 94, 124, 0.08)' : 'rgba(1, 94, 124, 0.03)';
+                setHoveredRow(index);
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = task.isProject ? 'rgba(1, 94, 124, 0.04)' : 'transparent';
+                setHoveredRow(null);
+              }}
+            >
+            {/* Indicador de expansión para proyectos */}
+            {task.isProject ? (
+              tasks.some(t => t.projectId === task.project.id && !t.archived) ? (
               <button
-                onClick={() => handleRemoveFromGantt(task.project)}
+                onClick={() => onExpanderClick(task)}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'scale(1.1)';
-                  e.currentTarget.style.backgroundColor = 'var(--color-error)';
-                  e.currentTarget.style.borderColor = 'var(--color-error)';
-                  e.currentTarget.style.color = 'white';
+                  e.currentTarget.style.backgroundColor = 'rgba(1, 94, 124, 0.1)';
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'scale(1)';
                   e.currentTarget.style.backgroundColor = 'transparent';
-                  e.currentTarget.style.borderColor = 'var(--border-medium)';
-                  e.currentTarget.style.color = 'var(--text-secondary)';
-                }}
-                onMouseDown={(e) => {
-                  e.currentTarget.style.transform = 'scale(0.95)';
-                }}
-                onMouseUp={(e) => {
-                  e.currentTarget.style.transform = 'scale(1.1)';
                 }}
                 style={{
                   background: 'transparent',
-                  border: '1px solid var(--border-medium)',
+                  border: 'none',
                   cursor: 'pointer',
                   color: 'var(--text-secondary)',
-                  fontSize: '1.1rem',
-                  padding: '0.25rem',
-                  width: '24px',
-                  height: '24px',
+                  padding: '4px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  transition: 'all 0.15s ease',
+                  width: '24px',
+                  height: '24px',
                   borderRadius: '4px',
-                  lineHeight: 1
+                  flexShrink: 0,
+                  transition: 'all 0.2s ease',
+                  transform: task.hideChildren ? 'rotate(0deg)' : 'rotate(0deg)'
                 }}
-                title="Quitar del cronograma"
+                title={task.hideChildren ? 'Expandir tareas' : 'Colapsar tareas'}
               >
-                ×
+                <Icon
+                  name={task.hideChildren ? 'chevron-right' : 'chevron-down'}
+                  size={18}
+                />
               </button>
+              ) : (
+                <div style={{ width: '24px', flexShrink: 0 }} />
+              )
+            ) : null}
+
+            {/* Indentación para tareas hijas */}
+            {task.isTask && (
+              <div style={{ width: '24px', flexShrink: 0 }} />
+            )}
+
+            {/* Información del proyecto o tarea */}
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              {/* Contenedor para proyectos (nombre + barra de progreso en columna) */}
+              {task.isProject ? (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                  {/* Nombre del proyecto */}
+                  <div style={{
+                    fontWeight: 700,
+                    fontSize: '0.95rem',
+                    color: 'var(--text-primary)',
+                    letterSpacing: '0.01em'
+                  }}>
+                    {task.name}
+                  </div>
+
+                  {/* Barra de progreso solo para proyectos con tareas */}
+                  {(() => {
+                    const projectTasks = tasks.filter(t => t.projectId === task.project.id && !t.archived);
+                    const completedTasks = projectTasks.filter(t => t.status === 'completed').length;
+                    const totalTasks = projectTasks.length;
+                    const progressPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+                    return totalTasks > 0 ? (
+                      <div style={{
+                        width: '150px',
+                        height: '4px',
+                        backgroundColor: 'var(--border-light)',
+                        borderRadius: '2px',
+                        overflow: 'hidden'
+                      }}>
+                        <div style={{
+                          width: `${progressPercent}%`,
+                          height: '100%',
+                          backgroundColor: progressPercent === 100 ? 'var(--color-success)' : 'var(--accent-color)',
+                          transition: 'width 0.3s ease',
+                          borderRadius: '2px'
+                        }} />
+                      </div>
+                    ) : null;
+                  })()}
+                </div>
+              ) : (
+                /* Contenedor para tareas (nombre + badges en línea) */
+                <>
+                  <div style={{
+                    fontWeight: 500,
+                    fontSize: '0.875rem',
+                    color: 'var(--text-secondary)',
+                    flex: 1
+                  }}>
+                    {task.name}
+                  </div>
+
+                  {/* Badge de estado y avatar solo para tareas */}
+                  {task.task && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                      {/* Badge de estado */}
+                      {task.task.status && (
+                        <span className={`badge badge-status-${task.task.status}`}>
+                          {task.task.status === 'pending' && 'Pendiente'}
+                          {task.task.status === 'in-progress' && 'En Progreso'}
+                          {task.task.status === 'qa' && 'QA'}
+                          {task.task.status === 'completed' && 'Completada'}
+                        </span>
+                      )}
+
+                      {/* Avatar del usuario asignado o placeholder NA */}
+                      {task.task.assignedTo ? (
+                        <UserAvatar userId={task.task.assignedTo} size={24} />
+                      ) : (
+                        <div style={{
+                          width: '24px',
+                          height: '24px',
+                          borderRadius: '50%',
+                          backgroundColor: 'var(--border-medium)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '0.6rem',
+                          fontWeight: 600,
+                          color: 'var(--text-tertiary)'
+                        }}>
+                          NA
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
-          </div>
+
+            {/* Botón para gestionar dependencias en tareas */}
+            {task.isTask && (
+              <div style={{
+                opacity: hoveredRow === index ? 1 : 0,
+                transition: 'opacity 0.2s ease',
+                pointerEvents: hoveredRow === index ? 'auto' : 'none',
+                flexShrink: 0,
+                marginRight: '0.5rem'
+              }}>
+                <button
+                  onClick={() => {
+                    setSelectedTaskForDependency(task.task);
+                    setShowDependencyModal(true);
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--accent-color)';
+                    e.currentTarget.style.borderColor = 'var(--accent-color)';
+                    e.currentTarget.style.color = 'white';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                    e.currentTarget.style.borderColor = 'var(--border-medium)';
+                    e.currentTarget.style.color = 'var(--text-secondary)';
+                  }}
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid var(--border-medium)',
+                    cursor: 'pointer',
+                    color: 'var(--text-secondary)',
+                    padding: '0.25rem',
+                    width: '24px',
+                    height: '24px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all 0.15s ease',
+                    borderRadius: '4px',
+                    position: 'relative'
+                  }}
+                  title="Gestionar dependencias"
+                >
+                  <Icon name="arrow-right" size={14} />
+                  {task.task.dependencies && task.task.dependencies.length > 0 && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '-4px',
+                      right: '-4px',
+                      width: '12px',
+                      height: '12px',
+                      borderRadius: '50%',
+                      backgroundColor: 'var(--accent-color)',
+                      border: '2px solid white',
+                      fontSize: '0.5rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'white',
+                      fontWeight: 600
+                    }}>
+                      {task.task.dependencies.length}
+                    </div>
+                  )}
+                </button>
+              </div>
+            )}
+
+            {/* Botón para agregar tarea al proyecto */}
+            {task.isProject && (
+              <div style={{
+                opacity: hoveredRow === index ? 1 : 0,
+                transition: 'opacity 0.2s ease',
+                pointerEvents: hoveredRow === index ? 'auto' : 'none',
+                flexShrink: 0,
+                marginRight: '0.5rem'
+              }}>
+                <button
+                  onClick={() => handleCreateTaskClick(task.project)}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'scale(1.1)';
+                    e.currentTarget.style.backgroundColor = 'var(--accent-color)';
+                    e.currentTarget.style.borderColor = 'var(--accent-color)';
+                    e.currentTarget.style.color = 'white';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'scale(1)';
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                    e.currentTarget.style.borderColor = 'var(--border-medium)';
+                    e.currentTarget.style.color = 'var(--text-secondary)';
+                  }}
+                  onMouseDown={(e) => {
+                    e.currentTarget.style.transform = 'scale(0.95)';
+                  }}
+                  onMouseUp={(e) => {
+                    e.currentTarget.style.transform = 'scale(1.1)';
+                  }}
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid var(--border-medium)',
+                    cursor: 'pointer',
+                    color: 'var(--text-secondary)',
+                    fontSize: '1rem',
+                    padding: '0.25rem',
+                    width: '24px',
+                    height: '24px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all 0.15s ease',
+                    borderRadius: '4px',
+                    lineHeight: 1
+                  }}
+                  title="Agregar tarea"
+                >
+                  +
+                </button>
+              </div>
+            )}
+
+            {/* Menú de opciones para proyectos */}
+            {task.isProject && (
+              <div style={{ position: 'relative', flexShrink: 0 }}>
+                <button
+                  ref={(el) => { menuButtonRefs.current[index] = el; }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (openMenuIndex === index) {
+                      setOpenMenuIndex(null);
+                    } else {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setMenuPosition({
+                        top: rect.bottom + 4,
+                        left: rect.right - 180 // 180px es el minWidth del menú
+                      });
+                      setOpenMenuIndex(index);
+                    }
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(1, 94, 124, 0.1)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                  }}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--text-secondary)',
+                    padding: '4px',
+                    width: '24px',
+                    height: '24px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all 0.2s ease',
+                    borderRadius: '4px',
+                    opacity: hoveredRow === index || openMenuIndex === index ? 1 : 0
+                  }}
+                  title="Opciones"
+                >
+                  <Icon name="more-vertical" size={18} />
+                </button>
+
+                {/* Menú desplegable */}
+                {openMenuIndex === index && (
+                  <div
+                    ref={menuRef}
+                    className="gantt-project-menu"
+                    style={{
+                      position: 'fixed',
+                      top: `${menuPosition.top}px`,
+                      left: `${menuPosition.left}px`
+                    }}
+                  >
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleMoveUp(index);
+                        setOpenMenuIndex(null);
+                      }}
+                      disabled={index === 0}
+                    >
+                      <Icon name="arrow-up" size={16} />
+                      Mover arriba
+                    </button>
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleMoveDown(index);
+                        setOpenMenuIndex(null);
+                      }}
+                      disabled={index === ganttTasks.filter(t => t.isProject).length - 1}
+                    >
+                      <Icon name="arrow-down" size={16} />
+                      Mover abajo
+                    </button>
+
+                    <div className="menu-divider" />
+
+                    <button
+                      className="danger-option"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveFromGantt(task.project);
+                        setOpenMenuIndex(null);
+                      }}
+                    >
+                      <Icon name="x" size={16} />
+                      Quitar del cronograma
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+            </div>
+
+            {/* Fila inline para crear nueva tarea - mostrar al final de las tareas del proyecto */}
+            {shouldShowInputAfter(task, index) && (
+            <div
+              ref={inputContainerRef}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                height: rowHeight,
+                padding: '0.5rem 1rem',
+                borderBottom: '1px solid var(--border-color)',
+                backgroundColor: 'rgba(0, 153, 204, 0.05)',
+                gap: '0.5rem'
+              }}
+            >
+              {/* Indentación como tarea hija */}
+              <div style={{ width: '24px', flexShrink: 0 }} />
+
+              {/* Input para nombre de tarea */}
+              <input
+                type="text"
+                value={newTaskTitle}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  setNewTaskTitle(e.target.value);
+                }}
+                onKeyDown={(e) => {
+                  e.stopPropagation();
+                  if (e.key === 'Enter') {
+                    // Si task es un proyecto, usar task.id; si es una tarea, usar task.project
+                    const projectId = task.isProject ? task.id : task.project;
+                    handleSaveNewTask(projectId);
+                  } else if (e.key === 'Escape') {
+                    handleCancelNewTask();
+                  }
+                }}
+                onKeyUp={(e) => e.stopPropagation()}
+                onKeyPress={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+                onFocus={(e) => e.stopPropagation()}
+                placeholder="Escribe y presiona Enter para agregar, Esc para cancelar"
+                autoFocus
+                style={{
+                  flex: 1,
+                  border: '1px solid var(--accent-color)',
+                  borderRadius: '4px',
+                  padding: '0.5rem',
+                  fontSize: '0.9rem',
+                  outline: 'none',
+                  fontWeight: 500
+                }}
+              />
+            </div>
+            )}
+          </React.Fragment>
         ))}
       </div>
     );
   };
 
   return (
-    <div className="gantt-container">
+    <div className="gantt-container" style={{ position: 'relative' }}>
       {scheduledProjects.length > 0 ? (
         <div
           className={`gantt-wrapper ${isDraggingOver ? 'drag-over' : ''}`}
@@ -542,13 +944,21 @@ const GanttTimeline = ({ projects, onUpdate }) => {
 
           {/* Gantt Chart */}
           <div className="gantt-chart-container">
-            {tasks.length > 0 && (
+            {ganttTasks.length > 0 && (
               <Gantt
-                tasks={tasks}
+                tasks={ganttTasks}
                 viewMode={viewMode}
                 onDateChange={handleTaskChange}
                 onProgressChange={handleProgressChange}
-                listCellWidth="280px"
+                onExpanderClick={(task) => {
+                  if (task.isProject) {
+                    setExpandedProjects(prev => ({
+                      ...prev,
+                      [task.id]: !prev[task.id]
+                    }));
+                  }
+                }}
+                listCellWidth="330px"
                 columnWidth={viewMode === ViewMode.Day ? 60 : viewMode === ViewMode.Week ? 250 : 300}
                 rowHeight={50}
                 taskHeight={28}
@@ -664,6 +1074,19 @@ const GanttTimeline = ({ projects, onUpdate }) => {
           onConfirm={confirmRemoveFromGantt}
         />
       )}
+
+      {/* Modal para gestionar dependencias */}
+      {showDependencyModal && selectedTaskForDependency && (
+        <DependencyModal
+          task={selectedTaskForDependency}
+          allTasks={tasks}
+          onClose={() => {
+            setShowDependencyModal(false);
+            setSelectedTaskForDependency(null);
+          }}
+        />
+      )}
+
     </div>
   );
 };
@@ -759,6 +1182,146 @@ const ConfirmRemoveModal = ({ project, onClose, onConfirm }) => {
             className="btn-primary btn-danger-bg"
           >
             Sí, quitar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Modal para gestionar dependencias de tareas
+const DependencyModal = ({ task, allTasks, onClose }) => {
+  const [loading, setLoading] = React.useState(false);
+
+  // Filtrar tareas del mismo proyecto (excluyendo la tarea actual)
+  const availableTasks = allTasks.filter(t =>
+    t.projectId === task.projectId &&
+    t.id !== task.id &&
+    !t.archived
+  );
+
+  const handleAddDependency = async (dependsOnTaskId) => {
+    setLoading(true);
+    const result = await addTaskDependency(task.id, dependsOnTaskId);
+    setLoading(false);
+
+    if (!result.success) {
+      console.error('Error al agregar dependencia:', result.error);
+    }
+  };
+
+  const handleRemoveDependency = async (dependsOnTaskId) => {
+    setLoading(true);
+    const result = await removeTaskDependency(task.id, dependsOnTaskId);
+    setLoading(false);
+
+    if (!result.success) {
+      console.error('Error al eliminar dependencia:', result.error);
+    }
+  };
+
+  const currentDependencies = task.dependencies || [];
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+        <div className="flex justify-between items-center mb-base">
+          <h3 className="heading-3">Gestionar Dependencias</h3>
+          <button
+            onClick={onClose}
+            className="btn btn-icon"
+            title="Cerrar"
+          >
+            <Icon name="x" size={20} />
+          </button>
+        </div>
+
+        <p className="text-base text-secondary mb-base">
+          Tarea: <strong>{task.title}</strong>
+        </p>
+
+        <p className="text-sm text-tertiary mb-lg">
+          Las dependencias determinan qué tareas deben completarse antes de que esta pueda comenzar.
+          Las líneas se mostrarán automáticamente en el cronograma.
+        </p>
+
+        {availableTasks.length === 0 ? (
+          <div className="empty-state" style={{ padding: '2rem' }}>
+            <p className="text-secondary">No hay otras tareas en este proyecto</p>
+          </div>
+        ) : (
+          <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+            <div className="flex flex-col gap-sm">
+              {availableTasks.map(availableTask => {
+                const hasDependency = currentDependencies.includes(availableTask.id);
+
+                return (
+                  <div
+                    key={availableTask.id}
+                    className="flex items-center justify-between p-base border-b-light"
+                    style={{
+                      backgroundColor: hasDependency ? 'rgba(1, 94, 124, 0.05)' : 'transparent',
+                      borderRadius: '4px'
+                    }}
+                  >
+                    <div className="flex flex-col gap-xs" style={{ flex: 1 }}>
+                      <div className="flex items-center gap-sm">
+                        <span className="text-base">{availableTask.title}</span>
+                        {availableTask.status && (
+                          <span className={`badge badge-status-${availableTask.status}`}>
+                            {availableTask.status === 'pending' && 'Pendiente'}
+                            {availableTask.status === 'in-progress' && 'En Progreso'}
+                            {availableTask.status === 'qa' && 'QA'}
+                            {availableTask.status === 'completed' && 'Completada'}
+                          </span>
+                        )}
+                      </div>
+                      {availableTask.assignedTo && (
+                        <div className="flex items-center gap-xs">
+                          <UserAvatar userId={availableTask.assignedTo} size={20} />
+                          <UserAvatar userId={availableTask.assignedTo} size={0} showName={true} />
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        if (hasDependency) {
+                          handleRemoveDependency(availableTask.id);
+                        } else {
+                          handleAddDependency(availableTask.id);
+                        }
+                      }}
+                      disabled={loading}
+                      className={`btn ${hasDependency ? 'btn-danger' : 'btn-primary'} btn-sm`}
+                      style={{ minWidth: '100px' }}
+                    >
+                      {hasDependency ? (
+                        <>
+                          <Icon name="x" size={14} />
+                          Quitar
+                        </>
+                      ) : (
+                        <>
+                          <Icon name="arrow-right" size={14} />
+                          Agregar
+                        </>
+                      )}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <div className="modal-actions" style={{ marginTop: '1.5rem' }}>
+          <button
+            type="button"
+            onClick={onClose}
+            className="btn btn-primary"
+          >
+            Cerrar
           </button>
         </div>
       </div>

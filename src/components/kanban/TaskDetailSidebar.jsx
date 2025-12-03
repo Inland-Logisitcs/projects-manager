@@ -4,6 +4,8 @@ import RichTextEditor from '../editors/RichTextEditor';
 import AttachmentsList from '../files/AttachmentsList';
 import UserSelect from '../common/UserSelect';
 import UserAvatar from '../common/UserAvatar';
+import StoryPointsSelect from '../common/StoryPointsSelect';
+import TaskComments from './TaskComments';
 import Toast from '../common/Toast';
 import ConfirmDialog from '../common/ConfirmDialog';
 import { updateTask, archiveTask } from '../../services/taskService';
@@ -267,14 +269,14 @@ const TaskDetailSidebar = ({ task, columns, onClose }) => {
               <h2 className="task-title-integrated">{task.title}</h2>
               <div className="task-meta-badges">
                 <span
-                  className={`priority-badge priority-${task.priority}`}
-                  title={`Prioridad: ${priorityLabels[task.priority]}`}
+                  className={`priority-badge priority-${task.priority} has-tooltip`}
+                  data-tooltip="Prioridad"
                 >
                   {priorityLabels[task.priority]}
                 </span>
                 <span
-                  className="status-badge-integrated"
-                  title="Estado actual"
+                  className="status-badge-integrated has-tooltip"
+                  data-tooltip="Estado actual"
                   style={{ backgroundColor: getColumnColor(task.status) }}
                 >
                   {getColumnName(task.status)}
@@ -282,7 +284,7 @@ const TaskDetailSidebar = ({ task, columns, onClose }) => {
               </div>
             </div>
 
-            <div className="task-assignee-row" ref={userSelectRef}>
+            <div className="task-assignee-row flex items-center gap-sm" ref={userSelectRef}>
               {task.assignedTo ? (
                 <div
                   onClick={() => setShowUserSelect(!showUserSelect)}
@@ -300,6 +302,16 @@ const TaskDetailSidebar = ({ task, columns, onClose }) => {
                   <span>Sin asignar</span>
                 </div>
               )}
+              <StoryPointsSelect
+                value={task.storyPoints}
+                onChange={async (storyPoints) => {
+                  const result = await updateTask(task.id, { storyPoints });
+                  if (!result.success) {
+                    setToast({ message: 'Error al actualizar story points: ' + result.error, type: 'error' });
+                  }
+                }}
+                size="small"
+              />
               {showUserSelect && (
                 <div className="user-select-dropdown-sidebar">
                   <UserSelect
@@ -307,7 +319,7 @@ const TaskDetailSidebar = ({ task, columns, onClose }) => {
                     onChange={async (userId) => {
                       const result = await updateTask(task.id, {
                         assignedTo: userId,
-                        previousAssignedTo: task.assignedTo
+                        previousAssignedTo: task.assignedTo || null
                       });
                       if (!result.success) {
                         setToast({ message: 'Error al asignar usuario: ' + result.error, type: 'error' });
@@ -504,6 +516,21 @@ const TaskDetailSidebar = ({ task, columns, onClose }) => {
                 <p className="text-sm m-0">Esta tarea no ha sido movida entre columnas aún.</p>
               </div>
             )}
+          </section>
+
+          {/* Comentarios */}
+          <section className="sidebar-section">
+            <h4 className="heading-4 text-secondary flex items-center gap-xs mb-base">
+              <Icon name="message-square" size={18} />
+              Comentarios
+              {task.comments && task.comments.length > 0 && (
+                <span className="history-count">{task.comments.length}</span>
+              )}
+            </h4>
+            <TaskComments
+              taskId={task.id}
+              comments={task.comments || []}
+            />
           </section>
         </div>
 

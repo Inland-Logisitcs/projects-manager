@@ -1,0 +1,94 @@
+.story-points-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* Tamaños */
+.story-points-badge.story-points-small {
+  padding: 0.125rem 0.5rem;
+  font-size: 0.7rem;
+}
+
+.story-points-badge.story-points-medium {
+  padding: 0.25rem 0.625rem;
+  font-size: 0.75rem;
+}
+
+.story-points-badge.story-points-large {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+/* Estados */
+.story-points-badge.has-value {
+  background-color: var(--accent-color);
+  color: white;
+}
+
+.story-points-badge.has-value:hover {
+  background-color: var(--primary-color);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 153, 204, 0.3);
+}
+
+.story-points-badge.empty {
+  background-color: var(--bg-secondary);
+  color: var(--text-tertiary);
+  border: 1px dashed var(--border-medium);
+}
+
+.story-points-badge.empty:hover {
+  border-color: var(--accent-color);
+  border-style: solid;
+  color: var(--accent-color);
+  background-color: rgba(0, 153, 204, 0.05);
+}
+
+/* Input de edición */
+.story-points-input {
+  border-radius: 8px;
+  border: 2px solid var(--accent-color);
+  background-color: white;
+  text-align: center;
+  font-weight: 600;
+  color: var(--text-primary);
+  outline: none;
+  box-shadow: 0 2px 8px rgba(0, 153, 204, 0.2);
+  transition: all 0.2s ease;
+}
+
+.story-points-input.story-points-small {
+  padding: 0.125rem 0.5rem;
+  font-size: 0.7rem;
+  width: 50px;
+}
+
+.story-points-input.story-points-medium {
+  padding: 0.25rem 0.625rem;
+  font-size: 0.75rem;
+  width: 60px;
+}
+
+.story-points-input.story-points-large {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+  width: 70px;
+}
+
+.story-points-input:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 4px 12px rgba(0, 153, 204, 0.3);
+}
+
+.story-points-input::placeholder {
+  color: var(--text-tertiary);
+  font-weight: 400;
+}
