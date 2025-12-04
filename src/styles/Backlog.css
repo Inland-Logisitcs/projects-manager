@@ -226,6 +226,13 @@ th {
   align-items: center;
 }
 
+/* Project assignment in table */
+.task-project {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
 .btn-assign-user-backlog {
   display: flex;
   align-items: center;

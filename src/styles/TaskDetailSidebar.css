@@ -460,6 +460,11 @@
   color: #015E7C;
 }
 
+/* Task project row */
+.task-project-row {
+  position: relative;
+}
+
 /* User select dropdown */
 .user-select-dropdown-sidebar {
   position: absolute;

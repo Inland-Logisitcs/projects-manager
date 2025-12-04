@@ -3,14 +3,16 @@ import { Gantt, ViewMode } from 'gantt-task-react';
 import 'gantt-task-react/dist/index.css';
 import { createTask, addTaskDependency, removeTaskDependency, updateTask } from '../../services/taskService';
 import { addProjectDependency, removeProjectDependency } from '../../services/projectService';
+import { calculateAllProjectsSchedules } from '../../services/schedulingService';
 import Icon from '../common/Icon';
 import UserAvatar from '../common/UserAvatar';
 import UserMultiSelect from '../common/UserMultiSelect';
 import Toast from '../common/Toast';
 import StoryPointsSelect from '../common/StoryPointsSelect';
+import WarningPopover from './WarningPopover';
 import '../../styles/GanttTimeline.css';
 
-const GanttTimeline = ({ projects, tasks = [], onUpdate }) => {
+const GanttTimeline = ({ projects, tasks = [], users = [], onUpdate }) => {
   // Inicializar viewMode desde localStorage o usar Day por defecto
   const [viewMode, setViewMode] = useState(() => {
     const savedViewMode = localStorage.getItem('gantt-view-mode');
@@ -40,6 +42,18 @@ const GanttTimeline = ({ projects, tasks = [], onUpdate }) => {
     return expanded;
   });
   const dragCounterRef = React.useRef(0);
+
+  // Calculate smart schedules for all projects (memoized to prevent infinite loops)
+  const scheduleResults = useMemo(() => {
+    if (projects.length > 0 && tasks.length > 0 && users.length > 0) {
+      return calculateAllProjectsSchedules(projects, tasks, users);
+    }
+    return { scheduledTasks: new Map(), warnings: new Map() };
+  }, [projects, tasks, users]);
+
+  // Use the schedule results directly without state
+  const scheduledTasks = scheduleResults.scheduledTasks;
+  const scheduleWarnings = scheduleResults.warnings;
 
   // Detectar hover sobre barras del Gantt para mostrar círculo de conexión
   React.useEffect(() => {
@@ -671,23 +685,34 @@ const GanttTimeline = ({ projects, tasks = [], onUpdate }) => {
 
       // Agregar tareas hijas
       projectTasks.forEach((task) => {
-        // Si la tarea tiene fechas propias, usarlas; si no, usar las del proyecto
-        let tStart, tEnd;
-
-        if (task.startDate && task.endDate) {
-          const [tStartYear, tStartMonth, tStartDay] = task.startDate.split('-').map(Number);
-          tStart = new Date(tStartYear, tStartMonth - 1, tStartDay, 0, 0, 0, 0);
-
-          const [tEndYear, tEndMonth, tEndDay] = task.endDate.split('-').map(Number);
-          tEnd = new Date(tEndYear, tEndMonth - 1, tEndDay, 23, 59, 59, 999);
-        } else {
-          // Usar fechas del proyecto como fallback
-          tStart = start;
-          tEnd = end;
+        // Skip tasks without story points (they won't appear in Gantt)
+        if (!task.storyPoints || task.storyPoints <= 0) {
+          return;
         }
+
+        // Get calculated schedule for this task
+        const projectSchedules = scheduledTasks.get(project.id) || [];
+        const taskSchedule = projectSchedules.find(s => s.taskId === task.id);
+
+        // Skip tasks without calculated schedule
+        if (!taskSchedule || !taskSchedule.startDate || !taskSchedule.endDate) {
+          return;
+        }
+
+        // Use calculated dates from smart scheduling
+        const [tStartYear, tStartMonth, tStartDay] = taskSchedule.startDate.split('-').map(Number);
+        const tStart = new Date(tStartYear, tStartMonth - 1, tStartDay, 0, 0, 0, 0);
+
+        const [tEndYear, tEndMonth, tEndDay] = taskSchedule.endDate.split('-').map(Number);
+        const tEnd = new Date(tEndYear, tEndMonth - 1, tEndDay, 23, 59, 59, 999);
 
         // Convertir dependencias a formato de la librería
         const dependencies = (task.dependencies || []).map(depId => `task-${depId}`);
+
+        // Para tareas simuladas, crear una versión modificada de la tarea con el usuario asignado
+        const taskWithAssignment = taskSchedule.isSimulated
+          ? { ...task, assignedTo: taskSchedule.assignedTo }
+          : task;
 
         result.push({
           id: `task-${task.id}`,
@@ -704,14 +729,15 @@ const GanttTimeline = ({ projects, tasks = [], onUpdate }) => {
             progressColor: 'rgba(255, 255, 255, 0.3)',
             progressSelectedColor: 'rgba(255, 255, 255, 0.4)',
           },
-          task: task, // Guardar referencia a la tarea original
-          isTask: true
+          task: taskWithAssignment, // Guardar referencia a la tarea (con asignación simulada si aplica)
+          isTask: true,
+          isSimulated: taskSchedule.isSimulated || false // Flag para asignaciones simuladas
         });
       });
     });
 
     return result;
-  }, [scheduledProjects, tasks, expandedProjects]);
+  }, [scheduledProjects, tasks, expandedProjects, scheduledTasks]);
 
   // Agregar atributo data-task-id a las barras del Gantt después del renderizado
   React.useEffect(() => {
@@ -1046,6 +1072,15 @@ const GanttTimeline = ({ projects, tasks = [], onUpdate }) => {
 
   // Handler para cambio de fechas
   const handleTaskChange = async (task) => {
+    // Block date changes for tasks (only allow projects)
+    if (task.type === 'task' || task.isTask) {
+      setToast({
+        message: 'Las fechas de las tareas se calculan automáticamente basadas en story points y dependencias',
+        type: 'info'
+      });
+      return;
+    }
+
     const project = scheduledProjects.find(p => p.id === task.id);
     if (!project) return;
 
@@ -1279,6 +1314,8 @@ const GanttTimeline = ({ projects, tasks = [], onUpdate }) => {
     setSelectedTask,
     onExpanderClick
   }) => {
+    // Create refs map for warning popovers
+    const warningRefs = React.useRef({});
     const [hoveredRow, setHoveredRow] = React.useState(null);
     const [openMenuIndex, setOpenMenuIndex] = React.useState(null);
     const [menuPosition, setMenuPosition] = React.useState({ top: 0, left: 0 });
@@ -1408,9 +1445,21 @@ const GanttTimeline = ({ projects, tasks = [], onUpdate }) => {
                       fontWeight: 700,
                       fontSize: '0.95rem',
                       color: 'var(--text-primary)',
-                      letterSpacing: '0.01em'
+                      letterSpacing: '0.01em',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.25rem'
                     }}>
-                      {task.name}
+                      <span>{task.name}</span>
+                      {(() => {
+                        const projectWarnings = scheduleWarnings.get(task.id);
+                        if (projectWarnings && projectWarnings.length > 0) {
+                          return (
+                            <WarningPopover warnings={projectWarnings} />
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
 
                     {/* Barra de progreso solo para proyectos con tareas */}
@@ -1516,7 +1565,14 @@ const GanttTimeline = ({ projects, tasks = [], onUpdate }) => {
 
                       {/* Avatar del usuario asignado o placeholder NA */}
                       {task.task.assignedTo ? (
-                        <UserAvatar userId={task.task.assignedTo} size={24} />
+                        <div style={{
+                          opacity: task.isSimulated ? 0.6 : 1,
+                          border: task.isSimulated ? '2px dashed var(--color-primary)' : 'none',
+                          borderRadius: '50%',
+                          padding: task.isSimulated ? '2px' : '0'
+                        }}>
+                          <UserAvatar userId={task.task.assignedTo} size={24} />
+                        </div>
                       ) : (
                         <div style={{
                           width: '24px',

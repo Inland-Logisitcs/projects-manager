@@ -1095,3 +1095,93 @@
   margin: 0;
 }
 
+/* Warning Popover Component */
+.warning-trigger-btn {
+  background: transparent;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  transition: background-color 0.15s ease;
+  margin-left: 4px;
+  flex-shrink: 0;
+}
+
+.warning-trigger-btn:hover {
+  background-color: rgba(245, 158, 11, 0.1);
+}
+
+.warning-popover {
+  min-width: 280px;
+  max-width: 400px;
+  background-color: white;
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-base);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  animation: popoverFadeIn 0.15s ease;
+}
+
+@keyframes popoverFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.warning-popover-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-base);
+  background-color: rgba(245, 158, 11, 0.1);
+  border-bottom: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.warning-popover-list {
+  padding: var(--space-xs);
+  max-height: 300px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.warning-popover-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-secondary);
+  border-left: 2px solid;
+}
+
+.warning-popover-item.warning-popover-warning {
+  border-left-color: var(--color-warning);
+  background-color: rgba(245, 158, 11, 0.05);
+}
+
+.warning-popover-item.warning-popover-error {
+  border-left-color: var(--color-error);
+  background-color: rgba(220, 53, 69, 0.05);
+}
+
+.warning-popover-item.warning-popover-info {
+  border-left-color: var(--color-primary);
+  background-color: rgba(1, 94, 124, 0.05);
+}
+
+.warning-popover-item span {
+  color: var(--text-secondary);
+  line-height: 1.4;
+  word-break: break-word;
+}
+

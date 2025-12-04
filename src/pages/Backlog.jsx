@@ -2,10 +2,12 @@ import { useState, useEffect, useRef } from 'react';
 import { subscribeToTasks, updateTask, createTask, archiveTask, moveTaskToSprint } from '../services/taskService';
 import { subscribeToSprints, createSprint, startSprint } from '../services/sprintService';
 import { subscribeToColumns } from '../services/columnService';
+import { subscribeToProjects } from '../services/projectService';
 import Icon from '../components/common/Icon';
 import UserSelect from '../components/common/UserSelect';
 import UserAvatar from '../components/common/UserAvatar';
 import StoryPointsSelect from '../components/common/StoryPointsSelect';
+import ProjectSelect from '../components/common/ProjectSelect';
 import ConfirmDialog from '../components/common/ConfirmDialog';
 import TaskDetailSidebar from '../components/kanban/TaskDetailSidebar';
 import '../styles/Backlog.css';
@@ -14,6 +16,7 @@ const Backlog = () => {
   const [tasks, setTasks] = useState([]);
   const [sprints, setSprints] = useState([]);
   const [columns, setColumns] = useState([]);
+  const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [showSprintModal, setShowSprintModal] = useState(false);
@@ -36,10 +39,15 @@ const Backlog = () => {
       setColumns(fetchedColumns);
     });
 
+    const unsubscribeProjects = subscribeToProjects((fetchedProjects) => {
+      setProjects(fetchedProjects);
+    });
+
     return () => {
       unsubscribeTasks();
       unsubscribeSprints();
       unsubscribeColumns();
+      unsubscribeProjects();
     };
   }, []);
 
@@ -52,6 +60,13 @@ const Backlog = () => {
   // Obtener tareas de un sprint específico
   const getSprintTasks = (sprintId) => {
     return tasks.filter(task => task.sprintId === sprintId);
+  };
+
+  // Obtener el nombre del proyecto por su ID
+  const getProjectName = (projectId) => {
+    if (!projectId) return null;
+    const project = projects.find(p => p.id === projectId);
+    return project ? project.name : 'Proyecto desconocido';
   };
 
   const handleDragStart = (e, task) => {
@@ -181,6 +196,7 @@ const Backlog = () => {
           onDrop={(e) => handleDropToSprint(e, sprint.id)}
           onStartSprint={startSprint}
           onTaskClick={setSelectedTask}
+          getProjectName={getProjectName}
         />
       ))}
 
@@ -227,6 +243,7 @@ const Backlog = () => {
                 <tr>
                   <th style={{ width: '40px' }}></th>
                   <th>Tarea</th>
+                  <th style={{ width: '150px' }}>Proyecto</th>
                   <th style={{ width: '120px' }}>Prioridad</th>
                   <th style={{ width: '100px' }}>Story Points</th>
                   <th style={{ width: '120px' }}>Estado</th>
@@ -240,7 +257,7 @@ const Backlog = () => {
                     <td>
                       <Icon name="plus-circle" size={16} className="inline-create-icon" />
                     </td>
-                    <td colSpan="6">
+                    <td colSpan="7">
                       <div className="inline-create-wrapper">
                         <input
                           ref={newTaskInputRef}
@@ -270,6 +287,7 @@ const Backlog = () => {
                     onArchive={archiveTask}
                     onUpdateTask={updateTask}
                     onTaskClick={setSelectedTask}
+                    getProjectName={getProjectName}
                   />
                 ))}
               </tbody>
@@ -296,8 +314,9 @@ const Backlog = () => {
       {/* Task Detail Sidebar */}
       {selectedTask && (
         <TaskDetailSidebar
-          task={selectedTask}
+          task={tasks.find(t => t.id === selectedTask.id) || selectedTask}
           columns={columns}
+          allTasks={tasks}
           onClose={() => setSelectedTask(null)}
         />
       )}
@@ -306,7 +325,7 @@ const Backlog = () => {
 };
 
 // Componente de Sprint Section
-const SprintSection = ({ sprint, tasks, onDragOver, onDrop, onStartSprint, onTaskClick }) => {
+const SprintSection = ({ sprint, tasks, onDragOver, onDrop, onStartSprint, onTaskClick, getProjectName }) => {
   const [expanded, setExpanded] = useState(true);
   const [isCreatingTask, setIsCreatingTask] = useState(false);
   const [newTaskName, setNewTaskName] = useState('');
@@ -451,6 +470,7 @@ const SprintSection = ({ sprint, tasks, onDragOver, onDrop, onStartSprint, onTas
                 <tr>
                   <th style={{ width: '40px' }}></th>
                   <th>Tarea</th>
+                  <th style={{ width: '150px' }}>Proyecto</th>
                   <th style={{ width: '120px' }}>Prioridad</th>
                   <th style={{ width: '100px' }}>Story Points</th>
                   <th style={{ width: '120px' }}>Estado</th>
@@ -464,7 +484,7 @@ const SprintSection = ({ sprint, tasks, onDragOver, onDrop, onStartSprint, onTas
                     <td>
                       <Icon name="plus-circle" size={16} className="inline-create-icon" />
                     </td>
-                    <td colSpan="6">
+                    <td colSpan="7">
                       <div className="inline-create-wrapper">
                         <input
                           ref={newTaskInputRef}
@@ -494,6 +514,7 @@ const SprintSection = ({ sprint, tasks, onDragOver, onDrop, onStartSprint, onTas
                     onArchive={archiveTask}
                     onUpdateTask={updateTask}
                     onTaskClick={onTaskClick}
+                    getProjectName={getProjectName}
                   />
                 ))}
               </tbody>
@@ -506,10 +527,12 @@ const SprintSection = ({ sprint, tasks, onDragOver, onDrop, onStartSprint, onTas
 };
 
 // Componente de fila de tarea
-const TaskRow = ({ task, onDragStart, onArchive, onUpdateTask, onTaskClick }) => {
+const TaskRow = ({ task, onDragStart, onArchive, onUpdateTask, onTaskClick, getProjectName }) => {
   const [showConfirm, setShowConfirm] = useState(false);
   const [showUserSelect, setShowUserSelect] = useState(false);
+  const [showProjectSelect, setShowProjectSelect] = useState(false);
   const userSelectRef = useRef(null);
+  const projectSelectRef = useRef(null);
 
   const priorityLabels = {
     low: 'Baja',
@@ -518,7 +541,7 @@ const TaskRow = ({ task, onDragStart, onArchive, onUpdateTask, onTaskClick }) =>
     critical: 'Crítica'
   };
 
-  // Cerrar menú al hacer click fuera
+  // Cerrar menú de usuario al hacer click fuera
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (userSelectRef.current && !userSelectRef.current.contains(event.target)) {
@@ -533,6 +556,22 @@ const TaskRow = ({ task, onDragStart, onArchive, onUpdateTask, onTaskClick }) =>
       };
     }
   }, [showUserSelect]);
+
+  // Cerrar menú de proyecto al hacer click fuera
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (projectSelectRef.current && !projectSelectRef.current.contains(event.target)) {
+        setShowProjectSelect(false);
+      }
+    };
+
+    if (showProjectSelect) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [showProjectSelect]);
 
   const handleArchive = () => {
     setShowConfirm(true);
@@ -549,6 +588,13 @@ const TaskRow = ({ task, onDragStart, onArchive, onUpdateTask, onTaskClick }) =>
       previousAssignedTo: task.assignedTo
     });
     setShowUserSelect(false);
+  };
+
+  const handleAssignProject = async (projectId) => {
+    await onUpdateTask(task.id, {
+      projectId: projectId || null
+    });
+    setShowProjectSelect(false);
   };
 
   return (
@@ -573,6 +619,42 @@ const TaskRow = ({ task, onDragStart, onArchive, onUpdateTask, onTaskClick }) =>
         </td>
         <td onClick={() => onTaskClick(task)} style={{ cursor: 'pointer' }}>
           <div className="task-title font-semibold text-primary">{task.title || task.name}</div>
+        </td>
+        <td>
+          <div className="task-project" ref={projectSelectRef}>
+            {task.projectId ? (
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowProjectSelect(!showProjectSelect);
+                }}
+                style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+              >
+                <Icon name="folder" size={14} className="text-secondary" />
+                <span className="text-sm text-secondary">{getProjectName(task.projectId)}</span>
+              </div>
+            ) : (
+              <button
+                className="btn-assign-user-backlog"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowProjectSelect(!showProjectSelect);
+                }}
+              >
+                <Icon name="folder" size={16} />
+                <span>Asignar</span>
+              </button>
+            )}
+            {showProjectSelect && (
+              <div className="user-select-dropdown-backlog">
+                <ProjectSelect
+                  value={task.projectId}
+                  onChange={handleAssignProject}
+                  mode="list"
+                />
+              </div>
+            )}
+          </div>
         </td>
         <td>
           <span className={`priority-badge priority-${task.priority}`}>

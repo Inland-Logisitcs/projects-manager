@@ -42,6 +42,8 @@ import BoltIcon from '@mui/icons-material/Bolt';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import WarningIcon from '@mui/icons-material/Warning';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 
 const Icon = ({ name, size = 20, className = '' }) => {
   const iconMap = {
@@ -88,7 +90,9 @@ const Icon = ({ name, size = 20, className = '' }) => {
     'zap': BoltIcon,
     'more-vertical': MoreVertIcon,
     'arrow-up': ArrowUpwardIcon,
-    'arrow-down': ArrowDownwardIcon
+    'arrow-down': ArrowDownwardIcon,
+    'alert-triangle': WarningAmberIcon,
+    'warning': WarningIcon
   };
 
   const IconComponent = iconMap[name] || FolderIcon;

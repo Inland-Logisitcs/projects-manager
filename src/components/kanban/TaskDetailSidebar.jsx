@@ -5,11 +5,13 @@ import AttachmentsList from '../files/AttachmentsList';
 import UserSelect from '../common/UserSelect';
 import UserAvatar from '../common/UserAvatar';
 import StoryPointsSelect from '../common/StoryPointsSelect';
+import ProjectSelect from '../common/ProjectSelect';
 import TaskComments from './TaskComments';
 import Toast from '../common/Toast';
 import ConfirmDialog from '../common/ConfirmDialog';
 import { updateTask, archiveTask } from '../../services/taskService';
 import { subscribeToUsers } from '../../services/userService';
+import { subscribeToProjects } from '../../services/projectService';
 import { cleanupUnusedImages } from '../../utils/imageCleanup';
 import '../../styles/TaskDetailSidebar.css';
 
@@ -19,22 +21,33 @@ const priorityLabels = {
   high: 'Alta'
 };
 
-const TaskDetailSidebar = ({ task, columns, onClose }) => {
+const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose }) => {
   const sidebarRef = useRef(null);
   const userSelectRef = useRef(null);
+  const projectSelectRef = useRef(null);
   const [description, setDescription] = useState(task.description || '');
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [toast, setToast] = useState(null);
   const [showUserSelect, setShowUserSelect] = useState(false);
+  const [showProjectSelect, setShowProjectSelect] = useState(false);
   const [showArchiveDialog, setShowArchiveDialog] = useState(false);
   const [showAllHistory, setShowAllHistory] = useState(false);
   const [users, setUsers] = useState([]);
+  const [projects, setProjects] = useState([]);
 
   // Cargar usuarios
   useEffect(() => {
     const unsubscribe = subscribeToUsers((fetchedUsers) => {
       setUsers(fetchedUsers);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Cargar proyectos
+  useEffect(() => {
+    const unsubscribe = subscribeToProjects((fetchedProjects) => {
+      setProjects(fetchedProjects);
     });
     return () => unsubscribe();
   }, []);
@@ -68,6 +81,22 @@ const TaskDetailSidebar = ({ task, columns, onClose }) => {
       };
     }
   }, [showUserSelect]);
+
+  // Cerrar menú de proyecto al hacer click fuera
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (projectSelectRef.current && !projectSelectRef.current.contains(event.target)) {
+        setShowProjectSelect(false);
+      }
+    };
+
+    if (showProjectSelect) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [showProjectSelect]);
 
   // Cerrar al hacer click fuera
   useEffect(() => {
@@ -117,6 +146,22 @@ const TaskDetailSidebar = ({ task, columns, onClose }) => {
     if (!userId) return 'Sin asignar';
     const user = users.find(u => u.id === userId);
     return user ? (user.displayName || user.email) : 'Usuario desconocido';
+  };
+
+  // Obtener el nombre del proyecto por su ID
+  const getProjectName = (projectId) => {
+    if (!projectId) return null;
+    const project = projects.find(p => p.id === projectId);
+    return project ? project.name : 'Proyecto desconocido';
+  };
+
+  // Obtener las tareas que dependen de esta tarea
+  const getDependentTasks = () => {
+    if (!task.dependencies || task.dependencies.length === 0) return [];
+    return task.dependencies.map(depId => {
+      const depTask = allTasks.find(t => t.id === depId);
+      return depTask || { id: depId, title: 'Tarea no encontrada' };
+    });
   };
 
   // Formatear duración de tiempo
@@ -331,6 +376,63 @@ const TaskDetailSidebar = ({ task, columns, onClose }) => {
                 </div>
               )}
             </div>
+
+            <div className="task-project-row flex items-center gap-sm mt-sm" ref={projectSelectRef}>
+              {task.projectId ? (
+                <div
+                  onClick={() => setShowProjectSelect(!showProjectSelect)}
+                  className="assignee-chip-integrated"
+                  title="Cambiar proyecto"
+                >
+                  <Icon name="folder" size={16} className="text-secondary" />
+                  <span className="text-sm text-secondary">{getProjectName(task.projectId)}</span>
+                </div>
+              ) : (
+                <div
+                  className="btn-assign-integrated"
+                  onClick={() => setShowProjectSelect(!showProjectSelect)}
+                  title="Asignar a un proyecto"
+                >
+                  <Icon name="folder" size={16} />
+                  <span>Sin proyecto</span>
+                </div>
+              )}
+              {showProjectSelect && (
+                <div className="user-select-dropdown-sidebar">
+                  <ProjectSelect
+                    value={task.projectId}
+                    onChange={async (projectId) => {
+                      const result = await updateTask(task.id, {
+                        projectId: projectId || null
+                      });
+                      if (!result.success) {
+                        setToast({ message: 'Error al asignar proyecto: ' + result.error, type: 'error' });
+                      }
+                      setShowProjectSelect(false);
+                    }}
+                    mode="list"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Dependencias */}
+            {task.dependencies && task.dependencies.length > 0 && (
+              <div className="dependencies-section mt-base">
+                <div className="flex items-center gap-sm mb-sm">
+                  <Icon name="arrow-right" size={16} className="text-tertiary" />
+                  <span className="text-sm text-tertiary font-medium">Dependencias</span>
+                </div>
+                <div className="dependencies-list flex flex-col gap-xs">
+                  {getDependentTasks().map((depTask) => (
+                    <div key={depTask.id} className="dependency-item flex items-center gap-sm p-sm border-b-light">
+                      <Icon name="list" size={14} className="text-secondary" />
+                      <span className="text-sm text-secondary">{depTask.title}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="description-section">
               <div className="description-header">

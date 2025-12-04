@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { subscribeToProjects, createProject, updateProject, deleteProject } from '../services/projectService';
 import { subscribeToTasks } from '../services/taskService';
+import { subscribeToUsers } from '../services/userService';
 import GanttTimeline from '../components/timeline/GanttTimeline';
 import Icon from '../components/common/Icon';
 import Toast from '../components/common/Toast';
@@ -9,6 +10,7 @@ import '../styles/Projects.css';
 const Projects = () => {
   const [projects, setProjects] = useState([]);
   const [tasks, setTasks] = useState([]);
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [toast, setToast] = useState({ isOpen: false, message: '', type: 'error' });
@@ -23,9 +25,14 @@ const Projects = () => {
       setTasks(fetchedTasks);
     });
 
+    const unsubscribeUsers = subscribeToUsers((fetchedUsers) => {
+      setUsers(fetchedUsers.filter(u => !u.disabled));
+    });
+
     return () => {
       unsubscribeProjects();
       unsubscribeTasks();
+      unsubscribeUsers();
     };
   }, []);
 
@@ -122,6 +129,7 @@ const Projects = () => {
           <GanttTimeline
             projects={projects}
             tasks={tasks}
+            users={users}
             onUpdate={handleUpdateProject}
             onDelete={handleDeleteProject}
           />
