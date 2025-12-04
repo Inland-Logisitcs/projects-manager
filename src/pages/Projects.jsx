@@ -51,6 +51,7 @@ const Projects = () => {
         type: 'error'
       });
     }
+    return result;
   };
 
   const handleDeleteProject = async (projectId) => {

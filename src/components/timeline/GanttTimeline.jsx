@@ -1,11 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import { Gantt, ViewMode } from 'gantt-task-react';
 import 'gantt-task-react/dist/index.css';
-import { createTask, addTaskDependency, removeTaskDependency } from '../../services/taskService';
+import { createTask, addTaskDependency, removeTaskDependency, updateTask } from '../../services/taskService';
 import { addProjectDependency, removeProjectDependency } from '../../services/projectService';
 import Icon from '../common/Icon';
 import UserAvatar from '../common/UserAvatar';
+import UserMultiSelect from '../common/UserMultiSelect';
 import Toast from '../common/Toast';
+import StoryPointsSelect from '../common/StoryPointsSelect';
 import '../../styles/GanttTimeline.css';
 
 const GanttTimeline = ({ projects, tasks = [], onUpdate }) => {
@@ -1399,42 +1401,62 @@ const GanttTimeline = ({ projects, tasks = [], onUpdate }) => {
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               {/* Contenedor para proyectos (nombre + barra de progreso en columna) */}
               {task.isProject ? (
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                  {/* Nombre del proyecto */}
-                  <div style={{
-                    fontWeight: 700,
-                    fontSize: '0.95rem',
-                    color: 'var(--text-primary)',
-                    letterSpacing: '0.01em'
-                  }}>
-                    {task.name}
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    {/* Nombre del proyecto */}
+                    <div style={{
+                      fontWeight: 700,
+                      fontSize: '0.95rem',
+                      color: 'var(--text-primary)',
+                      letterSpacing: '0.01em'
+                    }}>
+                      {task.name}
+                    </div>
+
+                    {/* Barra de progreso solo para proyectos con tareas */}
+                    {(() => {
+                      const projectTasks = tasks.filter(t => t.projectId === task.project.id && !t.archived);
+                      const completedTasks = projectTasks.filter(t => t.status === 'completed').length;
+                      const totalTasks = projectTasks.length;
+                      const progressPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+                      return totalTasks > 0 ? (
+                        <div style={{
+                          width: '150px',
+                          height: '4px',
+                          backgroundColor: 'var(--border-light)',
+                          borderRadius: '2px',
+                          overflow: 'hidden'
+                        }}>
+                          <div style={{
+                            width: `${progressPercent}%`,
+                            height: '100%',
+                            backgroundColor: progressPercent === 100 ? 'var(--color-success)' : 'var(--accent-color)',
+                            transition: 'width 0.3s ease',
+                            borderRadius: '2px'
+                          }} />
+                        </div>
+                      ) : null;
+                    })()}
                   </div>
 
-                  {/* Barra de progreso solo para proyectos con tareas */}
-                  {(() => {
-                    const projectTasks = tasks.filter(t => t.projectId === task.project.id && !t.archived);
-                    const completedTasks = projectTasks.filter(t => t.status === 'completed').length;
-                    const totalTasks = projectTasks.length;
-                    const progressPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-
-                    return totalTasks > 0 ? (
-                      <div style={{
-                        width: '150px',
-                        height: '4px',
-                        backgroundColor: 'var(--border-light)',
-                        borderRadius: '2px',
-                        overflow: 'hidden'
-                      }}>
-                        <div style={{
-                          width: `${progressPercent}%`,
-                          height: '100%',
-                          backgroundColor: progressPercent === 100 ? 'var(--color-success)' : 'var(--accent-color)',
-                          transition: 'width 0.3s ease',
-                          borderRadius: '2px'
-                        }} />
-                      </div>
-                    ) : null;
-                  })()}
+                  {/* Avatares de usuarios del proyecto */}
+                  <UserMultiSelect
+                    instanceKey={`project-${task.project.id}`}
+                    value={task.project.assignedUsers || []}
+                    onChange={async (newUsers) => {
+                      const result = await onUpdate(task.project.id, {
+                        assignedUsers: newUsers
+                      });
+                      if (!result || !result.success) {
+                        setToast({
+                          message: 'Error al actualizar usuarios',
+                          type: 'error'
+                        });
+                      }
+                    }}
+                    maxDisplay={3}
+                  />
                 </div>
               ) : (
                 /* Contenedor para tareas (nombre + badges en línea) */
@@ -1443,9 +1465,40 @@ const GanttTimeline = ({ projects, tasks = [], onUpdate }) => {
                     fontWeight: 500,
                     fontSize: '0.875rem',
                     color: 'var(--text-secondary)',
-                    flex: 1
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem'
                   }}>
                     {task.name}
+                    {/* Story Points editable */}
+                    {task.task && (
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onMouseUp={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
+                        onKeyUp={(e) => e.stopPropagation()}
+                        onKeyPress={(e) => e.stopPropagation()}
+                        style={{ display: 'flex', alignItems: 'center' }}
+                      >
+                        <StoryPointsSelect
+                          value={task.task.storyPoints}
+                          onChange={async (newValue) => {
+                            const result = await updateTask(task.task.id, {
+                              storyPoints: newValue
+                            });
+                            if (!result.success) {
+                              setToast({
+                                message: 'Error al actualizar story points',
+                                type: 'error'
+                              });
+                            }
+                          }}
+                          size="small"
+                        />
+                      </div>
+                    )}
                   </div>
 
                   {/* Badge de estado y avatar solo para tareas */}
@@ -1820,7 +1873,7 @@ const GanttTimeline = ({ projects, tasks = [], onUpdate }) => {
                       }));
                     }
                   }}
-                  listCellWidth="330px"
+                  listCellWidth="450px"
                   columnWidth={viewMode === ViewMode.Day ? 60 : viewMode === ViewMode.Week ? 250 : 300}
                   rowHeight={50}
                   taskHeight={28}
@@ -1938,7 +1991,7 @@ const GanttTimeline = ({ projects, tasks = [], onUpdate }) => {
         />
       )}
 
-      {/* Modal para gestionar dependencias */}
+      {/* Modal para gestionar dependencias de tareas */}
       {showDependencyModal && selectedTaskForDependency && (
         <DependencyModal
           task={selectedTaskForDependency}

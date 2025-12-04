@@ -36,7 +36,7 @@ export const createNewUser = async (userData) => {
       displayName: displayName || '',
       role: role || 'user',
       disabled: false,
-      dailyCapacity: userData.dailyCapacity || 8,
+      dailyCapacity: userData.dailyCapacity || 1,
       workingDays: userData.workingDays || [1, 2, 3, 4, 5],
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
@@ -85,7 +85,7 @@ export const createUserProfile = async (uid, userData) => {
       email: userData.email,
       displayName: userData.displayName || '',
       role: userData.role || 'user', // 'admin' o 'user'
-      dailyCapacity: userData.dailyCapacity || 8,
+      dailyCapacity: userData.dailyCapacity || 1,
       workingDays: userData.workingDays || [1, 2, 3, 4, 5],
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()

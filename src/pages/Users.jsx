@@ -104,17 +104,17 @@ const Users = () => {
     {
       key: 'email',
       label: 'Email',
-      width: '18%'
+      width: '20%'
     },
     {
       key: 'displayName',
       label: 'Nombre',
-      width: '13%'
+      width: '15%'
     },
     {
       key: 'role',
       label: 'Rol',
-      width: '10%',
+      width: '12%',
       align: 'center',
       filterOptions: [
         { value: 'admin', label: 'Administrador' },
@@ -124,21 +124,14 @@ const Users = () => {
     {
       key: 'dailyCapacity',
       label: 'Puntos/día',
-      width: '8%',
-      align: 'center',
-      filterable: false
-    },
-    {
-      key: 'workingDays',
-      label: 'Días laborales',
-      width: '12%',
+      width: '10%',
       align: 'center',
       filterable: false
     },
     {
       key: 'status',
       label: 'Estado',
-      width: '9%',
+      width: '10%',
       align: 'center',
       filterOptions: [
         { value: 'enabled', label: 'Habilitado' },
@@ -148,19 +141,19 @@ const Users = () => {
     {
       key: 'createdAt',
       label: 'Creado',
-      width: '11%',
+      width: '12%',
       filterable: false
     },
     {
       key: 'updatedAt',
       label: 'Actualizado',
-      width: '11%',
+      width: '12%',
       filterable: false
     },
     {
       key: 'actions',
       label: 'Acciones',
-      width: '8%',
+      width: '9%',
       align: 'right',
       filterable: false
     }
@@ -189,25 +182,8 @@ const Users = () => {
       case 'dailyCapacity':
         return (
           <span className="text-base text-primary font-medium">
-            {user.dailyCapacity || 8}
+            {user.dailyCapacity || 1}
           </span>
-        );
-
-      case 'workingDays':
-        const dayLabels = { 0: 'D', 1: 'L', 2: 'M', 3: 'X', 4: 'J', 5: 'V', 6: 'S' };
-        const workingDays = user.workingDays || [1, 2, 3, 4, 5];
-        return (
-          <div className="flex gap-xs justify-center" style={{ flexWrap: 'wrap' }}>
-            {[1, 2, 3, 4, 5, 6, 0].map(day => (
-              <span
-                key={day}
-                className={`badge ${workingDays.includes(day) ? 'badge-primary' : 'badge-secondary'}`}
-                style={{ minWidth: '24px', padding: '2px 4px', fontSize: '0.7rem' }}
-              >
-                {dayLabels[day]}
-              </span>
-            ))}
-          </div>
         );
 
       case 'status':

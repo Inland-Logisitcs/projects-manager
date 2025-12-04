@@ -8,7 +8,7 @@ const CreateUserModal = ({ isOpen, onClose, onSave, user = null, mode = 'create'
     displayName: '',
     role: 'user',
     disabled: false,
-    dailyCapacity: 8,
+    dailyCapacity: 1,
     workingDays: [1, 2, 3, 4, 5]
   });
   const [errors, setErrors] = useState({});
@@ -22,7 +22,7 @@ const CreateUserModal = ({ isOpen, onClose, onSave, user = null, mode = 'create'
         displayName: user.displayName || '',
         role: user.role || 'user',
         disabled: user.disabled || false,
-        dailyCapacity: user.dailyCapacity || 8,
+        dailyCapacity: user.dailyCapacity || 1,
         workingDays: user.workingDays || [1, 2, 3, 4, 5]
       });
     } else {
@@ -32,7 +32,7 @@ const CreateUserModal = ({ isOpen, onClose, onSave, user = null, mode = 'create'
         displayName: '',
         role: 'user',
         disabled: false,
-        dailyCapacity: 8,
+        dailyCapacity: 1,
         workingDays: [1, 2, 3, 4, 5]
       });
     }
@@ -123,7 +123,7 @@ const CreateUserModal = ({ isOpen, onClose, onSave, user = null, mode = 'create'
   };
 
   const handleClose = () => {
-    setFormData({ email: '', password: '', displayName: '', role: 'user', disabled: false, dailyCapacity: 8, workingDays: [1, 2, 3, 4, 5] });
+    setFormData({ email: '', password: '', displayName: '', role: 'user', disabled: false, dailyCapacity: 1, workingDays: [1, 2, 3, 4, 5] });
     setErrors({});
     onClose();
   };
@@ -225,8 +225,9 @@ const CreateUserModal = ({ isOpen, onClose, onSave, user = null, mode = 'create'
                 value={formData.dailyCapacity}
                 onChange={handleChange}
                 className="input"
-                min="1"
+                min="0.5"
                 max="24"
+                step="0.5"
                 disabled={isSubmitting}
               />
               <span className="text-xs text-tertiary">Cantidad de puntos de historia que puede completar por día</span>
