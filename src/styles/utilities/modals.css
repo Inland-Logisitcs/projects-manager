@@ -54,6 +54,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-base);
+  flex-shrink: 0;
 }
 
 .modal-title {
@@ -85,6 +86,31 @@
   padding: var(--space-lg);
   overflow-y: auto;
   flex: 1;
+  min-height: 0;
+}
+
+/* Scrollbar styling */
+.modal-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.modal-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.modal-body::-webkit-scrollbar-thumb {
+  background: var(--border-medium);
+  border-radius: 10px;
+}
+
+.modal-body::-webkit-scrollbar-thumb:hover {
+  background: var(--text-tertiary);
+}
+
+/* Firefox scrollbar */
+.modal-body {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-medium) transparent;
 }
 
 .modal-footer {
@@ -93,6 +119,7 @@
   display: flex;
   gap: var(--space-sm);
   justify-content: flex-end;
+  flex-shrink: 0;
 }
 
 /* Tamaños */
@@ -120,19 +147,19 @@
   gap: var(--space-xs);
 }
 
-.modal-md .modal-content {
-  max-width: 600px;
+.modal-md {
+  max-width: 750px;
 }
 
-.modal-lg .modal-content {
+.modal-lg {
   max-width: 800px;
 }
 
-.modal-xl .modal-content {
+.modal-xl {
   max-width: 1200px;
 }
 
-.modal-full .modal-content {
+.modal-full {
   max-width: 95vw;
   max-height: 95vh;
 }
