@@ -5,10 +5,7 @@
       "Bash(npm create:*)",
       "Bash(mkdir:*)",
       "Bash(npm install:*)",
-      "Bash(npm run build:*)",
-      "Bash(git commit:*)",
-      "Bash(git add:*)",
-      "Bash(git rm:*)"
+      "Bash(npm run build:*)"
     ],
     "deny": [],
     "ask": []

@@ -32,6 +32,7 @@
   max-height: 90vh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   z-index: var(--z-modal);
   animation: slideUp var(--transition-base);
 }
@@ -85,7 +86,8 @@
 .modal-body {
   padding: var(--space-lg);
   overflow-y: auto;
-  flex: 1;
+  overflow-x: hidden;
+  flex: 1 1 0;
   min-height: 0;
 }
 
