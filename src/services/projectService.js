@@ -4,10 +4,12 @@ import {
   updateDoc,
   deleteDoc,
   doc,
+  getDoc,
   onSnapshot,
   query,
   orderBy,
-  serverTimestamp
+  serverTimestamp,
+  arrayUnion
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
@@ -88,5 +90,73 @@ export const subscribeToProjects = (callback) => {
     console.error('❌ Error al inicializar subscripción de proyectos:', error);
     callback([]);
     return () => {};
+  }
+};
+
+/**
+ * Agregar una dependencia a un proyecto
+ * @param {string} projectId - ID del proyecto
+ * @param {string} dependsOnProjectId - ID del proyecto del que depende
+ * @returns {Object} - Resultado de la operación
+ */
+export const addProjectDependency = async (projectId, dependsOnProjectId) => {
+  try {
+    if (projectId === dependsOnProjectId) {
+      return { success: false, error: 'Un proyecto no puede depender de sí mismo' };
+    }
+
+    const projectRef = doc(db, PROJECTS_COLLECTION, projectId);
+    const projectDoc = await getDoc(projectRef);
+
+    if (!projectDoc.exists()) {
+      return { success: false, error: 'Proyecto no encontrado' };
+    }
+
+    const dependencies = projectDoc.data().dependencies || [];
+
+    // Verificar que no exista ya esta dependencia
+    if (dependencies.includes(dependsOnProjectId)) {
+      return { success: false, error: 'Esta dependencia ya existe' };
+    }
+
+    await updateDoc(projectRef, {
+      dependencies: arrayUnion(dependsOnProjectId),
+      updatedAt: serverTimestamp()
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error al agregar dependencia al proyecto:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Eliminar una dependencia de un proyecto
+ * @param {string} projectId - ID del proyecto
+ * @param {string} dependsOnProjectId - ID del proyecto del que ya no depende
+ * @returns {Object} - Resultado de la operación
+ */
+export const removeProjectDependency = async (projectId, dependsOnProjectId) => {
+  try {
+    const projectRef = doc(db, PROJECTS_COLLECTION, projectId);
+    const projectDoc = await getDoc(projectRef);
+
+    if (!projectDoc.exists()) {
+      return { success: false, error: 'Proyecto no encontrado' };
+    }
+
+    const dependencies = projectDoc.data().dependencies || [];
+    const updatedDependencies = dependencies.filter(id => id !== dependsOnProjectId);
+
+    await updateDoc(projectRef, {
+      dependencies: updatedDependencies,
+      updatedAt: serverTimestamp()
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error al eliminar dependencia del proyecto:', error);
+    return { success: false, error: error.message };
   }
 };

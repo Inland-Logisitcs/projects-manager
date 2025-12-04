@@ -2,12 +2,18 @@ import React, { useMemo, useState } from 'react';
 import { Gantt, ViewMode } from 'gantt-task-react';
 import 'gantt-task-react/dist/index.css';
 import { createTask, addTaskDependency, removeTaskDependency } from '../../services/taskService';
+import { addProjectDependency, removeProjectDependency } from '../../services/projectService';
 import Icon from '../common/Icon';
 import UserAvatar from '../common/UserAvatar';
+import Toast from '../common/Toast';
 import '../../styles/GanttTimeline.css';
 
 const GanttTimeline = ({ projects, tasks = [], onUpdate }) => {
-  const [viewMode, setViewMode] = useState(ViewMode.Day);
+  // Inicializar viewMode desde localStorage o usar Day por defecto
+  const [viewMode, setViewMode] = useState(() => {
+    const savedViewMode = localStorage.getItem('gantt-view-mode');
+    return savedViewMode || ViewMode.Day;
+  });
   const [showDateModal, setShowDateModal] = useState(false);
   const [selectedProject, setSelectedProject] = useState(null);
   const [draggedProject, setDraggedProject] = useState(null);
@@ -19,6 +25,8 @@ const GanttTimeline = ({ projects, tasks = [], onUpdate }) => {
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [showDependencyModal, setShowDependencyModal] = useState(false);
   const [selectedTaskForDependency, setSelectedTaskForDependency] = useState(null);
+  const [hoveredTaskId, setHoveredTaskId] = useState(null);
+  const [toast, setToast] = useState(null);
   // Inicializar proyectos expandidos por defecto
   const [expandedProjects, setExpandedProjects] = useState(() => {
     const expanded = {};
@@ -30,6 +38,526 @@ const GanttTimeline = ({ projects, tasks = [], onUpdate }) => {
     return expanded;
   });
   const dragCounterRef = React.useRef(0);
+
+  // Detectar hover sobre barras del Gantt para mostrar círculo de conexión
+  React.useEffect(() => {
+    let currentCircle = null;
+    let currentBar = null;
+    let hideTimeout = null;
+    let isDraggingLine = false;
+    let dragLine = null;
+    let dragStartTask = null;
+    let currentMousePosition = { x: 0, y: 0 };
+
+    const handleMouseMove = (e) => {
+      // Guardar posición actual del mouse
+      currentMousePosition.x = e.clientX;
+      currentMousePosition.y = e.clientY;
+
+      // Si estamos arrastrando una línea, actualizarla
+      if (isDraggingLine && dragLine && dragStartTask) {
+        const ganttContainer = document.querySelector('.gantt-chart-wrapper-outer');
+        const containerRect = ganttContainer.getBoundingClientRect();
+
+        // Actualizar la posición de inicio basándonos en la posición actual de la tarea
+        const startBarRect = dragStartTask.getBoundingClientRect();
+        const newStartX = startBarRect.right - containerRect.left + ganttContainer.scrollLeft + 4 + 8;
+        const newStartY = startBarRect.top - containerRect.top + ganttContainer.scrollTop + startBarRect.height / 2;
+
+        // Calcular posición del mouse relativa al contenedor
+        const mouseX = e.clientX - containerRect.left + ganttContainer.scrollLeft;
+        const mouseY = e.clientY - containerRect.top + ganttContainer.scrollTop;
+
+        dragLine.line.setAttribute('x1', newStartX);
+        dragLine.line.setAttribute('y1', newStartY);
+        dragLine.line.setAttribute('x2', mouseX);
+        dragLine.line.setAttribute('y2', mouseY);
+
+        return;
+      }
+
+      // Si ya hay un círculo y el mouse está sobre él o cerca, no hacer nada
+      if (currentCircle) {
+        const circleRect = currentCircle.getBoundingClientRect();
+        // Aumentar el área de detección a 20px alrededor del círculo
+        const isOverCircle = e.clientX >= circleRect.left - 20 &&
+                            e.clientX <= circleRect.right + 20 &&
+                            e.clientY >= circleRect.top - 20 &&
+                            e.clientY <= circleRect.bottom + 20;
+        if (isOverCircle) {
+          if (hideTimeout) {
+            clearTimeout(hideTimeout);
+            hideTimeout = null;
+          }
+          return;
+        }
+      }
+
+      // Buscar elemento de barra (g con clase barWrapper)
+      let barElement = e.target.closest('g.barWrapper');
+
+      // Si no encontramos con barWrapper, buscar por estructura SVG
+      if (!barElement) {
+        const svgRect = e.target.closest('rect');
+        if (svgRect) {
+          const parent = svgRect.parentElement;
+          if (parent && parent.tagName === 'g') {
+            // Verificar que sea una barra de tarea (no proyecto)
+            // Las tareas tienen un height menor (taskHeight=28)
+            const rectHeight = parseFloat(svgRect.getAttribute('height') || 0);
+            if (rectHeight <= 30) {
+              barElement = parent;
+            }
+          }
+        }
+      }
+
+      // Si encontramos una nueva barra diferente
+      if (barElement && barElement !== currentBar) {
+        // Limpiar círculo anterior
+        if (currentCircle) {
+          currentCircle.remove();
+          currentCircle = null;
+        }
+
+        // Limpiar tooltips huérfanos al cambiar de barra
+        document.querySelectorAll('.gantt-connection-tooltip').forEach(t => {
+          t.style.opacity = '0';
+          setTimeout(() => t.remove(), 200);
+        });
+
+        currentBar = barElement;
+
+        // Obtener el bounding box de la barra
+        const barRect = barElement.getBoundingClientRect();
+
+        // Crear círculo de conexión
+        const circle = document.createElement('div');
+        circle.className = 'gantt-connection-circle';
+        circle.setAttribute('title', 'Vincular tareas');
+
+        // Crear tooltip personalizado
+        const tooltip = document.createElement('div');
+        tooltip.className = 'gantt-connection-tooltip';
+        tooltip.textContent = 'Vincular tareas';
+        tooltip.style.cssText = `
+          position: fixed;
+          background-color: rgba(0, 0, 0, 0.85);
+          color: white;
+          padding: 6px 12px;
+          border-radius: 4px;
+          font-size: 12px;
+          font-weight: 500;
+          pointer-events: none;
+          z-index: 10001;
+          white-space: nowrap;
+          opacity: 0;
+          transition: opacity 0.2s ease;
+        `;
+
+        const ganttContainer = document.querySelector('.gantt-chart-wrapper-outer');
+        const containerRect = ganttContainer.getBoundingClientRect();
+
+        const updateCirclePosition = () => {
+          const rect = barElement.getBoundingClientRect();
+          const ganttContainer = document.querySelector('.gantt-chart-wrapper-outer');
+          const containerRect = ganttContainer.getBoundingClientRect();
+
+          // Calcular posición relativa al contenedor + scroll
+          const relativeLeft = rect.right - containerRect.left + ganttContainer.scrollLeft + 4;
+          const relativeTop = rect.top - containerRect.top + ganttContainer.scrollTop + rect.height / 2;
+
+          circle.style.left = `${relativeLeft}px`;
+          circle.style.top = `${relativeTop}px`;
+        };
+
+        const updateTooltipPosition = () => {
+          const circleRect = circle.getBoundingClientRect();
+          tooltip.style.left = `${circleRect.right + 8}px`;
+          tooltip.style.top = `${circleRect.top + circleRect.height / 2}px`;
+          tooltip.style.transform = 'translateY(-50%)';
+        };
+
+        // Calcular posición inicial relativa al contenedor + scroll
+        const initialLeft = barRect.right - containerRect.left + ganttContainer.scrollLeft + 4;
+        const initialTop = barRect.top - containerRect.top + ganttContainer.scrollTop + barRect.height / 2;
+
+        circle.style.cssText = `
+          position: absolute;
+          left: ${initialLeft}px;
+          top: ${initialTop}px;
+          transform: translateY(-50%);
+          width: 16px;
+          height: 16px;
+          background-color: #0099CC;
+          border: 2px solid white;
+          border-radius: 50%;
+          cursor: pointer;
+          z-index: 10000;
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+          transition: transform 0.2s ease, background-color 0.2s ease;
+          pointer-events: auto;
+        `;
+
+        // Hover sobre el círculo
+        circle.addEventListener('mouseenter', () => {
+          if (hideTimeout) {
+            clearTimeout(hideTimeout);
+            hideTimeout = null;
+          }
+          circle.style.transform = 'translateY(-50%) scale(1.3)';
+          circle.style.backgroundColor = '#015E7C';
+
+          // Mostrar tooltip
+          document.body.appendChild(tooltip);
+          updateTooltipPosition();
+          setTimeout(() => {
+            tooltip.style.opacity = '1';
+          }, 10);
+        });
+
+        circle.addEventListener('mouseleave', () => {
+          // No ocultar si estamos arrastrando
+          if (isDraggingLine) {
+            return;
+          }
+
+          circle.style.transform = 'translateY(-50%) scale(1)';
+          circle.style.backgroundColor = '#0099CC';
+
+          // Ocultar tooltip
+          tooltip.style.opacity = '0';
+          setTimeout(() => {
+            if (tooltip.parentNode) {
+              tooltip.remove();
+            }
+          }, 200);
+
+          // Programar ocultación con más tiempo
+          hideTimeout = setTimeout(() => {
+            if (currentCircle === circle) {
+              circle.remove();
+              currentCircle = null;
+              currentBar = null;
+              if (tooltip.parentNode) {
+                tooltip.remove();
+              }
+            }
+          }, 500);
+        });
+
+        // Mouse down handler - iniciar arrastre de línea
+        circle.addEventListener('mousedown', (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+
+          isDraggingLine = true;
+
+          // Buscar el elemento que tiene el data-task-id
+          // Puede ser barElement mismo o un hijo/hermano
+          let taskElement = barElement;
+          if (!taskElement.hasAttribute('data-task-id')) {
+            // Buscar en los hijos
+            const childWithId = barElement.querySelector('[data-task-id]');
+            if (childWithId) {
+              taskElement = childWithId;
+            } else {
+              // Buscar en el padre
+              const parentWithId = barElement.closest('[data-task-id]');
+              if (parentWithId) {
+                taskElement = parentWithId;
+              }
+            }
+          }
+
+          dragStartTask = taskElement;
+
+          // Obtener el contenedor del Gantt para posicionar el SVG relativo a él
+          const ganttContainer = document.querySelector('.gantt-chart-wrapper-outer');
+          const containerRect = ganttContainer.getBoundingClientRect();
+
+          // Crear SVG para la línea - posicionado sobre el contenedor del Gantt
+          const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+          svg.style.cssText = `
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 9999;
+            overflow: visible;
+          `;
+          svg.classList.add('gantt-connection-line-svg');
+
+          const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+          const circleRect = circle.getBoundingClientRect();
+          // Calcular posiciones relativas al contenedor del Gantt
+          const startX = circleRect.left - containerRect.left + ganttContainer.scrollLeft + circleRect.width / 2;
+          const startY = circleRect.top - containerRect.top + ganttContainer.scrollTop + circleRect.height / 2;
+
+          line.setAttribute('x1', startX);
+          line.setAttribute('y1', startY);
+          line.setAttribute('x2', startX);
+          line.setAttribute('y2', startY);
+          line.setAttribute('stroke', '#0099CC');
+          line.setAttribute('stroke-width', '3');
+          line.setAttribute('stroke-dasharray', '5,5');
+          line.setAttribute('opacity', '0.8');
+
+          svg.appendChild(line);
+          ganttContainer.appendChild(svg);
+          dragLine = { svg, line, startX, startY };
+        });
+
+        ganttContainer.appendChild(circle);
+        currentCircle = circle;
+
+        // Verificar visibilidad inicial
+        updateCirclePosition();
+
+        // Actualizar posición si hay scroll
+        ganttContainer.addEventListener('scroll', updateCirclePosition);
+
+      } else if (!barElement && currentBar) {
+        // El mouse salió de la barra
+        const isOverCircle = currentCircle &&
+                            e.clientX >= currentCircle.getBoundingClientRect().left - 20 &&
+                            e.clientX <= currentCircle.getBoundingClientRect().right + 20 &&
+                            e.clientY >= currentCircle.getBoundingClientRect().top - 20 &&
+                            e.clientY <= currentCircle.getBoundingClientRect().bottom + 20;
+
+        // También verificar si está en el área entre la barra y el círculo
+        const barRect = currentBar.getBoundingClientRect();
+        const isInBetween = e.clientX >= barRect.right &&
+                           e.clientX <= barRect.right + 24 &&
+                           e.clientY >= barRect.top &&
+                           e.clientY <= barRect.bottom;
+
+        if (!isOverCircle && !isInBetween) {
+          hideTimeout = setTimeout(() => {
+            if (currentCircle) {
+              currentCircle.remove();
+              currentCircle = null;
+              currentBar = null;
+            }
+            // Limpiar tooltips huérfanos
+            document.querySelectorAll('.gantt-connection-tooltip').forEach(t => {
+              t.style.opacity = '0';
+              setTimeout(() => t.remove(), 200);
+            });
+          }, 300);
+        }
+      }
+    };
+
+    // Handler para scroll - mantener la línea actualizada cuando se hace scroll
+    const handleScroll = () => {
+      if (isDraggingLine && dragLine && dragStartTask) {
+        const ganttContainer = document.querySelector('.gantt-chart-wrapper-outer');
+        const containerRect = ganttContainer.getBoundingClientRect();
+
+        // Actualizar la posición de inicio basándonos en la posición actual de la tarea
+        const startBarRect = dragStartTask.getBoundingClientRect();
+        const newStartX = startBarRect.right - containerRect.left + ganttContainer.scrollLeft + 4 + 8;
+        const newStartY = startBarRect.top - containerRect.top + ganttContainer.scrollTop + startBarRect.height / 2;
+
+        // Calcular posición del mouse relativa al contenedor
+        const mouseX = currentMousePosition.x - containerRect.left + ganttContainer.scrollLeft;
+        const mouseY = currentMousePosition.y - containerRect.top + ganttContainer.scrollTop;
+
+        dragLine.line.setAttribute('x1', newStartX);
+        dragLine.line.setAttribute('y1', newStartY);
+        dragLine.line.setAttribute('x2', mouseX);
+        dragLine.line.setAttribute('y2', mouseY);
+      }
+    };
+
+    // Handler para soltar el mouse
+    const handleMouseUp = async (e) => {
+      if (isDraggingLine && dragLine) {
+        // Buscar si soltamos sobre una barra
+        let targetBar = null;
+        const svgRect = e.target.closest('rect');
+        if (svgRect) {
+          const parent = svgRect.parentElement;
+          if (parent && parent.tagName === 'g') {
+            const rectHeight = parseFloat(svgRect.getAttribute('height') || 0);
+            if (rectHeight <= 30) {
+              targetBar = parent;
+            }
+          }
+        }
+
+        // Si encontramos una barra de destino diferente a la de origen
+        if (targetBar && targetBar !== dragStartTask) {
+          // Extraer los IDs de las tareas desde los atributos data-task-id
+          const sourceTaskId = dragStartTask.getAttribute('data-task-id');
+          const targetTaskId = targetBar.getAttribute('data-task-id');
+
+          // Verificar si son tareas o proyectos
+          // Si tienen data-task-id, son tareas. Si no, son proyectos.
+          const isSourceTask = sourceTaskId !== null;
+          const isTargetTask = targetTaskId !== null;
+
+          // Solo permitir dependencias si ambos son del mismo tipo
+          if (isSourceTask !== isTargetTask) {
+            setToast({
+              message: 'No se puede crear dependencia entre proyecto y tarea',
+              type: 'error'
+            });
+
+            // Limpiar la línea
+            if (dragLine.svg.parentNode) {
+              dragLine.svg.remove();
+            }
+            dragLine = null;
+            isDraggingLine = false;
+            dragStartTask = null;
+
+            // Limpiar círculo y tooltip
+            if (currentCircle) {
+              currentCircle.remove();
+              currentCircle = null;
+              currentBar = null;
+            }
+            document.querySelectorAll('.gantt-connection-tooltip').forEach(t => t.remove());
+            return;
+          }
+
+          // Para tareas, usar sourceTaskId y targetTaskId
+          // Para proyectos, necesitamos extraer el ID del proyecto desde el nombre de la barra
+          let result;
+
+          if (isSourceTask && isTargetTask) {
+            // Ambos son tareas
+            result = await addTaskDependency(targetTaskId, sourceTaskId);
+          } else {
+            // Ambos son proyectos - necesitamos obtener los IDs desde los nombres
+            // Buscar el texto en el elemento o en sus hijos/hermanos
+            let sourceText = dragStartTask.querySelector('text')?.textContent.trim();
+            let targetText = targetBar.querySelector('text')?.textContent.trim();
+
+            // Si no se encuentra directamente, buscar en el padre
+            if (!sourceText) {
+              const sourceParent = dragStartTask.parentElement;
+              sourceText = sourceParent?.querySelector('text')?.textContent.trim();
+            }
+
+            if (!targetText) {
+              const targetParent = targetBar.parentElement;
+              targetText = targetParent?.querySelector('text')?.textContent.trim();
+            }
+
+            // Buscar los proyectos en ganttTasks por nombre
+            const sourceProject = ganttTasks.find(t => t.name === sourceText && t.isProject);
+            const targetProject = ganttTasks.find(t => t.name === targetText && t.isProject);
+
+            if (sourceProject && targetProject) {
+              const sourceProjectId = sourceProject.id;
+              const targetProjectId = targetProject.id;
+
+              result = await addProjectDependency(targetProjectId, sourceProjectId);
+            } else {
+              setToast({
+                message: 'No se pudieron encontrar los proyectos',
+                type: 'error'
+              });
+              result = { success: false };
+            }
+          }
+
+          if (result && result.success) {
+            // Resaltar brevemente ambas barras
+            const targetRect = targetBar.querySelector('rect');
+            const sourceRect = dragStartTask.querySelector('rect');
+
+            if (targetRect) {
+              const originalStroke = targetRect.getAttribute('stroke');
+              const originalStrokeWidth = targetRect.getAttribute('stroke-width');
+              targetRect.setAttribute('stroke', '#22c55e');
+              targetRect.setAttribute('stroke-width', '4');
+
+              setTimeout(() => {
+                targetRect.setAttribute('stroke', originalStroke || 'none');
+                targetRect.setAttribute('stroke-width', originalStrokeWidth || '0');
+              }, 1500);
+            }
+
+            if (sourceRect) {
+              const originalStroke = sourceRect.getAttribute('stroke');
+              const originalStrokeWidth = sourceRect.getAttribute('stroke-width');
+              sourceRect.setAttribute('stroke', '#22c55e');
+              sourceRect.setAttribute('stroke-width', '4');
+
+              setTimeout(() => {
+                sourceRect.setAttribute('stroke', originalStroke || 'none');
+                sourceRect.setAttribute('stroke-width', originalStrokeWidth || '0');
+              }, 1500);
+            }
+          } else {
+            setToast({
+              message: result?.error || 'Error al crear la dependencia',
+              type: 'error'
+            });
+          }
+        } else if (targetBar) {
+          setToast({
+            message: 'No puedes vincular una tarea consigo misma',
+            type: 'error'
+          });
+        }
+
+        // Limpiar la línea
+        if (dragLine.svg.parentNode) {
+          dragLine.svg.remove();
+        }
+        dragLine = null;
+        isDraggingLine = false;
+        dragStartTask = null;
+
+        // Limpiar círculo y tooltip después del arrastre
+        if (currentCircle) {
+          currentCircle.remove();
+          currentCircle = null;
+          currentBar = null;
+        }
+
+        // Limpiar todos los tooltips que puedan haber quedado
+        document.querySelectorAll('.gantt-connection-tooltip').forEach(t => {
+          t.style.opacity = '0';
+          setTimeout(() => t.remove(), 200);
+        });
+      }
+    };
+
+    // Agregar event listeners
+    const ganttContainer = document.querySelector('.gantt-chart-wrapper-outer');
+    if (ganttContainer) {
+      ganttContainer.addEventListener('mousemove', handleMouseMove);
+      ganttContainer.addEventListener('scroll', handleScroll);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
+      if (ganttContainer) {
+        ganttContainer.removeEventListener('mousemove', handleMouseMove);
+        ganttContainer.removeEventListener('scroll', handleScroll);
+      }
+      document.removeEventListener('mouseup', handleMouseUp);
+      if (currentCircle) {
+        currentCircle.remove();
+      }
+      if (dragLine && dragLine.svg.parentNode) {
+        dragLine.svg.remove();
+      }
+      if (hideTimeout) {
+        clearTimeout(hideTimeout);
+      }
+      // Limpiar todos los tooltips al desmontar
+      document.querySelectorAll('.gantt-connection-tooltip').forEach(t => t.remove());
+    };
+  }, []);
 
   // Filtrar proyectos con y sin fechas
   // Color según tipo y estado
@@ -128,6 +656,7 @@ const GanttTimeline = ({ projects, tasks = [], onUpdate }) => {
         progress: project.progress || 0,
         type: 'project', // Tipo proyecto para que sea expandible
         hideChildren: !expandedProjects[project.id], // Control de expansión
+        dependencies: project.dependencies || [], // Agregar dependencias del proyecto
         styles: {
           backgroundColor: projectColor,
           backgroundSelectedColor: projectColor,
@@ -181,6 +710,337 @@ const GanttTimeline = ({ projects, tasks = [], onUpdate }) => {
 
     return result;
   }, [scheduledProjects, tasks, expandedProjects]);
+
+  // Agregar atributo data-task-id a las barras del Gantt después del renderizado
+  React.useEffect(() => {
+    const addTaskIdsToGanttBars = () => {
+      // Esperar a que el Gantt se renderice
+      setTimeout(() => {
+        const ganttContainer = document.querySelector('.gantt-chart-wrapper-outer');
+        if (!ganttContainer) {
+          return;
+        }
+
+        // Buscar todos los grupos SVG
+        const allGroups = ganttContainer.querySelectorAll('svg g');
+
+        // Buscar TODOS los elementos que tienen un rect con texto (son barras de tareas o proyectos)
+        // Filtrar por: debe tener un rect hijo de altura 28-32px (altura de las barras de tareas/proyectos)
+        // y debe tener un elemento de texto en el mismo grupo o grupo padre
+        const barGroups = Array.from(allGroups).filter(g => {
+          const rect = g.querySelector('rect');
+          if (!rect) return false;
+
+          const height = parseFloat(rect.getAttribute('height') || 0);
+          const width = parseFloat(rect.getAttribute('width') || 0);
+
+          // Altura debe ser entre 28 y 32 (barras de tareas)
+          if (height < 28 || height > 32) return false;
+
+          // Ancho debe ser mayor a 0
+          if (width <= 0) return false;
+
+          // Debe tener texto en el mismo grupo o en grupos hermanos
+          let textElement = g.querySelector('text');
+          if (!textElement) {
+            // Buscar en el padre
+            const parent = g.parentElement;
+            if (parent) {
+              textElement = parent.querySelector('text');
+            }
+          }
+
+          return textElement !== null;
+        });
+
+        barGroups.forEach((barGroup) => {
+          // Buscar el texto dentro del grupo o en hermanos cercanos
+          let textElement = barGroup.querySelector('text');
+
+          // Si no hay texto en el grupo, buscar en el padre y hermanos
+          if (!textElement && barGroup.parentElement) {
+            textElement = barGroup.parentElement.querySelector('text');
+          }
+
+          if (!textElement) {
+            return;
+          }
+
+          const taskName = textElement.textContent.trim();
+
+          // Buscar la tarea correspondiente en ganttTasks
+          const ganttTask = ganttTasks.find(t => t.name === taskName);
+
+          if (ganttTask) {
+            // Verificar si es una tarea (tiene el prefijo "task-") o un proyecto
+            if (ganttTask.isTask || (ganttTask.id && ganttTask.id.startsWith('task-'))) {
+              // Extraer el ID real de la tarea (remover el prefijo "task-")
+              const taskId = ganttTask.id.replace('task-', '');
+              barGroup.setAttribute('data-task-id', taskId);
+
+              // También agregar el ID al rect hijo para que el hover y click lo detecten
+              const rect = barGroup.querySelector('rect');
+              if (rect) {
+                rect.parentElement.setAttribute('data-task-id', taskId);
+              }
+            }
+          }
+        });
+      }, 1500); // Aumentar a 1.5 segundos para dar más tiempo
+    };
+
+    addTaskIdsToGanttBars();
+  }, [ganttTasks, expandedProjects]);
+
+  // Detectar hover sobre flechas de dependencia para mostrar botón de eliminar
+  React.useEffect(() => {
+    let deleteButton = null;
+    let currentArrow = null;
+    let hideTimeout = null;
+
+    const handleMouseMove = (e) => {
+      // No mostrar el botón de eliminar si hay un círculo azul visible
+      // (para evitar conflicto con la creación de dependencias)
+      const blueCircle = document.querySelector('.gantt-connection-circle');
+      if (blueCircle) {
+        const circleRect = blueCircle.getBoundingClientRect();
+        const distanceToCircle = Math.sqrt(
+          Math.pow(e.clientX - (circleRect.left + circleRect.width / 2), 2) +
+          Math.pow(e.clientY - (circleRect.top + circleRect.height / 2), 2)
+        );
+
+        // Si estamos a menos de 100px del círculo azul, no mostrar el botón de eliminar
+        if (distanceToCircle < 100) {
+          if (deleteButton && deleteButton.parentNode) {
+            deleteButton.remove();
+            deleteButton = null;
+            currentArrow = null;
+          }
+          return;
+        }
+      }
+
+      // Buscar si el mouse está sobre una flecha de dependencia
+      // Las flechas están dentro de un grupo g.arrow dentro de g.arrows
+      let arrowPath = null;
+
+      if (e.target.tagName === 'path') {
+        // Verificar si este path está dentro de un grupo con clase "arrow"
+        const arrowGroup = e.target.closest('g.arrow');
+        if (arrowGroup) {
+          arrowPath = e.target;
+        }
+      }
+
+      if (!arrowPath) {
+        // Si no estamos sobre una flecha y hay un botón visible
+        if (deleteButton && currentArrow) {
+          // Verificar si el mouse está sobre el botón de eliminar
+          const buttonRect = deleteButton.getBoundingClientRect();
+          const isOverButton = e.clientX >= buttonRect.left - 10 &&
+                              e.clientX <= buttonRect.right + 10 &&
+                              e.clientY >= buttonRect.top - 10 &&
+                              e.clientY <= buttonRect.bottom + 10;
+
+          if (!isOverButton) {
+            // Programar ocultación del botón
+            if (!hideTimeout) {
+              hideTimeout = setTimeout(() => {
+                if (deleteButton && deleteButton.parentNode) {
+                  deleteButton.remove();
+                }
+                deleteButton = null;
+                currentArrow = null;
+                hideTimeout = null;
+              }, 300);
+            }
+          } else {
+            // Cancelar ocultación si el mouse está sobre el botón
+            if (hideTimeout) {
+              clearTimeout(hideTimeout);
+              hideTimeout = null;
+            }
+          }
+        }
+        return;
+      }
+
+      // Cancelar cualquier timeout de ocultación
+      if (hideTimeout) {
+        clearTimeout(hideTimeout);
+        hideTimeout = null;
+      }
+
+      // Si ya hay un botón en esta flecha, no hacer nada
+      if (currentArrow === arrowPath && deleteButton) return;
+
+      // Limpiar botón anterior
+      if (deleteButton && deleteButton.parentNode) {
+        deleteButton.remove();
+      }
+
+      currentArrow = arrowPath;
+
+      // Obtener el contenedor del Gantt para posicionar el botón
+      const ganttContainer = document.querySelector('.gantt-chart-wrapper-outer');
+      if (!ganttContainer) return;
+
+      const svgElement = arrowPath.closest('svg');
+      if (!svgElement) return;
+
+      const containerRect = ganttContainer.getBoundingClientRect();
+
+      // Posicionar el botón donde está el mouse
+      const absoluteX = e.clientX - containerRect.left + ganttContainer.scrollLeft;
+      const absoluteY = e.clientY - containerRect.top + ganttContainer.scrollTop;
+
+      // Crear botón de eliminar
+      deleteButton = document.createElement('button');
+      deleteButton.className = 'gantt-dependency-delete-button';
+      deleteButton.innerHTML = '×';
+      deleteButton.setAttribute('title', 'Eliminar dependencia');
+
+      deleteButton.style.cssText = `
+        position: absolute;
+        left: ${absoluteX}px;
+        top: ${absoluteY}px;
+        transform: translate(-50%, -50%);
+        width: 24px;
+        height: 24px;
+        background-color: #ef4444;
+        color: white;
+        border: 2px solid white;
+        border-radius: 50%;
+        cursor: pointer;
+        z-index: 10000;
+        font-size: 18px;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        transition: all 0.2s ease;
+        opacity: 0;
+        animation: fadeInButton 0.2s ease forwards;
+        line-height: 1;
+        padding: 0;
+      `;
+
+      // Hover effects
+      deleteButton.addEventListener('mouseenter', () => {
+        deleteButton.style.transform = 'translate(-50%, -50%) scale(1.2)';
+        deleteButton.style.backgroundColor = '#dc2626';
+        if (hideTimeout) {
+          clearTimeout(hideTimeout);
+          hideTimeout = null;
+        }
+      });
+
+      deleteButton.addEventListener('mouseleave', () => {
+        deleteButton.style.transform = 'translate(-50%, -50%) scale(1)';
+        deleteButton.style.backgroundColor = '#ef4444';
+      });
+
+      // Click handler - extraer IDs de las tareas desde la flecha
+      deleteButton.addEventListener('click', async (e) => {
+        e.stopPropagation();
+
+        // Buscar las tareas conectadas por esta flecha
+        // Obtener el grupo g.arrow que contiene este path
+        const arrowGroup = arrowPath.closest('g.arrow');
+
+        // Obtener todos los grupos g.arrow para saber el índice
+        const allArrowGroups = Array.from(svgElement.querySelectorAll('g.arrow'));
+        const arrowIndex = allArrowGroups.indexOf(arrowGroup);
+
+        // Obtener todas las dependencias del ganttTasks en el mismo orden que la librería las renderiza
+        const allDependencies = [];
+        ganttTasks.forEach(task => {
+          if (task.dependencies && task.dependencies.length > 0) {
+            task.dependencies.forEach(depId => {
+              allDependencies.push({
+                target: task.id,
+                source: depId
+              });
+            });
+          }
+        });
+
+        if (arrowIndex >= 0 && arrowIndex < allDependencies.length) {
+          const dependency = allDependencies[arrowIndex];
+
+          // Determinar si es una tarea o un proyecto
+          const isTask = dependency.target.startsWith('task-');
+
+          let targetId, sourceId;
+
+          if (isTask) {
+            targetId = dependency.target.replace('task-', '');
+            sourceId = dependency.source.replace('task-', '');
+          } else {
+            // Es un proyecto
+            targetId = dependency.target;
+            sourceId = dependency.source;
+          }
+
+          // Remover el botón inmediatamente
+          if (deleteButton && deleteButton.parentNode) {
+            deleteButton.remove();
+          }
+          deleteButton = null;
+          currentArrow = null;
+
+          // Resaltar la flecha en rojo antes de eliminarla
+          const pathsInGroup = arrowGroup.querySelectorAll('path');
+          pathsInGroup.forEach(p => {
+            p.setAttribute('stroke', '#ef4444');
+            p.setAttribute('stroke-width', '3');
+            p.setAttribute('opacity', '0.8');
+          });
+
+          // Llamar al servicio apropiado para eliminar la dependencia
+          const result = isTask
+            ? await removeTaskDependency(targetId, sourceId)
+            : await removeProjectDependency(targetId, sourceId);
+
+          if (!result.success) {
+            // Restaurar color original si falló
+            pathsInGroup.forEach(p => {
+              p.setAttribute('stroke', '#6e6e6e');
+              p.setAttribute('stroke-width', '1.5');
+              p.setAttribute('opacity', '1');
+            });
+          }
+        }
+      });
+
+      ganttContainer.appendChild(deleteButton);
+
+      // Animar entrada
+      setTimeout(() => {
+        if (deleteButton) {
+          deleteButton.style.opacity = '1';
+        }
+      }, 10);
+    };
+
+    const ganttContainer = document.querySelector('.gantt-chart-wrapper-outer');
+    if (ganttContainer) {
+      ganttContainer.addEventListener('mousemove', handleMouseMove);
+    }
+
+    return () => {
+      if (ganttContainer) {
+        ganttContainer.removeEventListener('mousemove', handleMouseMove);
+      }
+      if (deleteButton && deleteButton.parentNode) {
+        deleteButton.remove();
+      }
+      if (hideTimeout) {
+        clearTimeout(hideTimeout);
+      }
+    };
+  }, [ganttTasks]);
 
   // Handler para cambio de fechas
   const handleTaskChange = async (task) => {
@@ -265,9 +1125,10 @@ const GanttTimeline = ({ projects, tasks = [], onUpdate }) => {
     // No resetear draggedProject aún, lo haremos cuando se cierre el modal
   };
 
-  // Cambiar vista según zoom (simulado)
+  // Cambiar vista según zoom (simulado) y persistir en localStorage
   const handleViewModeChange = (mode) => {
     setViewMode(mode);
+    localStorage.setItem('gantt-view-mode', mode);
   };
 
   // Personalizar tooltips
@@ -942,40 +1803,42 @@ const GanttTimeline = ({ projects, tasks = [], onUpdate }) => {
             </div>
           </div>
 
-          {/* Gantt Chart */}
-          <div className="gantt-chart-container">
-            {ganttTasks.length > 0 && (
-              <Gantt
-                tasks={ganttTasks}
-                viewMode={viewMode}
-                onDateChange={handleTaskChange}
-                onProgressChange={handleProgressChange}
-                onExpanderClick={(task) => {
-                  if (task.isProject) {
-                    setExpandedProjects(prev => ({
-                      ...prev,
-                      [task.id]: !prev[task.id]
-                    }));
-                  }
-                }}
-                listCellWidth="330px"
-                columnWidth={viewMode === ViewMode.Day ? 60 : viewMode === ViewMode.Week ? 250 : 300}
-                rowHeight={50}
-                taskHeight={28}
-                barCornerRadius={6}
-                barProgressColor="rgba(255, 255, 255, 0.3)"
-                barProgressSelectedColor="rgba(255, 255, 0.4)"
-                barBackgroundColor="transparent"
-                barBackgroundSelectedColor="transparent"
-                todayColor="rgba(239, 71, 111, 0.15)"
-                TooltipContent={TooltipContent}
-                TaskListHeader={TaskListHeader}
-                TaskListTable={TaskListTable}
-                locale="es"
-                fontSize="13px"
-                fontFamily="inherit"
-              />
-            )}
+          {/* Gantt Chart con scroll wrapper */}
+          <div className="gantt-chart-wrapper-outer">
+            <div className="gantt-chart-container">
+              {ganttTasks.length > 0 && (
+                <Gantt
+                  tasks={ganttTasks}
+                  viewMode={viewMode}
+                  onDateChange={handleTaskChange}
+                  onProgressChange={handleProgressChange}
+                  onExpanderClick={(task) => {
+                    if (task.isProject) {
+                      setExpandedProjects(prev => ({
+                        ...prev,
+                        [task.id]: !prev[task.id]
+                      }));
+                    }
+                  }}
+                  listCellWidth="330px"
+                  columnWidth={viewMode === ViewMode.Day ? 60 : viewMode === ViewMode.Week ? 250 : 300}
+                  rowHeight={50}
+                  taskHeight={28}
+                  barCornerRadius={6}
+                  barProgressColor="rgba(255, 255, 255, 0.3)"
+                  barProgressSelectedColor="rgba(255, 255, 0.4)"
+                  barBackgroundColor="transparent"
+                  barBackgroundSelectedColor="transparent"
+                  todayColor="rgba(239, 71, 111, 0.15)"
+                  TooltipContent={TooltipContent}
+                  TaskListHeader={TaskListHeader}
+                  TaskListTable={TaskListTable}
+                  locale="es"
+                  fontSize="13px"
+                  fontFamily="inherit"
+                />
+              )}
+            </div>
           </div>
         </div>
       ) : (
@@ -1084,6 +1947,15 @@ const GanttTimeline = ({ projects, tasks = [], onUpdate }) => {
             setShowDependencyModal(false);
             setSelectedTaskForDependency(null);
           }}
+        />
+      )}
+
+      {/* Toast notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
         />
       )}
 
