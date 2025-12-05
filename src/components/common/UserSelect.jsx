@@ -33,7 +33,13 @@ const UserSelect = ({
         {value && (
           <div
             className="user-list-item"
-            onClick={() => onChange(null)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onChange(null);
+            }}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+            }}
           >
             <span className="user-list-name">Sin asignar</span>
           </div>
@@ -42,7 +48,13 @@ const UserSelect = ({
           <div
             key={user.id}
             className={`user-list-item ${value === user.id ? 'selected' : ''}`}
-            onClick={() => onChange(user.id)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onChange(user.id);
+            }}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+            }}
           >
             <UserAvatar userId={user.id} size={24} />
             <span className="user-list-name">{user.displayName || user.email}</span>

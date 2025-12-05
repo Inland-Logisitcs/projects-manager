@@ -132,7 +132,13 @@ const KanbanCard = ({ task, isDragging, onDelete }) => {
             {showUserSelect && (
               <div
                 className="user-select-dropdown"
+                onClick={(e) => {
+                  e.stopPropagation();
+                }}
                 onPointerDown={(e) => {
+                  e.stopPropagation();
+                }}
+                onMouseDown={(e) => {
                   e.stopPropagation();
                 }}
               >

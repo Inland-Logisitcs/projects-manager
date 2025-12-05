@@ -48,6 +48,9 @@ const ProjectSelect = ({
               e.stopPropagation();
               onChange(null);
             }}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+            }}
           >
             <Icon name="x" size={16} className="text-tertiary" />
             <span className="project-list-name">Sin proyecto</span>
@@ -60,6 +63,9 @@ const ProjectSelect = ({
             onClick={(e) => {
               e.stopPropagation();
               onChange(project.id);
+            }}
+            onMouseDown={(e) => {
+              e.stopPropagation();
             }}
           >
             <Icon name="folder" size={16} className="text-secondary" />

@@ -646,7 +646,11 @@ const TaskRow = ({ task, onDragStart, onArchive, onUpdateTask, onTaskClick, getP
               </button>
             )}
             {showProjectSelect && (
-              <div className="user-select-dropdown-backlog">
+              <div
+                className="user-select-dropdown-backlog"
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
                 <ProjectSelect
                   value={task.projectId}
                   onChange={handleAssignProject}
@@ -696,7 +700,11 @@ const TaskRow = ({ task, onDragStart, onArchive, onUpdateTask, onTaskClick, getP
               </button>
             )}
             {showUserSelect && (
-              <div className="user-select-dropdown-backlog">
+              <div
+                className="user-select-dropdown-backlog"
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
                 <UserSelect
                   value={task.assignedTo}
                   onChange={handleAssignUser}
