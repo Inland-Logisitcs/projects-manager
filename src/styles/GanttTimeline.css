@@ -3,6 +3,15 @@
   max-width: 100%;
 }
 
+/* Ocultar barras de tareas sin story points */
+.gantt-container g[data-needs-config="true"] rect {
+  display: none !important;
+}
+
+.gantt-container g[data-needs-config="true"] {
+  pointer-events: none;
+}
+
 .gantt-wrapper {
   background-color: white;
   border-radius: 0;

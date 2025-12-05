@@ -698,62 +698,141 @@ const GanttTimeline = ({ projects, tasks = [], users = [], onUpdate }) => {
 
       // Agregar tareas hijas
       projectTasks.forEach((task) => {
-        // Skip tasks without story points (they won't appear in Gantt)
-        if (!task.storyPoints || task.storyPoints <= 0) {
-          return;
+        const hasStoryPoints = task.storyPoints && task.storyPoints > 0;
+
+        if (hasStoryPoints) {
+          // Tareas con story points: renderizar barra en el Gantt
+          const projectSchedules = scheduledTasks.get(project.id) || [];
+          const taskSchedule = projectSchedules.find(s => s.taskId === task.id);
+
+          // Skip tasks without calculated schedule
+          if (!taskSchedule || !taskSchedule.startDate || !taskSchedule.endDate) {
+            return;
+          }
+
+          // Use calculated dates from smart scheduling
+          const [tStartYear, tStartMonth, tStartDay] = taskSchedule.startDate.split('-').map(Number);
+          const tStart = new Date(tStartYear, tStartMonth - 1, tStartDay, 0, 0, 0, 0);
+
+          const [tEndYear, tEndMonth, tEndDay] = taskSchedule.endDate.split('-').map(Number);
+          const tEnd = new Date(tEndYear, tEndMonth - 1, tEndDay, 23, 59, 59, 999);
+
+          // Convertir dependencias a formato de la librería
+          const dependencies = (task.dependencies || []).map(depId => `task-${depId}`);
+
+          // Para tareas simuladas, crear una versión modificada de la tarea con el usuario asignado
+          const taskWithAssignment = taskSchedule.isSimulated
+            ? { ...task, assignedTo: taskSchedule.assignedTo }
+            : task;
+
+          result.push({
+            id: `task-${task.id}`,
+            name: task.title,
+            start: tStart,
+            end: tEnd,
+            progress: task.status === 'completed' ? 100 : 0,
+            type: 'task',
+            project: project.id, // ID del proyecto padre
+            dependencies: dependencies, // Array de IDs de tareas de las que depende
+            styles: {
+              backgroundColor: '#94A3B8',
+              backgroundSelectedColor: '#64748b',
+              progressColor: 'rgba(255, 255, 255, 0.3)',
+              progressSelectedColor: 'rgba(255, 255, 255, 0.4)',
+            },
+            task: taskWithAssignment, // Guardar referencia a la tarea (con asignación simulada si aplica)
+            isTask: true,
+            isSimulated: taskSchedule.isSimulated || false // Flag para asignaciones simuladas
+          });
+        } else {
+          // Tareas SIN story points: solo listar en la tabla lateral, NO renderizar barra
+          // Usamos fechas dummy del proyecto solo para que la librería no falle
+          result.push({
+            id: `task-${task.id}`,
+            name: task.title,
+            start: start, // Fecha del proyecto
+            end: end,     // Fecha del proyecto
+            progress: 0,
+            type: 'task',
+            project: project.id,
+            dependencies: [],
+            styles: {
+              backgroundColor: 'transparent', // Invisible
+              backgroundSelectedColor: 'transparent',
+              progressColor: 'transparent',
+              progressSelectedColor: 'transparent',
+              opacity: 0 // Completamente transparente
+            },
+            task: task,
+            isTask: true,
+            isSimulated: false,
+            needsConfiguration: true, // Flag para indicar que necesita story points
+            hideBar: true // Flag para ocultar la barra visualmente
+          });
         }
-
-        // Get calculated schedule for this task
-        const projectSchedules = scheduledTasks.get(project.id) || [];
-        const taskSchedule = projectSchedules.find(s => s.taskId === task.id);
-
-        // Skip tasks without calculated schedule
-        if (!taskSchedule || !taskSchedule.startDate || !taskSchedule.endDate) {
-          return;
-        }
-
-        // Use calculated dates from smart scheduling
-        const [tStartYear, tStartMonth, tStartDay] = taskSchedule.startDate.split('-').map(Number);
-        const tStart = new Date(tStartYear, tStartMonth - 1, tStartDay, 0, 0, 0, 0);
-
-        const [tEndYear, tEndMonth, tEndDay] = taskSchedule.endDate.split('-').map(Number);
-        const tEnd = new Date(tEndYear, tEndMonth - 1, tEndDay, 23, 59, 59, 999);
-
-        // Convertir dependencias a formato de la librería
-        const dependencies = (task.dependencies || []).map(depId => `task-${depId}`);
-
-        // Para tareas simuladas, crear una versión modificada de la tarea con el usuario asignado
-        const taskWithAssignment = taskSchedule.isSimulated
-          ? { ...task, assignedTo: taskSchedule.assignedTo }
-          : task;
-
-        result.push({
-          id: `task-${task.id}`,
-          name: task.title,
-          start: tStart,
-          end: tEnd,
-          progress: task.status === 'completed' ? 100 : 0,
-          type: 'task',
-          project: project.id, // ID del proyecto padre
-          dependencies: dependencies, // Array de IDs de tareas de las que depende
-          styles: {
-            backgroundColor: '#94A3B8',
-            backgroundSelectedColor: '#64748b',
-            progressColor: 'rgba(255, 255, 255, 0.3)',
-            progressSelectedColor: 'rgba(255, 255, 255, 0.4)',
-          },
-          task: taskWithAssignment, // Guardar referencia a la tarea (con asignación simulada si aplica)
-          isTask: true,
-          isSimulated: taskSchedule.isSimulated || false // Flag para asignaciones simuladas
-        });
       });
     });
 
     return result;
   }, [scheduledProjects, tasks, expandedProjects, scheduledTasks]);
 
-  // Agregar atributo data-task-id a las barras del Gantt después del renderizado
+  // Sincronizar selectedTask cuando tasks cambian (para actualizaciones en tiempo real)
   React.useEffect(() => {
+    if (selectedTask) {
+      const updatedTask = tasks.find(t => t.id === selectedTask.id);
+      if (updatedTask) {
+        setSelectedTask(updatedTask);
+      }
+    }
+  }, [tasks, selectedTask]);
+
+  // Agregar atributo data-task-id a las barras del Gantt y manejar clicks
+  React.useEffect(() => {
+    const handleBarClick = (e) => {
+      // Buscar si el click fue en una barra de tarea
+      let barElement = e.target.closest('g.barWrapper');
+      let taskId = null;
+
+      if (!barElement) {
+        // Buscar por rect
+        const svgRect = e.target.closest('rect');
+        if (svgRect) {
+          const parent = svgRect.parentElement;
+          if (parent && parent.tagName === 'g') {
+            const rectHeight = parseFloat(svgRect.getAttribute('height') || 0);
+            if (rectHeight <= 30) {
+              barElement = parent;
+            }
+          }
+        }
+      }
+
+      // Intentar obtener el task-id del elemento clickeado o sus padres
+      if (barElement) {
+        taskId = barElement.getAttribute('data-task-id');
+      }
+
+      // Si no encontramos el id, buscar en padres cercanos
+      if (!taskId && e.target) {
+        let current = e.target;
+        let depth = 0;
+        while (current && depth < 5) {
+          taskId = current.getAttribute?.('data-task-id');
+          if (taskId) break;
+          current = current.parentElement;
+          depth++;
+        }
+      }
+
+      if (taskId) {
+        // Buscar la tarea real en el array de tasks
+        const task = tasks.find(t => t.id === taskId);
+        if (task) {
+          setSelectedTask(task);
+        }
+      }
+    };
+
     const addTaskIdsToGanttBars = () => {
       // Esperar a que el Gantt se renderice
       setTimeout(() => {
