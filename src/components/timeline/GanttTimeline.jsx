@@ -1,15 +1,17 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Gantt, ViewMode } from 'gantt-task-react';
 import 'gantt-task-react/dist/index.css';
 import { createTask, addTaskDependency, removeTaskDependency, updateTask } from '../../services/taskService';
 import { addProjectDependency, removeProjectDependency } from '../../services/projectService';
 import { calculateAllProjectsSchedules } from '../../services/schedulingService';
+import { subscribeToColumns } from '../../services/columnService';
 import Icon from '../common/Icon';
 import UserAvatar from '../common/UserAvatar';
 import UserMultiSelect from '../common/UserMultiSelect';
 import Toast from '../common/Toast';
 import StoryPointsSelect from '../common/StoryPointsSelect';
 import WarningPopover from './WarningPopover';
+import TaskDetailSidebar from '../kanban/TaskDetailSidebar';
 import '../../styles/GanttTimeline.css';
 
 const GanttTimeline = ({ projects, tasks = [], users = [], onUpdate }) => {
@@ -31,6 +33,17 @@ const GanttTimeline = ({ projects, tasks = [], users = [], onUpdate }) => {
   const [selectedTaskForDependency, setSelectedTaskForDependency] = useState(null);
   const [hoveredTaskId, setHoveredTaskId] = useState(null);
   const [toast, setToast] = useState(null);
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [columns, setColumns] = useState([]);
+
+  // Cargar columnas para el TaskDetailSidebar
+  useEffect(() => {
+    const unsubscribe = subscribeToColumns((fetchedColumns) => {
+      setColumns(fetchedColumns);
+    });
+    return () => unsubscribe();
+  }, []);
+
   // Inicializar proyectos expandidos por defecto
   const [expandedProjects, setExpandedProjects] = useState(() => {
     const expanded = {};
@@ -811,14 +824,32 @@ const GanttTimeline = ({ projects, tasks = [], users = [], onUpdate }) => {
               if (rect) {
                 rect.parentElement.setAttribute('data-task-id', taskId);
               }
+
+              // Si la tarea necesita configuración, agregar atributo para ocultar la barra
+              if (ganttTask.needsConfiguration) {
+                barGroup.setAttribute('data-needs-config', 'true');
+                if (rect && rect.parentElement) {
+                  rect.parentElement.setAttribute('data-needs-config', 'true');
+                }
+              }
             }
           }
         });
-      }, 1500); // Aumentar a 1.5 segundos para dar más tiempo
+
+        // Agregar event listener DESPUÉS de agregar los atributos
+        ganttContainer.addEventListener('click', handleBarClick);
+      }, 1500);
     };
 
     addTaskIdsToGanttBars();
-  }, [ganttTasks, expandedProjects]);
+
+    return () => {
+      const ganttContainer = document.querySelector('.gantt-chart-wrapper-outer');
+      if (ganttContainer) {
+        ganttContainer.removeEventListener('click', handleBarClick);
+      }
+    };
+  }, [ganttTasks, expandedProjects, tasks]);
 
   // Detectar hover sobre flechas de dependencia para mostrar botón de eliminar
   React.useEffect(() => {
@@ -1098,6 +1129,14 @@ const GanttTimeline = ({ projects, tasks = [], users = [], onUpdate }) => {
     });
   };
 
+  // Handler para click en tareas del Gantt
+  const handleTaskClick = (task) => {
+    // Solo abrir el sidebar si es una tarea (no un proyecto)
+    if (task.isTask && task.task) {
+      setSelectedTask(task.task);
+    }
+  };
+
   // Handler para cambio de progreso
   const handleProgressChange = async (task) => {
     const project = scheduledProjects.find(p => p.id === task.id);
@@ -1311,7 +1350,7 @@ const GanttTimeline = ({ projects, tasks = [], users = [], onUpdate }) => {
     rowHeight,
     rowWidth,
     selectedTaskId,
-    setSelectedTask,
+    setSelectedTask: setSelectedTaskId, // Renombrar para evitar conflicto
     onExpanderClick
   }) => {
     // Create refs map for warning popovers
@@ -1379,7 +1418,14 @@ const GanttTimeline = ({ projects, tasks = [], users = [], onUpdate }) => {
                 borderBottom: task.isProject ? '2px solid var(--border-medium)' : '1px solid var(--border-light)',
                 backgroundColor: task.isProject ? 'rgba(1, 94, 124, 0.04)' : 'transparent',
                 transition: 'background-color 0.2s ease',
-                gap: '0.5rem'
+                gap: '0.5rem',
+                cursor: task.isTask ? 'pointer' : 'default'
+              }}
+              onClick={(e) => {
+                if (task.isTask && task.task) {
+                  e.stopPropagation();
+                  setSelectedTask(task.task);
+                }
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.backgroundColor = task.isProject ? 'rgba(1, 94, 124, 0.08)' : 'rgba(1, 94, 124, 0.03)';
@@ -1921,6 +1967,7 @@ const GanttTimeline = ({ projects, tasks = [], users = [], onUpdate }) => {
                   viewMode={viewMode}
                   onDateChange={handleTaskChange}
                   onProgressChange={handleProgressChange}
+                  onClick={handleTaskClick}
                   onExpanderClick={(task) => {
                     if (task.isProject) {
                       setExpandedProjects(prev => ({
@@ -2065,6 +2112,16 @@ const GanttTimeline = ({ projects, tasks = [], users = [], onUpdate }) => {
           message={toast.message}
           type={toast.type}
           onClose={() => setToast(null)}
+        />
+      )}
+
+      {/* Task Detail Sidebar */}
+      {selectedTask && (
+        <TaskDetailSidebar
+          task={selectedTask}
+          columns={columns}
+          allTasks={tasks}
+          onClose={() => setSelectedTask(null)}
         />
       )}
 
