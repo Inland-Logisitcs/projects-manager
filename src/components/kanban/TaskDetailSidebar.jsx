@@ -35,6 +35,8 @@ const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose }) => {
   const [showAllHistory, setShowAllHistory] = useState(false);
   const [users, setUsers] = useState([]);
   const [projects, setProjects] = useState([]);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editedTitle, setEditedTitle] = useState(task.title || '');
 
   // Cargar usuarios
   useEffect(() => {
@@ -176,6 +178,31 @@ const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose }) => {
     return `${days} día${days !== 1 ? 's' : ''}`;
   };
 
+  // Guardar título editado
+  const handleSaveTitle = async () => {
+    if (editedTitle.trim() && editedTitle !== task.title) {
+      const result = await updateTask(task.id, { title: editedTitle.trim() });
+      if (!result.success) {
+        setToast({ message: 'Error al actualizar título: ' + result.error, type: 'error' });
+        setEditedTitle(task.title); // Revertir en caso de error
+      }
+    } else {
+      setEditedTitle(task.title); // Revertir si está vacío o sin cambios
+    }
+    setIsEditingTitle(false);
+  };
+
+  // Manejar tecla Enter o Escape al editar título
+  const handleTitleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleSaveTitle();
+    } else if (e.key === 'Escape') {
+      setEditedTitle(task.title);
+      setIsEditingTitle(false);
+    }
+  };
+
   // Calcular tiempo en cada estado del historial
   const historyWithDuration = useMemo(() => {
     if (!task.movementHistory || task.movementHistory.length === 0) {
@@ -311,7 +338,25 @@ const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose }) => {
           {/* Información principal */}
           <section className="sidebar-section section-header-integrated">
             <div className="task-header-row">
-              <h2 className="task-title-integrated">{task.title}</h2>
+              {isEditingTitle ? (
+                <input
+                  type="text"
+                  className="task-title-input"
+                  value={editedTitle}
+                  onChange={(e) => setEditedTitle(e.target.value)}
+                  onBlur={handleSaveTitle}
+                  onKeyDown={handleTitleKeyDown}
+                  autoFocus
+                />
+              ) : (
+                <h2
+                  className="task-title-integrated editable-title"
+                  onClick={() => setIsEditingTitle(true)}
+                  title="Click para editar"
+                >
+                  {task.title}
+                </h2>
+              )}
               <div className="task-meta-badges">
                 <span
                   className={`priority-badge priority-${task.priority} has-tooltip`}
