@@ -583,10 +583,14 @@ const TaskRow = ({ task, onDragStart, onArchive, onUpdateTask, onTaskClick, getP
   };
 
   const handleAssignUser = async (userId) => {
-    await onUpdateTask(task.id, {
-      assignedTo: userId,
-      previousAssignedTo: task.assignedTo
-    });
+    const updates = { assignedTo: userId };
+
+    // Solo incluir previousAssignedTo si tiene un valor válido
+    if (task.assignedTo) {
+      updates.previousAssignedTo = task.assignedTo;
+    }
+
+    await onUpdateTask(task.id, updates);
     setShowUserSelect(false);
   };
 
