@@ -183,8 +183,12 @@
   height: 450px;
   max-height: 450px;
   overflow: scroll;
+  overflow-x: auto;
+  overflow-y: auto;
   background-color: #fafbfc;
   position: relative;
+  -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+  overscroll-behavior: contain; /* Prevent parent scroll when at edges */
 }
 
 /* Contenedor del Gantt de la librería - sin scrolls propios, permite expansión horizontal */
@@ -763,6 +767,11 @@
 .gantt-chart-container :global(.gantt-container) {
   font-family: inherit;
 }
+
+/* No ocultar el tooltip por defecto - puede estar relacionado con los círculos de dependencia */
+/* .gantt-chart-container :global(._1xg0T) {
+  display: none !important;
+} */
 
 /* El contenedor principal de la librería no debe tener su propio scroll */
 .gantt-chart-container > div:first-child {

@@ -59,6 +59,7 @@ const GanttTimeline = ({ projects, tasks = [], users = [], onUpdate }) => {
   // Calculate smart schedules for all projects (memoized to prevent infinite loops)
   const scheduleResults = useMemo(() => {
     if (projects.length > 0 && tasks.length > 0 && users.length > 0) {
+      console.log('🔄 Recalculating schedules. Tasks with SP:', tasks.filter(t => t.storyPoints > 0).length, '/ Total:', tasks.length);
       return calculateAllProjectsSchedules(projects, tasks, users);
     }
     return { scheduledTasks: new Map(), warnings: new Map() };
@@ -563,8 +564,8 @@ const GanttTimeline = ({ projects, tasks = [], users = [], onUpdate }) => {
     // Agregar event listeners
     const ganttContainer = document.querySelector('.gantt-chart-wrapper-outer');
     if (ganttContainer) {
-      ganttContainer.addEventListener('mousemove', handleMouseMove);
-      ganttContainer.addEventListener('scroll', handleScroll);
+      ganttContainer.addEventListener('mousemove', handleMouseMove, { passive: true });
+      ganttContainer.addEventListener('scroll', handleScroll, { passive: true });
       document.addEventListener('mouseup', handleMouseUp);
     }
 
@@ -648,7 +649,8 @@ const GanttTimeline = ({ projects, tasks = [], users = [], onUpdate }) => {
         // Si ninguno tiene order, mantener orden original
         return 0;
       });
-    const unscheduled = projects.filter(p => !p.startDate || !p.endDate);
+    // Only consider projects without startDate as unscheduled (endDate is now calculated)
+    const unscheduled = projects.filter(p => !p.startDate);
     return { scheduledProjects: scheduled, unscheduledProjects: unscheduled };
   }, [projects]);
 
@@ -661,8 +663,32 @@ const GanttTimeline = ({ projects, tasks = [], users = [], onUpdate }) => {
       const [startYear, startMonth, startDay] = project.startDate.split('-').map(Number);
       const start = new Date(startYear, startMonth - 1, startDay, 0, 0, 0, 0);
 
-      const [endYear, endMonth, endDay] = project.endDate.split('-').map(Number);
-      const end = new Date(endYear, endMonth - 1, endDay, 23, 59, 59, 999);
+      // Calculate project end date based on latest task end date
+      const projectSchedules = scheduledTasks.get(project.id) || [];
+      let latestEndDateStr = null;
+
+      // Find the latest task end date (as string)
+      projectSchedules.forEach(schedule => {
+        if (schedule.endDate) {
+          if (!latestEndDateStr || schedule.endDate > latestEndDateStr) {
+            latestEndDateStr = schedule.endDate;
+          }
+        }
+      });
+
+      // Use calculated end date if available, otherwise fall back to project.endDate or startDate
+      let end;
+      if (latestEndDateStr) {
+        const [endYear, endMonth, endDay] = latestEndDateStr.split('-').map(Number);
+        end = new Date(endYear, endMonth - 1, endDay, 23, 59, 59, 999);
+      } else if (project.endDate) {
+        const [endYear, endMonth, endDay] = project.endDate.split('-').map(Number);
+        end = new Date(endYear, endMonth - 1, endDay, 23, 59, 59, 999);
+      } else {
+        // No end date available, use start date as fallback
+        end = new Date(start);
+        end.setHours(23, 59, 59, 999);
+      }
 
       const projectColor = getProjectColor(project);
 
@@ -701,21 +727,83 @@ const GanttTimeline = ({ projects, tasks = [], users = [], onUpdate }) => {
         const hasStoryPoints = task.storyPoints && task.storyPoints > 0;
 
         if (hasStoryPoints) {
-          // Tareas con story points: renderizar barra en el Gantt
+          // Tareas con story points: renderizar barra en el Gantt (si tienen schedule)
           const projectSchedules = scheduledTasks.get(project.id) || [];
           const taskSchedule = projectSchedules.find(s => s.taskId === task.id);
 
-          // Skip tasks without calculated schedule
-          if (!taskSchedule || !taskSchedule.startDate || !taskSchedule.endDate) {
+          // Check if task has schedule or needs assignment
+          if (!taskSchedule) {
+            console.log(`⚠️ Task "${task.title}" no tiene schedule calculado - agregando sin barra visible`);
+
+            // Still show task in list even without schedule, so it can receive dependencies
+            const dependencies = (task.dependencies || []).map(depId => `task-${depId}`);
+            result.push({
+              id: `task-${task.id}`,
+              name: task.title,
+              start: start, // Use project dates as dummy
+              end: end,
+              progress: 0,
+              type: 'task',
+              project: project.id,
+              dependencies: dependencies,
+              styles: {
+                backgroundColor: 'transparent',
+                backgroundSelectedColor: 'transparent',
+                progressColor: 'transparent',
+                progressSelectedColor: 'transparent',
+                opacity: 0
+              },
+              task: task,
+              isTask: true,
+              isSimulated: false,
+              needsAssignment: true,
+              hideBar: true
+            });
             return;
           }
 
-          // Use calculated dates from smart scheduling
+          if (taskSchedule.needsAssignment || !taskSchedule.startDate || !taskSchedule.endDate) {
+            // Task has story points but no user assigned - show in list only, no bar
+            result.push({
+              id: `task-${task.id}`,
+              name: task.title,
+              start: start, // Use project dates as dummy
+              end: end,
+              progress: 0,
+              type: 'task',
+              project: project.id,
+              dependencies: [],
+              styles: {
+                backgroundColor: 'transparent',
+                backgroundSelectedColor: 'transparent',
+                progressColor: 'transparent',
+                progressSelectedColor: 'transparent',
+                opacity: 0
+              },
+              task: task,
+              isTask: true,
+              isSimulated: false,
+              needsAssignment: true, // Flag para indicar que necesita usuario
+              hideBar: true
+            });
+            return;
+          }
+
+          // Task has valid schedule - show bar
           const [tStartYear, tStartMonth, tStartDay] = taskSchedule.startDate.split('-').map(Number);
           const tStart = new Date(tStartYear, tStartMonth - 1, tStartDay, 0, 0, 0, 0);
 
           const [tEndYear, tEndMonth, tEndDay] = taskSchedule.endDate.split('-').map(Number);
+          // Always use end of day for end date to ensure proper bar width
+          // Single day tasks will span from 00:00 to 23:59 of the same day
           const tEnd = new Date(tEndYear, tEndMonth - 1, tEndDay, 23, 59, 59, 999);
+
+          // Debug log for tasks with 1 SP
+          if (task.storyPoints === 1) {
+            console.log(`📊 Task "${task.title}" (1 SP):`,
+              `${taskSchedule.startDate} → ${taskSchedule.endDate}`,
+              taskSchedule.startDate === taskSchedule.endDate ? '✅ SAME DAY' : '⚠️ MULTIPLE DAYS');
+          }
 
           // Convertir dependencias a formato de la librería
           const dependencies = (task.dependencies || []).map(depId => `task-${depId}`);
@@ -929,6 +1017,111 @@ const GanttTimeline = ({ projects, tasks = [], users = [], onUpdate }) => {
       }
     };
   }, [ganttTasks, expandedProjects, tasks]);
+
+  // Dibujar marcadores de días no laborables en las barras de tareas
+  React.useEffect(() => {
+    const drawNonWorkingDayMarkers = () => {
+      // Esperar a que el Gantt se renderice
+      setTimeout(() => {
+        const ganttContainer = document.querySelector('.gantt-chart-wrapper-outer');
+        if (!ganttContainer) return;
+
+        // Limpiar marcadores anteriores
+        document.querySelectorAll('.non-working-day-marker').forEach(marker => marker.remove());
+        document.querySelectorAll('.non-working-day-label').forEach(label => label.remove());
+
+        // Obtener el ancho de columna del viewMode actual
+        const columnWidth = viewMode === ViewMode.Day ? 60 : viewMode === ViewMode.Week ? 250 : 300;
+
+        // Buscar todas las barras de tareas
+        const taskBars = ganttContainer.querySelectorAll('g[data-task-id]');
+
+        taskBars.forEach(barGroup => {
+          const taskId = barGroup.getAttribute('data-task-id');
+          const ganttTask = ganttTasks.find(t => t.id === `task-${taskId}`);
+
+          if (!ganttTask || !ganttTask.task) return;
+
+          // Obtener el rectángulo de la barra
+          const rect = barGroup.querySelector('rect');
+          if (!rect) return;
+
+          const barRect = rect.getBoundingClientRect();
+          const containerRect = ganttContainer.getBoundingClientRect();
+
+          // Calcular fechas entre start y end
+          const startDate = new Date(ganttTask.start);
+          const endDate = new Date(ganttTask.end);
+
+          if (!startDate || !endDate) return;
+
+          // Normalizar fechas a medianoche
+          startDate.setHours(0, 0, 0, 0);
+          endDate.setHours(0, 0, 0, 0);
+
+          // Encontrar días no laborables entre start y end
+          let currentDate = new Date(startDate);
+
+          while (currentDate <= endDate) {
+            const dayOfWeek = currentDate.getDay();
+
+            // 0 = Domingo, 6 = Sábado
+            if (dayOfWeek === 0 || dayOfWeek === 6) {
+              // Calcular días transcurridos desde el inicio
+              const msPerDay = 1000 * 60 * 60 * 24;
+              const daysFromStart = Math.round((currentDate - startDate) / msPerDay);
+
+              // Calcular posición basándonos en el ancho de columna
+              const markerLeft = barRect.left - containerRect.left + ganttContainer.scrollLeft + (daysFromStart * columnWidth);
+              const markerTop = barRect.top - containerRect.top + ganttContainer.scrollTop;
+
+              // Crear marcador de fondo (detrás del texto) - muy sutil
+              const marker = document.createElement('div');
+              marker.className = 'non-working-day-marker';
+              marker.style.cssText = `
+                position: absolute;
+                left: ${markerLeft}px;
+                top: ${markerTop}px;
+                width: ${columnWidth}px;
+                height: ${barRect.height}px;
+                background: repeating-linear-gradient(
+                  45deg,
+                  rgba(0, 0, 0, 0.06),
+                  rgba(0, 0, 0, 0.06) 2px,
+                  rgba(0, 0, 0, 0.1) 2px,
+                  rgba(0, 0, 0, 0.1) 4px
+                );
+                pointer-events: none;
+                z-index: 0;
+                border-left: 1px solid rgba(0, 0, 0, 0.12);
+                border-right: 1px solid rgba(0, 0, 0, 0.12);
+              `;
+
+              ganttContainer.appendChild(marker);
+            }
+
+            currentDate.setDate(currentDate.getDate() + 1);
+          }
+        });
+      }, 1600); // Esperar un poco más que el efecto anterior
+    };
+
+    drawNonWorkingDayMarkers();
+
+    // Redibujar en scroll
+    const ganttContainer = document.querySelector('.gantt-chart-wrapper-outer');
+    if (ganttContainer) {
+      ganttContainer.addEventListener('scroll', drawNonWorkingDayMarkers);
+    }
+
+    return () => {
+      if (ganttContainer) {
+        ganttContainer.removeEventListener('scroll', drawNonWorkingDayMarkers);
+      }
+      document.querySelectorAll('.non-working-day-marker').forEach(marker => marker.remove());
+      document.querySelectorAll('.non-working-day-label').forEach(label => label.remove());
+    };
+  }, [ganttTasks, expandedProjects, viewMode]);
 
   // Detectar hover sobre flechas de dependencia para mostrar botón de eliminar
   React.useEffect(() => {
@@ -1164,7 +1357,7 @@ const GanttTimeline = ({ projects, tasks = [], users = [], onUpdate }) => {
 
     const ganttContainer = document.querySelector('.gantt-chart-wrapper-outer');
     if (ganttContainer) {
-      ganttContainer.addEventListener('mousemove', handleMouseMove);
+      ganttContainer.addEventListener('mousemove', handleMouseMove, { passive: true });
     }
 
     return () => {
@@ -1286,35 +1479,44 @@ const GanttTimeline = ({ projects, tasks = [], users = [], onUpdate }) => {
     localStorage.setItem('gantt-view-mode', mode);
   };
 
-  // Personalizar tooltips
+  // Tooltip personalizado con información de la tarea
   const TooltipContent = ({ task }) => {
-    const project = task.project;
-    if (!project) return null;
+    // Si es un proyecto, mostrar info del proyecto
+    if (task.type === 'project' && task.project) {
+      const project = task.project;
+      return (
+        <div className="gantt-tooltip">
+          <div className="tooltip-title">{project.name}</div>
+          <div className="tooltip-detail"><strong>Tipo:</strong> {project.type}</div>
+          <div className="tooltip-detail"><strong>Estado:</strong> {project.status}</div>
+        </div>
+      );
+    }
 
-    return (
-      <div className="gantt-tooltip">
-        <div className="tooltip-title">
-          {project.name}
-        </div>
-        <div className="tooltip-detail">
-          <strong>Tipo:</strong> {project.type}
-        </div>
-        <div className="tooltip-detail">
-          <strong>Estado:</strong> {project.status}
-        </div>
-        <div className="tooltip-detail">
-          <strong>Inicio:</strong> {new Date(project.startDate).toLocaleDateString('es')}
-        </div>
-        <div className="tooltip-detail">
-          <strong>Fin:</strong> {new Date(project.endDate).toLocaleDateString('es')}
-        </div>
-        {project.progress !== undefined && (
+    // Si es una tarea, mostrar info de la tarea
+    if (task.type === 'task' && task.task) {
+      const taskData = task.task;
+      const storyPoints = taskData.storyPoints || 0;
+      const assignedUser = users.find(u => u.id === taskData.assignedTo);
+      const dailyCapacity = assignedUser?.dailyCapacity || 1;
+
+      return (
+        <div className="gantt-tooltip">
+          <div className="tooltip-title">{taskData.title} ({storyPoints} SP)</div>
+          {assignedUser && (
+            <div className="tooltip-detail">
+              <strong>Asignado a:</strong> {assignedUser.displayName} ({dailyCapacity} SP/día)
+              {task.isSimulated && <span style={{ marginLeft: '0.5rem', color: '#f59e0b' }}>⚠ Simulado</span>}
+            </div>
+          )}
           <div className="tooltip-detail">
-            <strong>Progreso:</strong> {project.progress}%
+            <strong>Fechas:</strong> {task.start.toLocaleDateString('es', { day: 'numeric', month: 'short' })} → {task.end.toLocaleDateString('es', { day: 'numeric', month: 'short' })}
           </div>
-        )}
-      </div>
-    );
+        </div>
+      );
+    }
+
+    return null;
   };
 
   // Header personalizado para la tabla (solo nombre)

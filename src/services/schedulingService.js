@@ -93,23 +93,51 @@ export const topologicalSort = (tasks) => {
     inDegree.set(task.id, 0);
   });
 
-  // Calculate in-degrees
+  // Calculate in-degrees (count how many dependencies each task has)
   tasks.forEach(task => {
     const deps = graph.get(task.id) || [];
+    console.log(`      TopSort: "${task.title}" depende de:`, deps);
+
+    // Count valid dependencies (only those that exist in validTasks)
+    let validDepsCount = 0;
     deps.forEach(depId => {
       if (inDegree.has(depId)) {
-        inDegree.set(depId, inDegree.get(depId) + 1);
+        validDepsCount++;
+        console.log(`         → Dependencia válida: "${taskMap.get(depId).title}"`);
+      } else {
+        console.log(`         ⚠️ Dependencia "${depId}" NO existe en validTasks - será ignorada!`);
       }
     });
+
+    // Set the inDegree for THIS task (how many dependencies it has)
+    inDegree.set(task.id, validDepsCount);
   });
 
-  // Queue tasks with no dependencies
-  const queue = [];
-  tasks.forEach(task => {
-    if (inDegree.get(task.id) === 0) {
-      queue.push(task);
-    }
+  console.log(`      InDegrees finales:`);
+  inDegree.forEach((degree, taskId) => {
+    console.log(`         - "${taskMap.get(taskId).title}": ${degree}`);
   });
+
+  // Helper to sort tasks by priority and creation date
+  const sortTasksByPriority = (tasksToSort) => {
+    const priorityOrder = { high: 3, medium: 2, low: 1 };
+    return tasksToSort.sort((a, b) => {
+      // First by priority
+      const aPriority = priorityOrder[a.priority] || 2;
+      const bPriority = priorityOrder[b.priority] || 2;
+      if (aPriority !== bPriority) {
+        return bPriority - aPriority; // Higher priority first
+      }
+      // Then by creation date (older first)
+      const aDate = a.createdAt?.toDate?.() || new Date(0);
+      const bDate = b.createdAt?.toDate?.() || new Date(0);
+      return aDate - bDate;
+    });
+  };
+
+  // Queue tasks with no dependencies (sorted by priority)
+  const initialTasks = tasks.filter(task => inDegree.get(task.id) === 0);
+  const queue = sortTasksByPriority(initialTasks);
 
   const sorted = [];
 
@@ -117,16 +145,32 @@ export const topologicalSort = (tasks) => {
     const task = queue.shift();
     sorted.push(task);
 
-    // Check all tasks that depend on this one
+    // Collect all tasks that are now ready (dependencies satisfied)
+    const readyTasks = [];
     tasks.forEach(otherTask => {
       const deps = graph.get(otherTask.id) || [];
       if (deps.includes(task.id)) {
         const newDegree = inDegree.get(otherTask.id) - 1;
         inDegree.set(otherTask.id, newDegree);
         if (newDegree === 0) {
-          queue.push(otherTask);
+          readyTasks.push(otherTask);
         }
       }
+    });
+
+    // Sort ready tasks by priority before adding to queue
+    if (readyTasks.length > 0) {
+      const sortedReadyTasks = sortTasksByPriority(readyTasks);
+      queue.push(...sortedReadyTasks);
+    }
+  }
+
+  // Check for tasks that weren't included (have dependencies on non-existent tasks)
+  const notIncluded = tasks.filter(t => !sorted.includes(t));
+  if (notIncluded.length > 0) {
+    console.log(`      ⚠️ Tareas NO incluidas en topSort:`);
+    notIncluded.forEach(t => {
+      console.log(`         - "${t.title}" (inDegree: ${inDegree.get(t.id)}, deps: ${(graph.get(t.id) || []).join(', ')})`);
     });
   }
 
@@ -303,10 +347,12 @@ export const scheduleTaskOnUser = (task, earliestStart, userSchedule, user) => {
     userSchedule.set(dateKey, allocated + toAllocate);
     pointsRemaining -= toAllocate;
 
+    // Update end date to current day (task continues until work is done)
+    endDate = new Date(currentDate);
+
+    // Move to next day if there's still work remaining
     if (pointsRemaining > 0) {
       currentDate = addDays(currentDate, 1);
-    } else {
-      endDate = new Date(currentDate);
     }
 
     attempts++;
@@ -353,8 +399,15 @@ export const calculateProjectSchedule = (
 
   // Filter valid tasks (with story points)
   // Tasks without assigned user will be simulated
+  console.log(`🔎 Proyecto "${project.name}" - filtrando tareas...`);
+  console.log(`   Total tareas en proyecto: ${projectTasks.length}`);
+  projectTasks.forEach(t => {
+    console.log(`   - "${t.title}": ${t.storyPoints || 0} SP, assignedTo: ${t.assignedTo || 'null'}`);
+  });
+
   const validTasks = projectTasks.filter(task => {
     if (!task.storyPoints || task.storyPoints <= 0) {
+      console.log(`   ❌ "${task.title}" excluida (sin SP)`);
       return false;
     }
 
@@ -400,39 +453,86 @@ export const calculateProjectSchedule = (
     return { scheduledTasks, warnings };
   }
 
-  // Topological sort then sort by priority
+  // Topological sort - this gives us the correct dependency order
+  console.log(`   Valid tasks antes de topSort: ${validTasks.length}`);
+  validTasks.forEach(t => console.log(`      - "${t.title}"`));
+
   const topSorted = topologicalSort(validTasks);
-  const sortedTasks = sortByPriority(topSorted);
+  console.log(`   Después de topSort: ${topSorted.length}`);
+  topSorted.forEach(t => console.log(`      - "${t.title}"`));
+
+  // IMPORTANT: Don't sort by priority after topSort - it breaks dependency order!
+  // The topological sort already gives us the correct order
+  const sortedTasks = topSorted;
+
+  console.log('📋 Orden de procesamiento de tareas:');
+  sortedTasks.forEach((t, i) => {
+    console.log(`   ${i + 1}. "${t.title}" (${t.storyPoints} SP, deps: [${(t.dependencies || []).join(', ')}])`);
+  });
 
   // Schedule each task
   for (const task of sortedTasks) {
+    console.log(`\n   🔧 Procesando "${task.title}"...`);
+
     // Calculate earliest start date
     let earliestStart = new Date(projectStartDate);
+    console.log(`      Earliest start inicial: ${formatDate(earliestStart)} (project start)`);
 
     // Check dependencies
     const dependencies = task.dependencies || [];
+    if (dependencies.length > 0) {
+      console.log(`      Revisando ${dependencies.length} dependencia(s):`);
+    }
+
     for (const depId of dependencies) {
       const depSchedule = allScheduledTasks.get(depId);
+      console.log(`         - Dep ID "${depId}":`, depSchedule ? `${depSchedule.startDate} → ${depSchedule.endDate}` : 'NO ENCONTRADA');
+
       if (depSchedule && depSchedule.endDate) {
         const depEndDate = parseDate(depSchedule.endDate);
         const dayAfterDep = addDays(depEndDate, 1);
+        console.log(`            Ajustando earliest start a: ${formatDate(dayAfterDep)}`);
         earliestStart = maxDate(earliestStart, dayAfterDep);
       }
     }
+
+    console.log(`      Earliest start final: ${formatDate(earliestStart)}`);
 
     // Determine user assignment (real or simulated)
     let userId = task.assignedTo;
     let isSimulated = false;
 
     if (!userId) {
-      // Simulate assignment: find best available user from project's assigned users
+      // Simulate assignment: first try project's assigned users
       const projectUserIds = project.assignedUsers || [];
+      console.log(`🔍 Task "${task.title}" (${task.storyPoints} SP) - buscando usuario simulado...`);
+      console.log(`   Project users:`, projectUserIds);
       userId = findBestAvailableUser(earliestStart, task.storyPoints, globalUserSchedules, userMap, projectUserIds);
+
+      // If no user found in project, try all users
+      if (!userId) {
+        const allUserIds = Array.from(userMap.keys());
+        console.log(`   No encontrado en proyecto, buscando en todos los usuarios (${allUserIds.length} total)`);
+        userId = findBestAvailableUser(earliestStart, task.storyPoints, globalUserSchedules, userMap, allUserIds);
+      }
+
       if (userId) {
+        const user = userMap.get(userId);
+        console.log(`   ✅ Usuario simulado encontrado: ${user.displayName} (capacidad: ${user.dailyCapacity} SP/día)`);
         isSimulated = true;
         warnings.push(`Tarea "${task.title}" sin asignar - simulada con usuario disponible`);
       } else {
-        warnings.push(`Tarea "${task.title}" no se pudo asignar - no hay usuarios disponibles en el proyecto`);
+        console.log(`   ❌ No se encontró ningún usuario disponible que pueda completar la tarea`);
+        // No user available, but still include task without schedule (show in list only)
+        warnings.push(`Tarea "${task.title}" sin usuario - no se puede calcular fechas`);
+        scheduledTasks.push({
+          taskId: task.id,
+          startDate: null,
+          endDate: null,
+          assignedTo: null,
+          isSimulated: false,
+          needsAssignment: true
+        });
         continue;
       }
     }
