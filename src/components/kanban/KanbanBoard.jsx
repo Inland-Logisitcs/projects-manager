@@ -16,11 +16,13 @@ import {
   reorderColumns,
   initializeDefaultColumns
 } from '../../services/columnService';
+import { subscribeToProjects } from '../../services/projectService';
 import '../../styles/KanbanBoard.css';
 
 const KanbanBoard = ({ activeSprintId = null }) => {
   const [columns, setColumns] = useState([]);
   const [tasks, setTasks] = useState([]);
+  const [projects, setProjects] = useState([]);
   const [activeTask, setActiveTask] = useState(null);
   const [showAddTask, setShowAddTask] = useState(false);
   const [newTaskColumn, setNewTaskColumn] = useState(null);
@@ -36,12 +38,20 @@ const KanbanBoard = ({ activeSprintId = null }) => {
     initializeDefaultColumns();
 
     // Suscribirse a cambios en columnas
-    const unsubscribe = subscribeToColumns((fetchedColumns) => {
+    const unsubscribeColumns = subscribeToColumns((fetchedColumns) => {
       setColumns(fetchedColumns);
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    // Suscribirse a cambios en proyectos
+    const unsubscribeProjects = subscribeToProjects((fetchedProjects) => {
+      setProjects(fetchedProjects);
+    });
+
+    return () => {
+      unsubscribeColumns();
+      unsubscribeProjects();
+    };
   }, []);
 
   // Suscribirse a cambios en tiempo real de tareas
@@ -80,6 +90,41 @@ const KanbanBoard = ({ activeSprintId = null }) => {
       }
     }
   }, [tasks]);
+
+  // Función para ordenar tareas por prioridad
+  const sortTasksByPriority = (tasksToSort) => {
+    return tasksToSort.sort((a, b) => {
+      // Obtener proyectos para comparar priority
+      const projectA = projects.find(p => p.id === a.projectId);
+      const projectB = projects.find(p => p.id === b.projectId);
+
+      // Primero ordenar por priority del proyecto
+      const projectPriorityA = projectA?.priority ?? Infinity;
+      const projectPriorityB = projectB?.priority ?? Infinity;
+
+      if (projectPriorityA !== projectPriorityB) {
+        return projectPriorityA - projectPriorityB;
+      }
+
+      // Luego ordenar por priority de la tarea
+      const taskPriorityA = a.priority ?? Infinity;
+      const taskPriorityB = b.priority ?? Infinity;
+
+      if (taskPriorityA !== taskPriorityB) {
+        return taskPriorityA - taskPriorityB;
+      }
+
+      // Si ambas tienen la misma priority, ordenar por order (posición en columna)
+      if (a.order !== undefined && b.order !== undefined) {
+        return a.order - b.order;
+      }
+
+      // Si no tienen order, por fecha de creación
+      const dateA = a.createdAt?.toDate?.() || new Date(a.createdAt || 0);
+      const dateB = b.createdAt?.toDate?.() || new Date(b.createdAt || 0);
+      return dateA - dateB;
+    });
+  };
 
   // Detección de colisiones personalizada que prioriza las columnas
   const customCollisionDetection = (args) => {
@@ -399,7 +444,7 @@ const KanbanBoard = ({ activeSprintId = null }) => {
               <KanbanColumn
                 key={column.id}
                 column={column}
-                tasks={tasks.filter(task => task.status === column.id)}
+                tasks={sortTasksByPriority(tasks.filter(task => task.status === column.id))}
                 onAddTask={handleAddTask}
                 onDeleteTask={archiveTask}
                 onCreateTask={handleCreateTaskInline}

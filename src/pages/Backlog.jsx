@@ -51,15 +51,69 @@ const Backlog = () => {
     };
   }, []);
 
-  // Filtrar tareas del backlog (sin sprint asignado)
-  const backlogTasks = tasks.filter(task => !task.sprintId);
+  // Filtrar y ordenar tareas del backlog (sin sprint asignado)
+  const backlogTasks = tasks
+    .filter(task => !task.sprintId)
+    .sort((a, b) => {
+      // Obtener proyectos para comparar priority
+      const projectA = projects.find(p => p.id === a.projectId);
+      const projectB = projects.find(p => p.id === b.projectId);
+
+      // Primero ordenar por priority del proyecto
+      const projectPriorityA = projectA?.priority ?? Infinity;
+      const projectPriorityB = projectB?.priority ?? Infinity;
+
+      if (projectPriorityA !== projectPriorityB) {
+        return projectPriorityA - projectPriorityB;
+      }
+
+      // Luego ordenar por priority de la tarea
+      const taskPriorityA = a.priority ?? Infinity;
+      const taskPriorityB = b.priority ?? Infinity;
+
+      if (taskPriorityA !== taskPriorityB) {
+        return taskPriorityA - taskPriorityB;
+      }
+
+      // Si ambas tienen la misma priority, ordenar por fecha de creación
+      const dateA = a.createdAt?.toDate?.() || new Date(a.createdAt || 0);
+      const dateB = b.createdAt?.toDate?.() || new Date(b.createdAt || 0);
+      return dateA - dateB;
+    });
 
   // Filtrar sprints planificados (no completados)
   const activeSprints = sprints.filter(sprint => sprint.status !== 'completed');
 
-  // Obtener tareas de un sprint específico
+  // Obtener y ordenar tareas de un sprint específico
   const getSprintTasks = (sprintId) => {
-    return tasks.filter(task => task.sprintId === sprintId);
+    return tasks
+      .filter(task => task.sprintId === sprintId)
+      .sort((a, b) => {
+        // Obtener proyectos para comparar priority
+        const projectA = projects.find(p => p.id === a.projectId);
+        const projectB = projects.find(p => p.id === b.projectId);
+
+        // Primero ordenar por priority del proyecto
+        const projectPriorityA = projectA?.priority ?? Infinity;
+        const projectPriorityB = projectB?.priority ?? Infinity;
+
+        if (projectPriorityA !== projectPriorityB) {
+          return projectPriorityA - projectPriorityB;
+        }
+
+        // Luego ordenar por priority de la tarea
+        const taskPriorityA = a.priority ?? Infinity;
+        const taskPriorityB = b.priority ?? Infinity;
+
+        if (taskPriorityA !== taskPriorityB) {
+          return taskPriorityA - taskPriorityB;
+        }
+
+        // Si ambas tienen la misma priority, ordenar por fecha de creación
+        const dateA = a.createdAt?.toDate?.() || new Date(a.createdAt || 0);
+        const dateB = b.createdAt?.toDate?.() || new Date(b.createdAt || 0);
+        return dateA - dateB;
+      });
   };
 
   // Obtener el nombre del proyecto por su ID
