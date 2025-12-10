@@ -120,18 +120,32 @@ export const topologicalSort = (tasks) => {
 
   // Helper to sort tasks by priority and creation date
   const sortTasksByPriority = (tasksToSort) => {
-    const priorityOrder = { high: 3, medium: 2, low: 1 };
+    console.log(`         🔀 Ordenando ${tasksToSort.length} tareas por priority:`);
+    tasksToSort.forEach(t => {
+      console.log(`            - "${t.title}": priority=${t.priority} (type: ${typeof t.priority}), created=${t.createdAt?.toDate?.()}`);
+    });
+
     return tasksToSort.sort((a, b) => {
-      // First by priority
-      const aPriority = priorityOrder[a.priority] || 2;
-      const bPriority = priorityOrder[b.priority] || 2;
+      // First by numeric priority (lower number = higher priority)
+      // Tasks without priority OR with old string priority (high/medium/low) go last (treated as Infinity)
+      const aPriority = (typeof a.priority === 'number') ? a.priority : Infinity;
+      const bPriority = (typeof b.priority === 'number') ? b.priority : Infinity;
+
+      console.log(`            🔄 Comparing "${a.title}" (priority=${aPriority}) vs "${b.title}" (priority=${bPriority})`);
+
       if (aPriority !== bPriority) {
-        return bPriority - aPriority; // Higher priority first
+        const result = aPriority - bPriority;
+        console.log(`               ✅ Different priorities: ${result < 0 ? a.title : b.title} goes first`);
+        return result; // Lower priority number first (0, 1, 2, ...)
       }
+
       // Then by creation date (older first)
       const aDate = a.createdAt?.toDate?.() || new Date(0);
       const bDate = b.createdAt?.toDate?.() || new Date(0);
-      return aDate - bDate;
+      const dateResult = aDate - bDate;
+      console.log(`               📅 Same priority (${aPriority}), comparing dates: ${aDate.toISOString()} vs ${bDate.toISOString()}`);
+      console.log(`               ✅ By date: ${dateResult < 0 ? a.title : b.title} goes first (older first)`);
+      return dateResult;
     });
   };
 
@@ -474,9 +488,93 @@ export const calculateProjectSchedule = (
   for (const task of sortedTasks) {
     console.log(`\n   🔧 Procesando "${task.title}"...`);
 
+    // Check if task has real dates from movement history
+    const realDates = getRealDatesFromStatus(task, userMap);
+
+    if (realDates) {
+      // Task has real dates from movement history (in-progress, qa, or completed)
+      console.log(`      ✅ Usando fechas reales del historial: ${realDates.startDate} → ${realDates.endDate}`);
+
+      scheduledTasks.push({
+        taskId: task.id,
+        startDate: realDates.startDate,
+        endDate: realDates.endDate,
+        assignedTo: task.assignedTo,
+        isSimulated: false,
+        isReal: true // Marca para identificar que son fechas reales
+      });
+
+      // Add to global map for dependency checking
+      allScheduledTasks.set(task.id, {
+        startDate: realDates.startDate,
+        endDate: realDates.endDate,
+        assignedTo: task.assignedTo
+      });
+
+      // Si hay usuario asignado, actualizar su schedule con las horas ya ocupadas
+      if (task.assignedTo && task.storyPoints) {
+        const userSchedule = globalUserSchedules.get(task.assignedTo);
+        if (userSchedule) {
+          const startDate = parseDate(realDates.startDate);
+          const endDate = parseDate(realDates.endDate);
+          let currentDate = new Date(startDate);
+
+          // Marcar los días como ocupados
+          while (currentDate <= endDate) {
+            const dateStr = formatDate(currentDate);
+            const allocated = userSchedule.get(dateStr) || 0;
+            userSchedule.set(dateStr, allocated + (task.storyPoints / ((endDate - startDate) / (1000 * 60 * 60 * 24) + 1)));
+            currentDate = addDays(currentDate, 1);
+          }
+        }
+      }
+
+      continue; // Skip to next task
+    }
+
+    // Task is pending - simulate dates based on dependencies and user availability
+    console.log(`      📅 Tarea pending - simulando fechas...`);
+
     // Calculate earliest start date
     let earliestStart = new Date(projectStartDate);
     console.log(`      Earliest start inicial: ${formatDate(earliestStart)} (project start)`);
+
+    // If task has assignedTo, check for completed/in-progress/QA tasks from same user
+    if (task.assignedTo) {
+      console.log(`      🔍 Buscando tareas completadas/en progreso/QA del mismo usuario (${task.assignedTo})...`);
+
+      const userTasks = sortedTasks.filter(t =>
+        t.assignedTo === task.assignedTo &&
+        t.id !== task.id &&
+        (t.status === 'completed' || t.status === 'qa' || t.status === 'in-progress')
+      );
+
+      if (userTasks.length > 0) {
+        console.log(`         Encontradas ${userTasks.length} tareas del mismo usuario`);
+
+        // Find latest end date among these tasks
+        let latestEndDate = null;
+        for (const userTask of userTasks) {
+          const scheduled = allScheduledTasks.get(userTask.id);
+          if (scheduled && scheduled.endDate) {
+            const endDate = parseDate(scheduled.endDate);
+            if (!latestEndDate || endDate > latestEndDate) {
+              latestEndDate = endDate;
+              console.log(`         - "${userTask.title}" (${userTask.status}): end=${scheduled.endDate}`);
+            }
+          }
+        }
+
+        if (latestEndDate) {
+          const dayAfterLatest = addDays(latestEndDate, 1);
+          console.log(`         ✅ Última tarea termina: ${formatDate(latestEndDate)}`);
+          console.log(`         📅 Ajustando earliest start a: ${formatDate(dayAfterLatest)}`);
+          earliestStart = maxDate(earliestStart, dayAfterLatest);
+        }
+      } else {
+        console.log(`         No se encontraron tareas previas del mismo usuario`);
+      }
+    }
 
     // Check dependencies
     const dependencies = task.dependencies || [];
@@ -571,6 +669,106 @@ export const calculateProjectSchedule = (
   }
 
   return { scheduledTasks, warnings };
+};
+
+/**
+ * Get real dates from task movement history based on status
+ * @param {Object} task - The task object
+ * @param {Map} userMap - Map of users with their dailyCapacity
+ * @returns {Object|null} { startDate, endDate } or null if should be simulated
+ */
+const getRealDatesFromStatus = (task, userMap) => {
+  if (!task.status || !task.movementHistory || task.movementHistory.length === 0) {
+    return null; // No status or movement history, simulate dates
+  }
+
+  const history = task.movementHistory;
+  const currentStatus = task.status;
+
+  // Helper to find last movement to a specific status
+  const findLastMovementTo = (status) => {
+    for (let i = history.length - 1; i >= 0; i--) {
+      if (history[i].to === status) {
+        return history[i];
+      }
+    }
+    return null;
+  };
+
+  // Helper to parse Firebase timestamp to Date
+  const parseTimestamp = (timestamp) => {
+    if (!timestamp) return null;
+    if (timestamp.toDate) return timestamp.toDate();
+    if (timestamp._seconds) return new Date(timestamp._seconds * 1000);
+    return new Date(timestamp);
+  };
+
+  switch (currentStatus) {
+    case 'in-progress': {
+      // Start: última vez que se movió a in-progress
+      // End: fecha estimada basada en story points y capacidad del usuario
+      const lastInProgress = findLastMovementTo('in-progress');
+      if (lastInProgress) {
+        const startDate = parseTimestamp(lastInProgress.timestamp);
+
+        // Calcular fecha de fin estimada basada en story points
+        let endDate = new Date(); // Por defecto fecha actual
+
+        if (task.storyPoints && task.assignedTo) {
+          const user = userMap.get(task.assignedTo);
+          if (user && user.dailyCapacity > 0) {
+            const daysNeeded = Math.ceil(task.storyPoints / user.dailyCapacity);
+            endDate = addDays(startDate, daysNeeded);
+            console.log(`      📊 Tarea en progreso "${task.title}": ${task.storyPoints} SP / ${user.dailyCapacity} SP/día = ${daysNeeded} días`);
+            console.log(`         Inicio: ${formatDate(startDate)} → Fin estimado: ${formatDate(endDate)}`);
+          }
+        }
+
+        return {
+          startDate: formatDate(startDate),
+          endDate: formatDate(endDate)
+        };
+      }
+      return null;
+    }
+
+    case 'qa': {
+      // Start: última vez que se movió a in-progress
+      // End: última vez que se movió a qa
+      const lastInProgress = findLastMovementTo('in-progress');
+      const lastQA = findLastMovementTo('qa');
+      if (lastInProgress && lastQA) {
+        const startDate = parseTimestamp(lastInProgress.timestamp);
+        const endDate = parseTimestamp(lastQA.timestamp);
+        return {
+          startDate: formatDate(startDate),
+          endDate: formatDate(endDate)
+        };
+      }
+      return null;
+    }
+
+    case 'completed': {
+      // Start: última vez que se movió a in-progress
+      // End: última vez que se movió a qa (fecha en que developer terminó)
+      const lastInProgress = findLastMovementTo('in-progress');
+      const lastQA = findLastMovementTo('qa');
+      if (lastInProgress && lastQA) {
+        const startDate = parseTimestamp(lastInProgress.timestamp);
+        const endDate = parseTimestamp(lastQA.timestamp);
+        return {
+          startDate: formatDate(startDate),
+          endDate: formatDate(endDate)
+        };
+      }
+      return null;
+    }
+
+    case 'pending':
+    default:
+      // Simular fechas para tareas pending
+      return null;
+  }
 };
 
 /**
