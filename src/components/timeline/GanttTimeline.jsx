@@ -2105,6 +2105,154 @@ const GanttTimeline = ({ projects, tasks = [], users = [], onUpdate }) => {
               </div>
             )}
 
+            {/* Menú de opciones para tareas */}
+            {task.isTask && (
+              <div style={{ position: 'relative', flexShrink: 0, marginRight: '0.5rem' }}>
+                <button
+                  ref={(el) => { menuButtonRefs.current[index] = el; }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (openMenuIndex === index) {
+                      setOpenMenuIndex(null);
+                    } else {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setMenuPosition({
+                        top: rect.bottom + 4,
+                        left: rect.right - 180
+                      });
+                      setOpenMenuIndex(index);
+                    }
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(1, 94, 124, 0.1)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                  }}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--text-secondary)',
+                    padding: '0.25rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'background-color 0.15s ease',
+                    borderRadius: '4px',
+                    opacity: hoveredRow === index ? 1 : 0,
+                    pointerEvents: hoveredRow === index ? 'auto' : 'none'
+                  }}
+                  title="Más opciones"
+                >
+                  <Icon name="more-vertical" size={16} />
+                </button>
+
+                {/* Menú desplegable para tareas */}
+                {openMenuIndex === index && (
+                  <div
+                    ref={menuRef}
+                    className="gantt-project-menu"
+                    style={{
+                      position: 'fixed',
+                      top: `${menuPosition.top}px`,
+                      left: `${menuPosition.left}px`
+                    }}
+                  >
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        // Obtener las tareas del proyecto actual ordenadas por priority
+                        const projectId = task.task.projectId;
+                        const projectTasks = tasks
+                          .filter(t => t.projectId === projectId && !t.archived)
+                          .sort((a, b) => {
+                            // Si ambos tienen priority, comparar por priority
+                            if (a.priority !== undefined && b.priority !== undefined) {
+                              return a.priority - b.priority;
+                            }
+                            // Si solo uno tiene priority, ese va primero
+                            if (a.priority !== undefined) return -1;
+                            if (b.priority !== undefined) return 1;
+                            // Si ninguno tiene priority, ordenar por fecha de creación
+                            const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+                            const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+                            return dateA - dateB;
+                          });
+                        handleMoveTaskUp(task, projectTasks);
+                        setOpenMenuIndex(null);
+                      }}
+                      disabled={(() => {
+                        const projectId = task.task.projectId;
+                        const projectTasks = tasks
+                          .filter(t => t.projectId === projectId && !t.archived)
+                          .sort((a, b) => {
+                            if (a.priority !== undefined && b.priority !== undefined) {
+                              return a.priority - b.priority;
+                            }
+                            if (a.priority !== undefined) return -1;
+                            if (b.priority !== undefined) return 1;
+                            const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+                            const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+                            return dateA - dateB;
+                          });
+                        const taskIndex = projectTasks.findIndex(t => t.id === task.task.id);
+                        return taskIndex === 0;
+                      })()}
+                    >
+                      <Icon name="arrow-up" size={16} />
+                      Mover arriba
+                    </button>
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        // Obtener las tareas del proyecto actual ordenadas por priority
+                        const projectId = task.task.projectId;
+                        const projectTasks = tasks
+                          .filter(t => t.projectId === projectId && !t.archived)
+                          .sort((a, b) => {
+                            // Si ambos tienen priority, comparar por priority
+                            if (a.priority !== undefined && b.priority !== undefined) {
+                              return a.priority - b.priority;
+                            }
+                            // Si solo uno tiene priority, ese va primero
+                            if (a.priority !== undefined) return -1;
+                            if (b.priority !== undefined) return 1;
+                            // Si ninguno tiene priority, ordenar por fecha de creación
+                            const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+                            const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+                            return dateA - dateB;
+                          });
+                        handleMoveTaskDown(task, projectTasks);
+                        setOpenMenuIndex(null);
+                      }}
+                      disabled={(() => {
+                        const projectId = task.task.projectId;
+                        const projectTasks = tasks
+                          .filter(t => t.projectId === projectId && !t.archived)
+                          .sort((a, b) => {
+                            if (a.priority !== undefined && b.priority !== undefined) {
+                              return a.priority - b.priority;
+                            }
+                            if (a.priority !== undefined) return -1;
+                            if (b.priority !== undefined) return 1;
+                            const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
+                            const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
+                            return dateA - dateB;
+                          });
+                        const taskIndex = projectTasks.findIndex(t => t.id === task.task.id);
+                        return taskIndex === projectTasks.length - 1;
+                      })()}
+                    >
+                      <Icon name="arrow-down" size={16} />
+                      Mover abajo
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Botón para agregar tarea al proyecto */}
             {task.isProject && (
               <div style={{
