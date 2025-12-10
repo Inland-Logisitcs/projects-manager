@@ -639,14 +639,14 @@ const GanttTimeline = ({ projects, tasks = [], users = [], onUpdate }) => {
     const scheduled = projects
       .filter(p => p.startDate && p.endDate)
       .sort((a, b) => {
-        // Si ambos tienen order, comparar por order
-        if (a.order !== undefined && b.order !== undefined) {
-          return a.order - b.order;
+        // Si ambos tienen priority, comparar por priority
+        if (a.priority !== undefined && b.priority !== undefined) {
+          return a.priority - b.priority;
         }
-        // Si solo uno tiene order, ese va primero
-        if (a.order !== undefined) return -1;
-        if (b.order !== undefined) return 1;
-        // Si ninguno tiene order, mantener orden original
+        // Si solo uno tiene priority, ese va primero
+        if (a.priority !== undefined) return -1;
+        if (b.priority !== undefined) return 1;
+        // Si ninguno tiene priority, mantener orden original
         return 0;
       });
     // Only consider projects without startDate as unscheduled (endDate is now calculated)
@@ -693,10 +693,20 @@ const GanttTimeline = ({ projects, tasks = [], users = [], onUpdate }) => {
       const projectColor = getProjectColor(project);
 
       // Obtener tareas del proyecto (TODAS las tareas del proyecto, no solo las que tienen fechas)
-      // Ordenar por fecha de creación para que las nuevas aparezcan al final
+      // Ordenar por priority, luego por fecha de creación
       const projectTasks = tasks
         .filter(t => t.projectId === project.id && !t.archived)
         .sort((a, b) => {
+          // Solo considerar priority si es numérica (ignorar valores string como "medium", "high", "low")
+          const aPriority = (typeof a.priority === 'number') ? a.priority : Infinity;
+          const bPriority = (typeof b.priority === 'number') ? b.priority : Infinity;
+
+          // Si tienen diferentes priority, ordenar por priority (menor número = mayor prioridad)
+          if (aPriority !== bPriority) {
+            return aPriority - bPriority;
+          }
+
+          // Si tienen la misma priority (o ninguna tiene priority numérica), ordenar por fecha de creación
           const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt || 0);
           const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt || 0);
           return dateA - dateB;
@@ -1564,12 +1574,20 @@ const GanttTimeline = ({ projects, tasks = [], users = [], onUpdate }) => {
     const currentProject = scheduledProjects[currentIndex];
     const previousProject = scheduledProjects[currentIndex - 1];
 
-    // Asignar nuevos valores de order basados en el índice
-    // El proyecto actual toma el order del anterior
-    // El anterior toma el order del actual
+    // Intercambiar los valores de priority
+    // Si algún proyecto no tiene priority, asignar según el índice
+    const currentPriority = currentProject.priority ?? currentIndex;
+    const previousPriority = previousProject.priority ?? (currentIndex - 1);
+
+    console.log(`Moving "${currentProject.name}" up:`, {
+      currentPriority,
+      previousPriority,
+      willBe: { current: previousPriority, previous: currentPriority }
+    });
+
     await Promise.all([
-      onUpdate(currentProject.id, { order: currentIndex - 1 }),
-      onUpdate(previousProject.id, { order: currentIndex })
+      onUpdate(currentProject.id, { priority: previousPriority }),
+      onUpdate(previousProject.id, { priority: currentPriority })
     ]);
   };
 
@@ -1579,12 +1597,111 @@ const GanttTimeline = ({ projects, tasks = [], users = [], onUpdate }) => {
     const currentProject = scheduledProjects[currentIndex];
     const nextProject = scheduledProjects[currentIndex + 1];
 
-    // Asignar nuevos valores de order basados en el índice
-    // El proyecto actual toma el order del siguiente
-    // El siguiente toma el order del actual
+    // Intercambiar los valores de priority
+    // Si algún proyecto no tiene priority, asignar según el índice
+    const currentPriority = currentProject.priority ?? currentIndex;
+    const nextPriority = nextProject.priority ?? (currentIndex + 1);
+
+    console.log(`Moving "${currentProject.name}" down:`, {
+      currentPriority,
+      nextPriority,
+      willBe: { current: nextPriority, next: currentPriority }
+    });
+
     await Promise.all([
-      onUpdate(currentProject.id, { order: currentIndex + 1 }),
-      onUpdate(nextProject.id, { order: currentIndex })
+      onUpdate(currentProject.id, { priority: nextPriority }),
+      onUpdate(nextProject.id, { priority: currentPriority })
+    ]);
+  };
+
+  // Handlers para mover tareas arriba/abajo dentro de su proyecto
+  const handleMoveTaskUp = async (task, projectTasks) => {
+    const taskIndex = projectTasks.findIndex(t => t.id === task.task.id);
+    if (taskIndex === 0) return; // Ya está al principio
+
+    const currentTask = projectTasks[taskIndex];
+    const previousTask = projectTasks[taskIndex - 1];
+
+    // Si las tareas no tienen priority definida, primero necesitamos asignar valores únicos
+    // basados en su posición actual antes de intercambiar
+    let currentPriority, previousPriority;
+
+    if (currentTask.priority === undefined && previousTask.priority === undefined) {
+      // Si ninguna tiene priority, asignar basado en índice
+      currentPriority = taskIndex;
+      previousPriority = taskIndex - 1;
+    } else if (currentTask.priority === undefined) {
+      // Si solo current no tiene priority, asignar uno mayor que previous
+      previousPriority = previousTask.priority;
+      currentPriority = previousTask.priority + 1;
+    } else if (previousTask.priority === undefined) {
+      // Si solo previous no tiene priority, asignar uno menor que current
+      currentPriority = currentTask.priority;
+      previousPriority = currentTask.priority - 1;
+    } else if (currentTask.priority === previousTask.priority) {
+      // Si ambas tienen el mismo priority, asignar valores diferentes basados en índice
+      currentPriority = taskIndex;
+      previousPriority = taskIndex - 1;
+    } else {
+      // Ambas tienen priority diferente, intercambiar
+      currentPriority = currentTask.priority;
+      previousPriority = previousTask.priority;
+    }
+
+    console.log(`Moving task "${currentTask.title}" up:`, {
+      currentPriority,
+      previousPriority,
+      willBe: { current: previousPriority, previous: currentPriority }
+    });
+
+    await Promise.all([
+      updateTask(currentTask.id, { priority: previousPriority }),
+      updateTask(previousTask.id, { priority: currentPriority })
+    ]);
+  };
+
+  const handleMoveTaskDown = async (task, projectTasks) => {
+    const taskIndex = projectTasks.findIndex(t => t.id === task.task.id);
+    if (taskIndex === projectTasks.length - 1) return; // Ya está al final
+
+    const currentTask = projectTasks[taskIndex];
+    const nextTask = projectTasks[taskIndex + 1];
+
+    // Si las tareas no tienen priority definida, primero necesitamos asignar valores únicos
+    // basados en su posición actual antes de intercambiar
+    let currentPriority, nextPriority;
+
+    if (currentTask.priority === undefined && nextTask.priority === undefined) {
+      // Si ninguna tiene priority, asignar basado en índice
+      currentPriority = taskIndex;
+      nextPriority = taskIndex + 1;
+    } else if (currentTask.priority === undefined) {
+      // Si solo current no tiene priority, asignar uno menor que next
+      nextPriority = nextTask.priority;
+      currentPriority = nextTask.priority - 1;
+    } else if (nextTask.priority === undefined) {
+      // Si solo next no tiene priority, asignar uno mayor que current
+      currentPriority = currentTask.priority;
+      nextPriority = currentTask.priority + 1;
+    } else if (currentTask.priority === nextTask.priority) {
+      // Si ambas tienen el mismo priority, asignar valores diferentes basados en índice
+      currentPriority = taskIndex;
+      nextPriority = taskIndex + 1;
+    } else {
+      // Ambas tienen priority diferente, intercambiar
+      currentPriority = currentTask.priority;
+      nextPriority = nextTask.priority;
+    }
+
+    console.log(`Moving task "${currentTask.title}" down:`, {
+      currentPriority,
+      nextPriority,
+      willBe: { current: nextPriority, next: currentPriority }
+    });
+
+    await Promise.all([
+      updateTask(currentTask.id, { priority: nextPriority }),
+      updateTask(nextTask.id, { priority: currentPriority })
     ]);
   };
 
@@ -2098,10 +2215,15 @@ const GanttTimeline = ({ projects, tasks = [], users = [], onUpdate }) => {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleMoveUp(index);
+                        // Encontrar el índice del proyecto actual en scheduledProjects
+                        const projectIndex = scheduledProjects.findIndex(p => p.id === task.project.id);
+                        handleMoveUp(projectIndex);
                         setOpenMenuIndex(null);
                       }}
-                      disabled={index === 0}
+                      disabled={(() => {
+                        const projectIndex = scheduledProjects.findIndex(p => p.id === task.project.id);
+                        return projectIndex === 0;
+                      })()}
                     >
                       <Icon name="arrow-up" size={16} />
                       Mover arriba
@@ -2110,10 +2232,15 @@ const GanttTimeline = ({ projects, tasks = [], users = [], onUpdate }) => {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleMoveDown(index);
+                        // Encontrar el índice del proyecto actual en scheduledProjects
+                        const projectIndex = scheduledProjects.findIndex(p => p.id === task.project.id);
+                        handleMoveDown(projectIndex);
                         setOpenMenuIndex(null);
                       }}
-                      disabled={index === ganttTasks.filter(t => t.isProject).length - 1}
+                      disabled={(() => {
+                        const projectIndex = scheduledProjects.findIndex(p => p.id === task.project.id);
+                        return projectIndex === scheduledProjects.length - 1;
+                      })()}
                     >
                       <Icon name="arrow-down" size={16} />
                       Mover abajo
