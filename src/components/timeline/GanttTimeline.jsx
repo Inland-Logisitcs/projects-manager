@@ -1958,11 +1958,11 @@ const GanttTimeline = ({ projects, tasks = [], users = [], onUpdate }) => {
             )}
 
             {/* Información del proyecto o tarea */}
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0, overflow: 'hidden' }}>
               {/* Contenedor para proyectos (nombre + barra de progreso en columna) */}
               {task.isProject ? (
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '1rem', minWidth: 0 }}>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.25rem', minWidth: 0 }}>
                     {/* Nombre del proyecto */}
                     <div style={{
                       fontWeight: 700,
@@ -1971,9 +1971,28 @@ const GanttTimeline = ({ projects, tasks = [], users = [], onUpdate }) => {
                       letterSpacing: '0.01em',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '0.25rem'
+                      gap: '0.25rem',
+                      flex: 1,
+                      minWidth: 0
                     }}>
-                      <span>{task.name}</span>
+                      <span
+                        className="task-name-tooltip"
+                        data-tooltip={task.name}
+                        onMouseEnter={(e) => {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          e.currentTarget.style.setProperty('--tooltip-x', `${rect.left}px`);
+                          e.currentTarget.style.setProperty('--tooltip-y', `${rect.bottom + 4}px`);
+                        }}
+                        style={{
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          flex: 1,
+                          minWidth: 0
+                        }}
+                      >
+                        {task.name}
+                      </span>
                       {(() => {
                         const projectWarnings = scheduleWarnings.get(task.id);
                         if (projectWarnings && projectWarnings.length > 0) {
@@ -2040,9 +2059,27 @@ const GanttTimeline = ({ projects, tasks = [], users = [], onUpdate }) => {
                     flex: 1,
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '0.5rem'
+                    gap: '0.5rem',
+                    minWidth: 0
                   }}>
-                    {task.name}
+                    <span
+                      className="task-name-tooltip"
+                      data-tooltip={task.name}
+                      onMouseEnter={(e) => {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        e.currentTarget.style.setProperty('--tooltip-x', `${rect.left}px`);
+                        e.currentTarget.style.setProperty('--tooltip-y', `${rect.bottom + 4}px`);
+                      }}
+                      style={{
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        flex: 1,
+                        minWidth: 0
+                      }}
+                    >
+                      {task.name}
+                    </span>
                     {/* Story Points editable */}
                     {task.task && (
                       <div
