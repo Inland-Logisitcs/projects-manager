@@ -199,6 +199,16 @@
   min-width: 100%;
 }
 
+/* Columnas de fin de semana - se aplicará mediante JavaScript */
+.gantt-weekend-column {
+  background-color: rgba(176, 190, 207, 0.15) !important;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
 .gantt-sidebar {
   width: 280px;
   flex-shrink: 0;
@@ -285,7 +295,7 @@
 }
 
 .gantt-grid-column.weekend {
-  background-color: #f8f9fa;
+  background-color: #f0f4f8;
 }
 
 .gantt-grid-column.today {

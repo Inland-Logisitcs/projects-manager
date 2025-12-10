@@ -1133,6 +1133,85 @@ const GanttTimeline = ({ projects, tasks = [], users = [], onUpdate }) => {
     };
   }, [ganttTasks, expandedProjects, viewMode]);
 
+  // Dibujar columnas de fin de semana
+  React.useEffect(() => {
+    const drawWeekendColumns = () => {
+      // Limpiar columnas anteriores
+      document.querySelectorAll('.gantt-weekend-column-rect').forEach(col => col.remove());
+
+      // Esperar a que el Gantt se renderice
+      const svgElement = document.querySelector('.gantt-chart-container svg');
+      if (!svgElement) return;
+
+      // Solo procesar en vista diaria
+      if (viewMode !== ViewMode.Day) return;
+
+      // Buscar el grupo del grid (donde están las líneas verticales del today)
+      // La librería dibuja rectángulos de fondo para el "today", haremos lo mismo para weekends
+      const gridGroup = svgElement.querySelector('g');
+      if (!gridGroup) return;
+
+      // Obtener la altura total del SVG
+      const svgHeight = parseFloat(svgElement.getAttribute('height') || '0');
+
+      // Buscar las columnas del calendario (texto de fechas en la parte superior)
+      const calendarTexts = svgElement.querySelectorAll('text');
+      if (!calendarTexts || calendarTexts.length === 0) return;
+
+      // Determinar el ancho de columna
+      const columnWidth = 60; // ViewMode.Day
+
+      // Array para almacenar las posiciones de fin de semana
+      const weekendPositions = [];
+
+      calendarTexts.forEach((textElement) => {
+        const dateText = textElement.textContent || '';
+
+        // Buscar patrón de día (ej: "Lun 9", "Sáb 14", "Dom 15")
+        const dayMatch = dateText.match(/(\w{3})\s+(\d+)/);
+        if (!dayMatch) return;
+
+        const dayName = dayMatch[1].toLowerCase();
+        const isWeekend = dayName === 'sáb' || dayName === 'sab' || dayName === 'dom';
+
+        if (isWeekend) {
+          // Obtener la posición X del texto
+          const x = parseFloat(textElement.getAttribute('x') || 0);
+          weekendPositions.push(x);
+        }
+      });
+
+      // Crear rectángulos para cada fin de semana
+      weekendPositions.forEach((x) => {
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('x', String(x - columnWidth / 2));
+        rect.setAttribute('y', '0');
+        rect.setAttribute('width', String(columnWidth));
+        rect.setAttribute('height', String(svgHeight));
+        rect.setAttribute('fill', 'rgba(176, 190, 207, 0.12)');
+        rect.setAttribute('class', 'gantt-weekend-column-rect');
+
+        // Insertar al principio del grupo para que esté detrás de todo
+        gridGroup.insertBefore(rect, gridGroup.firstChild);
+      });
+    };
+
+    // Ejecutar al cargar y cuando cambie el scroll
+    const timer = setTimeout(drawWeekendColumns, 100);
+    const ganttContainer = document.querySelector('.gantt-chart-wrapper-outer');
+    if (ganttContainer) {
+      ganttContainer.addEventListener('scroll', drawWeekendColumns);
+    }
+
+    return () => {
+      clearTimeout(timer);
+      if (ganttContainer) {
+        ganttContainer.removeEventListener('scroll', drawWeekendColumns);
+      }
+      document.querySelectorAll('.gantt-weekend-column-rect').forEach(col => col.remove());
+    };
+  }, [ganttTasks, expandedProjects, viewMode]);
+
   // Detectar hover sobre flechas de dependencia para mostrar botón de eliminar
   React.useEffect(() => {
     let deleteButton = null;
