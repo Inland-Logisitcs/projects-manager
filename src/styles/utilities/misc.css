@@ -88,6 +88,8 @@
 .avatar {
   width: 2.5rem;
   height: 2.5rem;
+  min-width: 2.5rem;
+  min-height: 2.5rem;
   border-radius: 50%;
   background: var(--color-primary-light);
   color: var(--text-inverse);
@@ -97,6 +99,8 @@
   font-weight: var(--font-weight-semibold);
   font-size: var(--font-sm);
   overflow: hidden;
+  flex-shrink: 0;
+  aspect-ratio: 1 / 1;
 }
 
 .avatar img {

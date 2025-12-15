@@ -44,6 +44,11 @@ import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import WarningIcon from '@mui/icons-material/Warning';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import CheckIcon from '@mui/icons-material/Check';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import ShuffleIcon from '@mui/icons-material/Shuffle';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import RefreshIcon from '@mui/icons-material/Refresh';
 
 const Icon = ({ name, size = 20, className = '' }) => {
   const iconMap = {
@@ -92,7 +97,12 @@ const Icon = ({ name, size = 20, className = '' }) => {
     'arrow-up': ArrowUpwardIcon,
     'arrow-down': ArrowDownwardIcon,
     'alert-triangle': WarningAmberIcon,
-    'warning': WarningIcon
+    'warning': WarningIcon,
+    'check': CheckIcon,
+    'play': PlayArrowIcon,
+    'shuffle': ShuffleIcon,
+    'arrow-left': ArrowBackIcon,
+    'refresh-cw': RefreshIcon
   };
 
   const IconComponent = iconMap[name] || FolderIcon;

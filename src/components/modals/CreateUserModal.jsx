@@ -225,7 +225,7 @@ const CreateUserModal = ({ isOpen, onClose, onSave, user = null, mode = 'create'
                 value={formData.dailyCapacity}
                 onChange={handleChange}
                 className="input"
-                min="0.5"
+                min="0"
                 max="24"
                 step="0.5"
                 disabled={isSubmitting}

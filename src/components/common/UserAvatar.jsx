@@ -33,7 +33,7 @@ const stringToColor = (str) => {
   return AVATAR_COLORS[index];
 };
 
-const UserAvatar = ({ userId, size = 24, showName = false, className = '' }) => {
+const UserAvatar = ({ userId, size = 24, showName = false, className = '', isOverbooked = false }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -58,8 +58,26 @@ const UserAvatar = ({ userId, size = 24, showName = false, className = '' }) => 
     return <div className={`avatar ${className}`} style={{ width: size, height: size }} />;
   }
 
-  if (!user) {
-    return null;
+  // Si no hay userId, mostrar avatar "NA" (Not Assigned)
+  if (!userId || !user) {
+    return (
+      <div
+        className={`avatar ${className}`}
+        style={{
+          width: `${size}px`,
+          height: `${size}px`,
+          minWidth: `${size}px`,
+          minHeight: `${size}px`,
+          fontSize: `${size * 0.4}px`,
+          backgroundColor: 'transparent',
+          border: '2px dashed var(--border-color)',
+          color: 'var(--text-secondary)'
+        }}
+        title="Sin asignar"
+      >
+        NA
+      </div>
+    );
   }
 
   const displayName = user.displayName || user.email;
@@ -73,17 +91,30 @@ const UserAvatar = ({ userId, size = 24, showName = false, className = '' }) => 
   // Generar color único basado en el email (más consistente que displayName)
   const backgroundColor = stringToColor(user.email);
 
+  // Estilos adicionales cuando está overbooked
+  const overbookedStyles = isOverbooked ? {
+    border: '2px solid #EF4444',
+    boxShadow: '0 0 0 2px rgba(239, 68, 68, 0.2)'
+  } : {};
+
+  const tooltipText = isOverbooked
+    ? `${displayName} (¡Sobrecargado!)`
+    : displayName;
+
   if (!showName) {
     return (
       <div
         className={`avatar ${className}`}
         style={{
-          width: size,
-          height: size,
+          width: `${size}px`,
+          height: `${size}px`,
+          minWidth: `${size}px`,
+          minHeight: `${size}px`,
           fontSize: `${size * 0.4}px`,
-          backgroundColor: backgroundColor
+          backgroundColor: backgroundColor,
+          ...overbookedStyles
         }}
-        title={displayName}
+        title={tooltipText}
       >
         {initials}
       </div>
@@ -95,12 +126,15 @@ const UserAvatar = ({ userId, size = 24, showName = false, className = '' }) => 
       <div
         className="avatar"
         style={{
-          width: size,
-          height: size,
+          width: `${size}px`,
+          height: `${size}px`,
+          minWidth: `${size}px`,
+          minHeight: `${size}px`,
           fontSize: `${size * 0.4}px`,
-          backgroundColor: backgroundColor
+          backgroundColor: backgroundColor,
+          ...overbookedStyles
         }}
-        title={displayName}
+        title={tooltipText}
       >
         {initials}
       </div>

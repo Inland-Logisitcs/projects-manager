@@ -106,33 +106,18 @@ const KanbanCard = ({ task, isDragging, onDelete }) => {
         {/* Sección de información adicional */}
         <div className="card-info">
           <div className="card-assignee" ref={userSelectRef}>
-            {task.assignedTo ? (
-              <div
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowUserSelect(!showUserSelect);
-                }}
-                onPointerDown={(e) => {
-                  e.stopPropagation();
-                }}
-                style={{ cursor: 'pointer' }}
-              >
-                <UserAvatar userId={task.assignedTo} size={28} />
-              </div>
-            ) : (
-              <button
-                className="btn-assign-user"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowUserSelect(!showUserSelect);
-                }}
-                onPointerDown={(e) => {
-                  e.stopPropagation();
-                }}
-              >
-                <Icon name="user-plus" size={16} />
-              </button>
-            )}
+            <div
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowUserSelect(!showUserSelect);
+              }}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+              }}
+              style={{ cursor: 'pointer' }}
+            >
+              <UserAvatar userId={task.assignedTo} size={28} />
+            </div>
             {showUserSelect && (
               <div
                 className="user-select-dropdown"

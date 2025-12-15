@@ -1,16 +1,24 @@
 import { useState, useEffect } from 'react';
 import { subscribeToSprints } from '../services/sprintService';
 import { subscribeToTasks, updateTask } from '../services/taskService';
+import { subscribeToUsers } from '../services/userService';
+import { getSprintCapacityInfo } from '../services/capacityService';
 import KanbanBoard from '../components/kanban/KanbanBoard';
 import Toast from '../components/common/Toast';
 import Icon from '../components/common/Icon';
+import CapacityDetailModal from '../components/modals/CapacityDetailModal';
+import StandupModal from '../components/standup/StandupModal';
 import '../styles/Dashboard.css';
+import '../styles/Standup.css';
 
 const Dashboard = () => {
   const [sprints, setSprints] = useState([]);
   const [tasks, setTasks] = useState([]);
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
+  const [showCapacityModal, setShowCapacityModal] = useState(false);
+  const [showStandupModal, setShowStandupModal] = useState(false);
 
   useEffect(() => {
     const unsubscribeSprints = subscribeToSprints((fetchedSprints) => {
@@ -22,17 +30,33 @@ const Dashboard = () => {
       setTasks(fetchedTasks);
     });
 
+    const unsubscribeUsers = subscribeToUsers((fetchedUsers) => {
+      setUsers(fetchedUsers);
+    });
+
     return () => {
       unsubscribeSprints();
       unsubscribeTasks();
+      unsubscribeUsers();
     };
   }, []);
 
   // Obtener sprint activo
   const activeSprint = sprints.find(sprint => sprint.status === 'active');
 
+  // Calcular información de capacidad para el sprint activo
+  const sprintTasks = activeSprint ? tasks.filter(t => t.sprintId === activeSprint.id && !t.archived) : [];
+  const capacityInfo = activeSprint ? getSprintCapacityInfo(activeSprint, sprintTasks, users, true) : null;
+
   const handleCompleteSprint = () => {
     setShowCompleteModal(true);
+  };
+
+  const getCapacityColor = () => {
+    if (!capacityInfo) return '#10B981';
+    if (capacityInfo.percentage >= 100) return '#EF4444';
+    if (capacityInfo.percentage >= 80) return '#F59E0B';
+    return '#10B981';
   };
 
   if (loading) {
@@ -62,11 +86,41 @@ const Dashboard = () => {
                   <span className="font-medium">{new Date(activeSprint.startDate).toLocaleDateString('es')} - {new Date(activeSprint.endDate).toLocaleDateString('es')}</span>
                 </div>
               )}
+              {capacityInfo && capacityInfo.capacity > 0 && (
+                <div
+                  className="flex items-center gap-xs text-sm has-tooltip"
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => setShowCapacityModal(true)}
+                  data-tooltip={`Capacidad restante: ${capacityInfo.capacity} pts | Pendiente: ${capacityInfo.assignedPoints} pts | Completado: ${capacityInfo.completedPoints} pts | Click para ver detalles`}
+                >
+                  <Icon name="users" size={16} />
+                  <span className="font-semibold" style={{ color: getCapacityColor() }}>
+                    {capacityInfo.assignedPoints}/{capacityInfo.capacity} pts
+                  </span>
+                  <div style={{ width: '60px', height: '6px', backgroundColor: '#E5E7EB', borderRadius: '3px', overflow: 'hidden' }}>
+                    <div
+                      style={{
+                        width: `${Math.min(capacityInfo.percentage, 100)}%`,
+                        height: '100%',
+                        backgroundColor: getCapacityColor(),
+                        transition: 'width 0.3s ease'
+                      }}
+                    />
+                  </div>
+                  <span className="text-xs text-secondary">{capacityInfo.percentage}%</span>
+                </div>
+              )}
             </div>
-            <button className="btn btn-primary flex items-center gap-xs" onClick={handleCompleteSprint}>
-              <Icon name="check-circle" size={18} />
-              Completar Sprint
-            </button>
+            <div className="flex items-center gap-sm">
+              <button className="btn btn-secondary flex items-center gap-xs" onClick={() => setShowStandupModal(true)}>
+                <Icon name="users" size={18} />
+                Daily Standup
+              </button>
+              <button className="btn btn-primary flex items-center gap-xs" onClick={handleCompleteSprint}>
+                <Icon name="check-circle" size={18} />
+                Completar Sprint
+              </button>
+            </div>
           </div>
           <KanbanBoard activeSprintId={activeSprint.id} />
           {showCompleteModal && (
@@ -74,6 +128,24 @@ const Dashboard = () => {
               sprint={activeSprint}
               tasks={tasks.filter(t => t.sprintId === activeSprint.id)}
               onClose={() => setShowCompleteModal(false)}
+            />
+          )}
+          {showCapacityModal && (
+            <CapacityDetailModal
+              isOpen={showCapacityModal}
+              onClose={() => setShowCapacityModal(false)}
+              sprint={activeSprint}
+              users={users}
+              tasks={sprintTasks}
+            />
+          )}
+          {showStandupModal && (
+            <StandupModal
+              isOpen={showStandupModal}
+              onClose={() => setShowStandupModal(false)}
+              sprint={activeSprint}
+              users={users}
+              tasks={tasks}
             />
           )}
         </>

@@ -3,6 +3,8 @@ import { subscribeToTasks, updateTask, createTask, archiveTask, moveTaskToSprint
 import { subscribeToSprints, createSprint, startSprint } from '../services/sprintService';
 import { subscribeToColumns } from '../services/columnService';
 import { subscribeToProjects } from '../services/projectService';
+import { subscribeToUsers } from '../services/userService';
+import { getSprintCapacityInfo, isUserOverbooked } from '../services/capacityService';
 import Icon from '../components/common/Icon';
 import UserSelect from '../components/common/UserSelect';
 import UserAvatar from '../components/common/UserAvatar';
@@ -10,6 +12,8 @@ import StoryPointsSelect from '../components/common/StoryPointsSelect';
 import ProjectSelect from '../components/common/ProjectSelect';
 import ConfirmDialog from '../components/common/ConfirmDialog';
 import TaskDetailSidebar from '../components/kanban/TaskDetailSidebar';
+import Toast from '../components/common/Toast';
+import CapacityDetailModal from '../components/modals/CapacityDetailModal';
 import '../styles/Backlog.css';
 
 const Backlog = () => {
@@ -17,13 +21,19 @@ const Backlog = () => {
   const [sprints, setSprints] = useState([]);
   const [columns, setColumns] = useState([]);
   const [projects, setProjects] = useState([]);
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [showSprintModal, setShowSprintModal] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
   const [isCreatingTask, setIsCreatingTask] = useState(false);
   const [newTaskName, setNewTaskName] = useState('');
+  const [draggedTaskId, setDraggedTaskId] = useState(null);
+  const [toast, setToast] = useState(null);
+  const [selectedTaskIds, setSelectedTaskIds] = useState([]);
+  const [lastSelectedTaskId, setLastSelectedTaskId] = useState(null);
   const newTaskInputRef = useRef(null);
+  const autoScrollIntervalRef = useRef(null);
 
   useEffect(() => {
     const unsubscribeTasks = subscribeToTasks((fetchedTasks) => {
@@ -43,11 +53,16 @@ const Backlog = () => {
       setProjects(fetchedProjects);
     });
 
+    const unsubscribeUsers = subscribeToUsers((fetchedUsers) => {
+      setUsers(fetchedUsers);
+    });
+
     return () => {
       unsubscribeTasks();
       unsubscribeSprints();
       unsubscribeColumns();
       unsubscribeProjects();
+      unsubscribeUsers();
     };
   }, []);
 
@@ -67,15 +82,26 @@ const Backlog = () => {
         return projectPriorityA - projectPriorityB;
       }
 
-      // Luego ordenar por priority de la tarea
-      const taskPriorityA = a.priority ?? Infinity;
-      const taskPriorityB = b.priority ?? Infinity;
+      // Si tienen la misma prioridad, agrupar por projectId
+      const projectIdA = a.projectId || '';
+      const projectIdB = b.projectId || '';
 
-      if (taskPriorityA !== taskPriorityB) {
-        return taskPriorityA - taskPriorityB;
+      if (projectIdA !== projectIdB) {
+        // Tareas sin proyecto van al final
+        if (!projectIdA) return 1;
+        if (!projectIdB) return -1;
+        return projectIdA.localeCompare(projectIdB);
       }
 
-      // Si ambas tienen la misma priority, ordenar por fecha de creación
+      // Luego ordenar por order de la tarea (posición manual)
+      const taskOrderA = a.order ?? Infinity;
+      const taskOrderB = b.order ?? Infinity;
+
+      if (taskOrderA !== taskOrderB) {
+        return taskOrderA - taskOrderB;
+      }
+
+      // Si ambas tienen el mismo order, ordenar por fecha de creación
       const dateA = a.createdAt?.toDate?.() || new Date(a.createdAt || 0);
       const dateB = b.createdAt?.toDate?.() || new Date(b.createdAt || 0);
       return dateA - dateB;
@@ -101,15 +127,26 @@ const Backlog = () => {
           return projectPriorityA - projectPriorityB;
         }
 
-        // Luego ordenar por priority de la tarea
-        const taskPriorityA = a.priority ?? Infinity;
-        const taskPriorityB = b.priority ?? Infinity;
+        // Si tienen la misma prioridad, agrupar por projectId
+        const projectIdA = a.projectId || '';
+        const projectIdB = b.projectId || '';
 
-        if (taskPriorityA !== taskPriorityB) {
-          return taskPriorityA - taskPriorityB;
+        if (projectIdA !== projectIdB) {
+          // Tareas sin proyecto van al final
+          if (!projectIdA) return 1;
+          if (!projectIdB) return -1;
+          return projectIdA.localeCompare(projectIdB);
         }
 
-        // Si ambas tienen la misma priority, ordenar por fecha de creación
+        // Luego ordenar por order de la tarea (posición manual)
+        const taskOrderA = a.order ?? Infinity;
+        const taskOrderB = b.order ?? Infinity;
+
+        if (taskOrderA !== taskOrderB) {
+          return taskOrderA - taskOrderB;
+        }
+
+        // Si ambas tienen el mismo order, ordenar por fecha de creación
         const dateA = a.createdAt?.toDate?.() || new Date(a.createdAt || 0);
         const dateB = b.createdAt?.toDate?.() || new Date(b.createdAt || 0);
         return dateA - dateB;
@@ -123,18 +160,188 @@ const Backlog = () => {
     return project ? project.name : 'Proyecto desconocido';
   };
 
+  // Generar un color consistente para un proyecto basado en su ID
+  const getProjectColor = (projectId) => {
+    if (!projectId) return '#6B7280'; // Color gris por defecto
+
+    // Paleta de colores suaves y diferenciables
+    const colors = [
+      '#3B82F6', // Azul
+      '#10B981', // Verde
+      '#F59E0B', // Naranja
+      '#EF4444', // Rojo
+      '#8B5CF6', // Púrpura
+      '#EC4899', // Rosa
+      '#14B8A6', // Teal
+      '#F97316', // Naranja oscuro
+      '#6366F1', // Índigo
+      '#84CC16', // Lima
+    ];
+
+    // Generar un índice consistente basado en el projectId
+    let hash = 0;
+    for (let i = 0; i < projectId.length; i++) {
+      hash = projectId.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const index = Math.abs(hash) % colors.length;
+
+    return colors[index];
+  };
+
+  // Auto-scroll durante el drag
+  const handleAutoScroll = (e) => {
+    const scrollZone = 100; // Píxeles desde el borde para activar el scroll
+    const scrollSpeed = 10; // Píxeles por intervalo
+    const { clientY } = e;
+    const windowHeight = window.innerHeight;
+
+    // Limpiar intervalo previo
+    if (autoScrollIntervalRef.current) {
+      clearInterval(autoScrollIntervalRef.current);
+      autoScrollIntervalRef.current = null;
+    }
+
+    // Detectar si está cerca del borde superior
+    if (clientY < scrollZone) {
+      autoScrollIntervalRef.current = setInterval(() => {
+        window.scrollBy(0, -scrollSpeed);
+      }, 20);
+    }
+    // Detectar si está cerca del borde inferior
+    else if (clientY > windowHeight - scrollZone) {
+      autoScrollIntervalRef.current = setInterval(() => {
+        window.scrollBy(0, scrollSpeed);
+      }, 20);
+    }
+  };
+
+  const stopAutoScroll = () => {
+    if (autoScrollIntervalRef.current) {
+      clearInterval(autoScrollIntervalRef.current);
+      autoScrollIntervalRef.current = null;
+    }
+  };
+
   const handleDragStart = (e, task) => {
     e.dataTransfer.setData('taskId', task.id);
+    e.dataTransfer.setData('projectId', task.projectId || '');
     e.dataTransfer.effectAllowed = 'move';
+    setDraggedTaskId(task.id);
+  };
+
+  const handleDragEnd = () => {
+    stopAutoScroll();
+    setDraggedTaskId(null);
   };
 
   const handleDragOver = (e) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
+    // Activar auto-scroll también en zonas de drop generales
+    handleAutoScroll(e);
+  };
+
+  const handleDragOverTask = (e, targetTask) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Activar auto-scroll
+    handleAutoScroll(e);
+
+    const draggedTask = draggedTaskId ? tasks.find(t => t.id === draggedTaskId) : null;
+
+    // Solo validar si ambas tareas están en el backlog (mismo contenedor)
+    // Si la tarea arrastrada viene de un sprint, permitir drop sin validación
+    if (draggedTask && !draggedTask.sprintId && !targetTask.sprintId) {
+      const draggedActualProjectId = draggedTask.projectId || null;
+      const targetProjectId = targetTask.projectId || null;
+
+      // Verificar si están en el mismo proyecto solo para reordenamiento dentro del backlog
+      if (draggedActualProjectId === targetProjectId) {
+        e.dataTransfer.dropEffect = 'move';
+        e.currentTarget.classList.add('drag-over');
+        e.currentTarget.classList.remove('drag-over-invalid');
+      } else {
+        e.dataTransfer.dropEffect = 'move';
+        e.currentTarget.classList.add('drag-over-invalid');
+        e.currentTarget.classList.remove('drag-over');
+      }
+    } else {
+      // Si viene de un sprint, siempre permitir
+      e.dataTransfer.dropEffect = 'move';
+      e.currentTarget.classList.add('drag-over');
+      e.currentTarget.classList.remove('drag-over-invalid');
+    }
+  };
+
+  const handleDragLeaveTask = (e) => {
+    e.currentTarget.classList.remove('drag-over');
+    e.currentTarget.classList.remove('drag-over-invalid');
+  };
+
+  const handleDropOnTask = async (e, targetTask) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.classList.remove('drag-over');
+    e.currentTarget.classList.remove('drag-over-invalid');
+    stopAutoScroll();
+    setDraggedTaskId(null);
+
+    const taskId = e.dataTransfer.getData('taskId');
+    const draggedProjectId = e.dataTransfer.getData('projectId') || null;
+    const targetProjectId = targetTask.projectId || null;
+
+    if (taskId === targetTask.id) {
+      return;
+    }
+
+    const draggedTask = tasks.find(t => t.id === taskId);
+    if (!draggedTask) return;
+
+    // Si la tarea arrastrada viene de un sprint, moverla al backlog sin reordenar
+    if (draggedTask.sprintId) {
+      await moveTaskToSprint(taskId, null, false);
+      return;
+    }
+
+    // Si ambas tareas están en el backlog, validar que sean del mismo proyecto para reordenar
+    if (!draggedTask.sprintId && !targetTask.sprintId) {
+      if (draggedProjectId !== targetProjectId) {
+        setToast({
+          message: 'No se puede reordenar: las tareas deben pertenecer al mismo proyecto',
+          type: 'error'
+        });
+        return;
+      }
+
+      // Obtener todas las tareas del mismo proyecto en el backlog
+      const projectTasks = backlogTasks.filter(t =>
+        (t.projectId || null) === (targetProjectId || null)
+      );
+
+      // Encontrar índices
+      const draggedIndex = projectTasks.findIndex(t => t.id === taskId);
+      const targetIndex = projectTasks.findIndex(t => t.id === targetTask.id);
+
+      if (draggedIndex === -1 || targetIndex === -1) return;
+
+      // Reordenar array
+      const reorderedTasks = [...projectTasks];
+      const [movedTask] = reorderedTasks.splice(draggedIndex, 1);
+      reorderedTasks.splice(targetIndex, 0, movedTask);
+
+      // Actualizar order field basándose en el nuevo orden
+      const updatePromises = reorderedTasks.map((task, index) => {
+        return updateTask(task.id, { order: index });
+      });
+
+      await Promise.all(updatePromises);
+    }
   };
 
   const handleDropToSprint = async (e, sprintId) => {
     e.preventDefault();
+    stopAutoScroll();
     const taskId = e.dataTransfer.getData('taskId');
     if (taskId) {
       // Determinar si el sprint está activo
@@ -147,10 +354,113 @@ const Backlog = () => {
 
   const handleDropToBacklog = async (e) => {
     e.preventDefault();
+    stopAutoScroll();
     const taskId = e.dataTransfer.getData('taskId');
     if (taskId) {
       // Al mover al backlog, quitar el sprint y el estado
       await moveTaskToSprint(taskId, null, false);
+    }
+  };
+
+  // Handlers para reordenar tareas dentro de un sprint
+  const handleDragOverSprintTask = (e, targetTask, sprintId) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Activar auto-scroll
+    handleAutoScroll(e);
+
+    const draggedTask = draggedTaskId ? tasks.find(t => t.id === draggedTaskId) : null;
+
+    // Solo validar si ambas tareas están en el mismo sprint (reordenamiento)
+    // Si la tarea arrastrada viene del backlog, permitir drop sin validación
+    if (draggedTask && draggedTask.sprintId === sprintId && targetTask.sprintId === sprintId) {
+      const draggedActualProjectId = draggedTask.projectId || null;
+      const targetProjectId = targetTask.projectId || null;
+
+      // Verificar si están en el mismo proyecto solo para reordenamiento dentro del sprint
+      if (draggedActualProjectId === targetProjectId) {
+        e.dataTransfer.dropEffect = 'move';
+        e.currentTarget.classList.add('drag-over');
+        e.currentTarget.classList.remove('drag-over-invalid');
+      } else {
+        e.dataTransfer.dropEffect = 'move';
+        e.currentTarget.classList.add('drag-over-invalid');
+        e.currentTarget.classList.remove('drag-over');
+      }
+    } else {
+      // Si viene del backlog, siempre permitir
+      e.dataTransfer.dropEffect = 'move';
+      e.currentTarget.classList.add('drag-over');
+      e.currentTarget.classList.remove('drag-over-invalid');
+    }
+  };
+
+  const handleDragLeaveSprintTask = (e) => {
+    e.currentTarget.classList.remove('drag-over');
+    e.currentTarget.classList.remove('drag-over-invalid');
+  };
+
+  const handleDropOnSprintTask = async (e, targetTask, sprintId) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.classList.remove('drag-over');
+    e.currentTarget.classList.remove('drag-over-invalid');
+    stopAutoScroll();
+    setDraggedTaskId(null);
+
+    const taskId = e.dataTransfer.getData('taskId');
+    const draggedProjectId = e.dataTransfer.getData('projectId') || null;
+    const targetProjectId = targetTask.projectId || null;
+
+    if (taskId === targetTask.id) {
+      return;
+    }
+
+    const draggedTask = tasks.find(t => t.id === taskId);
+    if (!draggedTask) return;
+
+    // Si la tarea arrastrada viene del backlog, moverla al sprint sin reordenar
+    if (!draggedTask.sprintId) {
+      const sprint = sprints.find(s => s.id === sprintId);
+      const isSprintActive = sprint?.status === 'active';
+      await moveTaskToSprint(taskId, sprintId, isSprintActive);
+      return;
+    }
+
+    // Si ambas tareas están en el mismo sprint, validar que sean del mismo proyecto para reordenar
+    if (draggedTask.sprintId === sprintId && targetTask.sprintId === sprintId) {
+      if (draggedProjectId !== targetProjectId) {
+        setToast({
+          message: 'No se puede reordenar: las tareas deben pertenecer al mismo proyecto',
+          type: 'error'
+        });
+        return;
+      }
+
+      // Obtener todas las tareas del mismo proyecto en el sprint
+      const sprintTasks = getSprintTasks(sprintId);
+      const projectTasks = sprintTasks.filter(t =>
+        (t.projectId || null) === (targetProjectId || null)
+      );
+
+      // Encontrar índices
+      const draggedIndex = projectTasks.findIndex(t => t.id === taskId);
+      const targetIndex = projectTasks.findIndex(t => t.id === targetTask.id);
+
+      if (draggedIndex === -1 || targetIndex === -1) return;
+
+      // Reordenar array
+      const reorderedTasks = [...projectTasks];
+      const [movedTask] = reorderedTasks.splice(draggedIndex, 1);
+      reorderedTasks.splice(targetIndex, 0, movedTask);
+
+      // Actualizar order field basándose en el nuevo orden
+      const updatePromises = reorderedTasks.map((task, index) => {
+        return updateTask(task.id, { order: index });
+      });
+
+      await Promise.all(updatePromises);
     }
   };
 
@@ -211,6 +521,128 @@ const Backlog = () => {
     }
   };
 
+  // Funciones de multi-selección
+  const handleToggleTaskSelection = (taskId, event) => {
+    // Obtener todas las tareas visibles (backlog + sprints)
+    const allVisibleTasks = [...backlogTasks, ...activeSprints.flatMap(s => getSprintTasks(s.id))];
+
+    // Extraer las propiedades del evento (puede ser nativeEvent o el evento directo)
+    const shiftKey = event?.shiftKey || event?.nativeEvent?.shiftKey || false;
+    const ctrlKey = event?.ctrlKey || event?.nativeEvent?.ctrlKey || false;
+    const metaKey = event?.metaKey || event?.nativeEvent?.metaKey || false;
+
+    if (shiftKey && lastSelectedTaskId) {
+      // Selección de rango con Shift
+      const lastIndex = allVisibleTasks.findIndex(t => t.id === lastSelectedTaskId);
+      const currentIndex = allVisibleTasks.findIndex(t => t.id === taskId);
+
+      if (lastIndex !== -1 && currentIndex !== -1) {
+        const start = Math.min(lastIndex, currentIndex);
+        const end = Math.max(lastIndex, currentIndex);
+        const rangeIds = allVisibleTasks.slice(start, end + 1).map(t => t.id);
+
+        setSelectedTaskIds(prev => [...new Set([...prev, ...rangeIds])]);
+      }
+    } else if (ctrlKey || metaKey) {
+      // Selección individual con Ctrl/Cmd (toggle)
+      setSelectedTaskIds(prev =>
+        prev.includes(taskId)
+          ? prev.filter(id => id !== taskId)
+          : [...prev, taskId]
+      );
+      setLastSelectedTaskId(taskId);
+    } else {
+      // Click normal (toggle)
+      setSelectedTaskIds(prev =>
+        prev.includes(taskId)
+          ? prev.filter(id => id !== taskId)
+          : [...prev, taskId]
+      );
+      setLastSelectedTaskId(taskId);
+    }
+  };
+
+  const handleToggleAllTasks = (tasksList) => {
+    const taskIds = tasksList.map(t => t.id);
+    const allSelected = taskIds.every(id => selectedTaskIds.includes(id));
+
+    if (allSelected) {
+      setSelectedTaskIds(prev => prev.filter(id => !taskIds.includes(id)));
+    } else {
+      setSelectedTaskIds(prev => [...new Set([...prev, ...taskIds])]);
+    }
+  };
+
+  const handleClearSelection = () => {
+    setSelectedTaskIds([]);
+  };
+
+  // Acciones masivas
+  const handleBulkMoveToSprint = async (sprintId) => {
+    const sprint = sprints.find(s => s.id === sprintId);
+    const isSprintActive = sprint?.status === 'active';
+
+    for (const taskId of selectedTaskIds) {
+      await moveTaskToSprint(taskId, sprintId, isSprintActive);
+    }
+
+    setSelectedTaskIds([]);
+    setToast({
+      message: `${selectedTaskIds.length} tarea(s) movida(s) al sprint`,
+      type: 'success'
+    });
+  };
+
+  const handleBulkMoveToBacklog = async () => {
+    for (const taskId of selectedTaskIds) {
+      await moveTaskToSprint(taskId, null, false);
+    }
+
+    setSelectedTaskIds([]);
+    setToast({
+      message: `${selectedTaskIds.length} tarea(s) movida(s) al backlog`,
+      type: 'success'
+    });
+  };
+
+  const handleBulkAssignUser = async (userId) => {
+    const updates = { assignedTo: userId };
+
+    for (const taskId of selectedTaskIds) {
+      await updateTask(taskId, updates);
+    }
+
+    setSelectedTaskIds([]);
+    setToast({
+      message: `${selectedTaskIds.length} tarea(s) asignada(s)`,
+      type: 'success'
+    });
+  };
+
+  const handleBulkAssignProject = async (projectId) => {
+    for (const taskId of selectedTaskIds) {
+      await updateTask(taskId, { projectId: projectId || null });
+    }
+
+    setSelectedTaskIds([]);
+    setToast({
+      message: `${selectedTaskIds.length} tarea(s) asignada(s) al proyecto`,
+      type: 'success'
+    });
+  };
+
+  const handleBulkArchive = async () => {
+    for (const taskId of selectedTaskIds) {
+      await archiveTask(taskId);
+    }
+
+    setSelectedTaskIds([]);
+    setToast({
+      message: `${selectedTaskIds.length} tarea(s) archivada(s)`,
+      type: 'success'
+    });
+  };
+
   if (loading) {
     return (
       <div className="backlog-page">
@@ -225,8 +657,35 @@ const Backlog = () => {
   // Calcular story points totales del backlog
   const backlogStoryPoints = backlogTasks.reduce((sum, task) => sum + (task.storyPoints || 0), 0);
 
+  // Renderizar barra de acciones masivas
+  const renderBulkActionsBar = () => {
+    if (selectedTaskIds.length === 0) return null;
+
+    const selectedTasks = tasks.filter(t => selectedTaskIds.includes(t.id));
+    const allInBacklog = selectedTasks.every(t => !t.sprintId);
+    const allInSprint = selectedTasks.every(t => t.sprintId);
+
+    return (
+      <BulkActionsBar
+        selectedCount={selectedTaskIds.length}
+        onClear={handleClearSelection}
+        onMoveToSprint={handleBulkMoveToSprint}
+        onMoveToBacklog={handleBulkMoveToBacklog}
+        onAssignUser={handleBulkAssignUser}
+        onAssignProject={handleBulkAssignProject}
+        onArchive={handleBulkArchive}
+        sprints={activeSprints}
+        showMoveToSprint={allInBacklog}
+        showMoveToBacklog={allInSprint}
+      />
+    );
+  };
+
   return (
     <div className="backlog-page">
+      {/* Barra de acciones masivas */}
+      {renderBulkActionsBar()}
+
       {/* Header */}
       <div className="backlog-header flex justify-between items-center mb-md pb-base">
         <div className="flex items-center gap-base">
@@ -246,11 +705,24 @@ const Backlog = () => {
           key={sprint.id}
           sprint={sprint}
           tasks={getSprintTasks(sprint.id)}
+          users={users}
           onDragOver={handleDragOver}
           onDrop={(e) => handleDropToSprint(e, sprint.id)}
           onStartSprint={startSprint}
           onTaskClick={setSelectedTask}
           getProjectName={getProjectName}
+          getProjectColor={getProjectColor}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          onDragOverTask={handleDragOverSprintTask}
+          onDragLeaveTask={handleDragLeaveSprintTask}
+          onDropOnTask={handleDropOnSprintTask}
+          onUpdateTask={updateTask}
+          sprints={activeSprints}
+          onMoveToSprint={moveTaskToSprint}
+          selectedTaskIds={selectedTaskIds}
+          onToggleTaskSelection={handleToggleTaskSelection}
+          onToggleAllTasks={handleToggleAllTasks}
         />
       ))}
 
@@ -295,10 +767,17 @@ const Backlog = () => {
             <table>
               <thead>
                 <tr>
+                  <th style={{ width: '40px' }}>
+                    <input
+                      type="checkbox"
+                      checked={backlogTasks.length > 0 && backlogTasks.every(t => selectedTaskIds.includes(t.id))}
+                      onChange={() => handleToggleAllTasks(backlogTasks)}
+                      className="task-checkbox"
+                    />
+                  </th>
                   <th style={{ width: '40px' }}></th>
                   <th>Tarea</th>
                   <th style={{ width: '150px' }}>Proyecto</th>
-                  <th style={{ width: '120px' }}>Prioridad</th>
                   <th style={{ width: '100px' }}>Story Points</th>
                   <th style={{ width: '120px' }}>Estado</th>
                   <th style={{ width: '150px' }}>Asignado a</th>
@@ -308,10 +787,11 @@ const Backlog = () => {
               <tbody>
                 {isCreatingTask && (
                   <tr className="inline-create-row">
+                    <td></td>
                     <td>
                       <Icon name="plus-circle" size={16} className="inline-create-icon" />
                     </td>
-                    <td colSpan="7">
+                    <td colSpan="6">
                       <div className="inline-create-wrapper">
                         <input
                           ref={newTaskInputRef}
@@ -338,10 +818,22 @@ const Backlog = () => {
                     key={task.id}
                     task={task}
                     onDragStart={handleDragStart}
+                    onDragEnd={handleDragEnd}
+                    onDragOver={handleDragOverTask}
+                    onDragLeave={handleDragLeaveTask}
+                    onDrop={handleDropOnTask}
                     onArchive={archiveTask}
                     onUpdateTask={updateTask}
                     onTaskClick={setSelectedTask}
                     getProjectName={getProjectName}
+                    getProjectColor={getProjectColor}
+                    sprints={activeSprints}
+                    onMoveToSprint={moveTaskToSprint}
+                    isSelected={selectedTaskIds.includes(task.id)}
+                    onToggleSelection={handleToggleTaskSelection}
+                    sprint={null}
+                    users={users}
+                    allTasks={tasks}
                   />
                 ))}
               </tbody>
@@ -374,15 +866,24 @@ const Backlog = () => {
           onClose={() => setSelectedTask(null)}
         />
       )}
+
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   );
 };
 
 // Componente de Sprint Section
-const SprintSection = ({ sprint, tasks, onDragOver, onDrop, onStartSprint, onTaskClick, getProjectName }) => {
+const SprintSection = ({ sprint, tasks, users, onDragOver, onDrop, onStartSprint, onTaskClick, getProjectName, getProjectColor, onDragStart, onDragEnd, onDragOverTask, onDragLeaveTask, onDropOnTask, onUpdateTask, sprints, onMoveToSprint, selectedTaskIds, onToggleTaskSelection, onToggleAllTasks }) => {
   const [expanded, setExpanded] = useState(true);
   const [isCreatingTask, setIsCreatingTask] = useState(false);
   const [newTaskName, setNewTaskName] = useState('');
+  const [showCapacityModal, setShowCapacityModal] = useState(false);
   const newTaskInputRef = useRef(null);
 
   const handleStartSprint = () => {
@@ -399,6 +900,9 @@ const SprintSection = ({ sprint, tasks, onDragOver, onDrop, onStartSprint, onTas
 
     onStartSprint(sprint.id, formatDate(today), formatDate(twoWeeksLater));
   };
+
+  // Calcular capacidad del sprint
+  const capacityInfo = getSprintCapacityInfo(sprint, tasks, users);
 
   // Función para iniciar creación inline
   const handleStartInlineCreate = () => {
@@ -448,18 +952,18 @@ const SprintSection = ({ sprint, tasks, onDragOver, onDrop, onStartSprint, onTas
     }
   };
 
-  // Calcular story points completados y totales
-  const completedPoints = tasks
-    .filter(task => task.status === 'completed')
-    .reduce((sum, task) => sum + (task.storyPoints || 0), 0);
-
-  const totalPoints = tasks.reduce((sum, task) => sum + (task.storyPoints || 0), 0);
-
   // Formatear fechas
   const formatSprintDate = (dateString) => {
     if (!dateString) return '';
     const date = new Date(dateString);
     return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+  };
+
+  // Determinar el color del indicador de capacidad
+  const getCapacityColor = () => {
+    if (capacityInfo.status === 'over-capacity') return '#EF4444'; // Rojo
+    if (capacityInfo.status === 'near-limit') return '#F59E0B'; // Naranja
+    return '#10B981'; // Verde
   };
 
   return (
@@ -495,10 +999,37 @@ const SprintSection = ({ sprint, tasks, onDragOver, onDrop, onStartSprint, onTas
               {formatSprintDate(sprint.startDate)} - {formatSprintDate(sprint.endDate)}
             </span>
           )}
-          {totalPoints > 0 && (
+          {capacityInfo.completedPoints > 0 && (
             <span className="text-sm font-semibold text-primary has-tooltip" data-tooltip="Story Points completados / totales">
-              {completedPoints}/{totalPoints} pts
+              {capacityInfo.completedPoints}/{capacityInfo.assignedPoints} pts
             </span>
+          )}
+          {capacityInfo.capacity > 0 && (
+            <div
+              className="capacity-indicator has-tooltip"
+              data-tooltip={`Capacidad del equipo: ${capacityInfo.capacity} pts | Asignado: ${capacityInfo.assignedPoints} pts | Disponible: ${capacityInfo.remaining} pts | Click para ver detalles`}
+              onClick={() => setShowCapacityModal(true)}
+              style={{ cursor: 'pointer' }}
+            >
+              <div className="flex items-center gap-xs">
+                <Icon name="users" size={14} />
+                <span className="text-sm font-semibold" style={{ color: getCapacityColor() }}>
+                  {capacityInfo.assignedPoints}/{capacityInfo.capacity} pts
+                </span>
+                <div className="capacity-bar" style={{ width: '60px', height: '6px', backgroundColor: '#E5E7EB', borderRadius: '3px', overflow: 'hidden' }}>
+                  <div
+                    className="capacity-fill"
+                    style={{
+                      width: `${Math.min(capacityInfo.percentage, 100)}%`,
+                      height: '100%',
+                      backgroundColor: getCapacityColor(),
+                      transition: 'width 0.3s ease'
+                    }}
+                  />
+                </div>
+                <span className="text-xs text-secondary">{capacityInfo.percentage}%</span>
+              </div>
+            </div>
           )}
         </div>
         {sprint.status === 'planned' && tasks.length > 0 && (
@@ -522,10 +1053,17 @@ const SprintSection = ({ sprint, tasks, onDragOver, onDrop, onStartSprint, onTas
             <table>
               <thead>
                 <tr>
+                  <th style={{ width: '40px' }}>
+                    <input
+                      type="checkbox"
+                      checked={tasks.length > 0 && tasks.every(t => selectedTaskIds.includes(t.id))}
+                      onChange={() => onToggleAllTasks(tasks)}
+                      className="task-checkbox"
+                    />
+                  </th>
                   <th style={{ width: '40px' }}></th>
                   <th>Tarea</th>
                   <th style={{ width: '150px' }}>Proyecto</th>
-                  <th style={{ width: '120px' }}>Prioridad</th>
                   <th style={{ width: '100px' }}>Story Points</th>
                   <th style={{ width: '120px' }}>Estado</th>
                   <th style={{ width: '150px' }}>Asignado a</th>
@@ -535,10 +1073,11 @@ const SprintSection = ({ sprint, tasks, onDragOver, onDrop, onStartSprint, onTas
               <tbody>
                 {isCreatingTask && (
                   <tr className="inline-create-row">
+                    <td></td>
                     <td>
                       <Icon name="plus-circle" size={16} className="inline-create-icon" />
                     </td>
-                    <td colSpan="7">
+                    <td colSpan="6">
                       <div className="inline-create-wrapper">
                         <input
                           ref={newTaskInputRef}
@@ -564,11 +1103,24 @@ const SprintSection = ({ sprint, tasks, onDragOver, onDrop, onStartSprint, onTas
                   <TaskRow
                     key={task.id}
                     task={task}
-                    onDragStart={(e) => e.dataTransfer.setData('taskId', task.id)}
+                    onDragStart={(e) => onDragStart(e, task)}
+                    onDragEnd={onDragEnd}
+                    onDragOver={(e, t) => onDragOverTask(e, t, sprint.id)}
+                    onDragLeave={onDragLeaveTask}
+                    onDrop={(e, t) => onDropOnTask(e, t, sprint.id)}
                     onArchive={archiveTask}
-                    onUpdateTask={updateTask}
+                    onUpdateTask={onUpdateTask}
                     onTaskClick={onTaskClick}
                     getProjectName={getProjectName}
+                    getProjectColor={getProjectColor}
+                    sprints={sprints}
+                    onMoveToSprint={onMoveToSprint}
+                    currentSprintId={sprint.id}
+                    isSelected={selectedTaskIds.includes(task.id)}
+                    onToggleSelection={onToggleTaskSelection}
+                    sprint={sprint}
+                    users={users}
+                    allTasks={tasks}
                   />
                 ))}
               </tbody>
@@ -576,24 +1128,28 @@ const SprintSection = ({ sprint, tasks, onDragOver, onDrop, onStartSprint, onTas
           )}
         </div>
       )}
+
+      {/* Modal de Capacidad Detallada */}
+      <CapacityDetailModal
+        isOpen={showCapacityModal}
+        onClose={() => setShowCapacityModal(false)}
+        sprint={sprint}
+        users={users}
+        tasks={tasks}
+      />
     </div>
   );
 };
 
 // Componente de fila de tarea
-const TaskRow = ({ task, onDragStart, onArchive, onUpdateTask, onTaskClick, getProjectName }) => {
+const TaskRow = ({ task, onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop, onArchive, onUpdateTask, onTaskClick, getProjectName, getProjectColor, sprints, onMoveToSprint, currentSprintId, isSelected, onToggleSelection, sprint, users, allTasks }) => {
   const [showConfirm, setShowConfirm] = useState(false);
   const [showUserSelect, setShowUserSelect] = useState(false);
   const [showProjectSelect, setShowProjectSelect] = useState(false);
+  const [showActionsMenu, setShowActionsMenu] = useState(false);
   const userSelectRef = useRef(null);
   const projectSelectRef = useRef(null);
-
-  const priorityLabels = {
-    low: 'Baja',
-    medium: 'Media',
-    high: 'Alta',
-    critical: 'Crítica'
-  };
+  const actionsMenuRef = useRef(null);
 
   // Cerrar menú de usuario al hacer click fuera
   useEffect(() => {
@@ -627,6 +1183,22 @@ const TaskRow = ({ task, onDragStart, onArchive, onUpdateTask, onTaskClick, getP
     }
   }, [showProjectSelect]);
 
+  // Cerrar menú de acciones al hacer click fuera
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (actionsMenuRef.current && !actionsMenuRef.current.contains(event.target)) {
+        setShowActionsMenu(false);
+      }
+    };
+
+    if (showActionsMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [showActionsMenu]);
+
   const handleArchive = () => {
     setShowConfirm(true);
   };
@@ -655,6 +1227,18 @@ const TaskRow = ({ task, onDragStart, onArchive, onUpdateTask, onTaskClick, getP
     setShowProjectSelect(false);
   };
 
+  const handleMoveToBacklog = async () => {
+    await onMoveToSprint(task.id, null, false);
+    setShowActionsMenu(false);
+  };
+
+  const handleMoveToSprint = async (sprintId) => {
+    const sprint = sprints?.find(s => s.id === sprintId);
+    const isSprintActive = sprint?.status === 'active';
+    await onMoveToSprint(task.id, sprintId, isSprintActive);
+    setShowActionsMenu(false);
+  };
+
   return (
     <>
       <ConfirmDialog
@@ -668,10 +1252,25 @@ const TaskRow = ({ task, onDragStart, onArchive, onUpdateTask, onTaskClick, getP
         onCancel={() => setShowConfirm(false)}
       />
       <tr
-        className="task-row"
+        className={`task-row ${isSelected ? 'selected' : ''}`}
         draggable
         onDragStart={(e) => onDragStart(e, task)}
+        onDragEnd={onDragEnd || undefined}
+        onDragOver={onDragOver ? (e) => onDragOver(e, task) : undefined}
+        onDragLeave={onDragLeave || undefined}
+        onDrop={onDrop ? (e) => onDrop(e, task) : undefined}
       >
+        <td onClick={(e) => e.stopPropagation()}>
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={(e) => {
+              e.stopPropagation();
+              onToggleSelection(task.id, e);
+            }}
+            className="task-checkbox"
+          />
+        </td>
         <td onClick={(e) => e.stopPropagation()}>
           <Icon name="grip-vertical" size={16} style={{ opacity: 0.5, cursor: 'grab' }} />
         </td>
@@ -686,10 +1285,32 @@ const TaskRow = ({ task, onDragStart, onArchive, onUpdateTask, onTaskClick, getP
                   e.stopPropagation();
                   setShowProjectSelect(!showProjectSelect);
                 }}
-                style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                style={{
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.25rem',
+                  padding: '0.125rem 0.5rem',
+                  borderRadius: 'var(--radius-sm)',
+                  backgroundColor: `${getProjectColor(task.projectId)}15`,
+                  border: `1px solid ${getProjectColor(task.projectId)}40`,
+                  fontSize: '0.75rem',
+                  fontWeight: 500,
+                  color: getProjectColor(task.projectId),
+                  transition: 'all 0.15s ease',
+                  whiteSpace: 'nowrap'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = `${getProjectColor(task.projectId)}25`;
+                  e.currentTarget.style.borderColor = `${getProjectColor(task.projectId)}60`;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = `${getProjectColor(task.projectId)}15`;
+                  e.currentTarget.style.borderColor = `${getProjectColor(task.projectId)}40`;
+                }}
               >
-                <Icon name="folder" size={14} className="text-secondary" />
-                <span className="text-sm text-secondary">{getProjectName(task.projectId)}</span>
+                <Icon name="folder" size={12} />
+                <span>{getProjectName(task.projectId)}</span>
               </div>
             ) : (
               <button
@@ -719,11 +1340,6 @@ const TaskRow = ({ task, onDragStart, onArchive, onUpdateTask, onTaskClick, getP
           </div>
         </td>
         <td>
-          <span className={`priority-badge priority-${task.priority}`}>
-            {priorityLabels[task.priority]}
-          </span>
-        </td>
-        <td>
           <div className="flex items-center justify-center">
             <StoryPointsSelect
               value={task.storyPoints}
@@ -741,22 +1357,17 @@ const TaskRow = ({ task, onDragStart, onArchive, onUpdateTask, onTaskClick, getP
         </td>
         <td>
           <div className="task-assignee" ref={userSelectRef}>
-            {task.assignedTo ? (
-              <div
-                onClick={() => setShowUserSelect(!showUserSelect)}
-                style={{ cursor: 'pointer' }}
-              >
-                <UserAvatar userId={task.assignedTo} size={24} showName={true} />
-              </div>
-            ) : (
-              <button
-                className="btn-assign-user-backlog"
-                onClick={() => setShowUserSelect(!showUserSelect)}
-              >
-                <Icon name="user-plus" size={16} />
-                <span>Asignar</span>
-              </button>
-            )}
+            <div
+              onClick={() => setShowUserSelect(!showUserSelect)}
+              style={{ cursor: 'pointer' }}
+            >
+              <UserAvatar
+                userId={task.assignedTo}
+                size={28}
+                showName={false}
+                isOverbooked={task.assignedTo && sprint ? isUserOverbooked(task.assignedTo, sprint, allTasks || [], users || []) : false}
+              />
+            </div>
             {showUserSelect && (
               <div
                 className="user-select-dropdown-backlog"
@@ -773,13 +1384,62 @@ const TaskRow = ({ task, onDragStart, onArchive, onUpdateTask, onTaskClick, getP
           </div>
         </td>
         <td>
-          <button
-            className="btn-icon has-tooltip"
-            onClick={handleArchive}
-            data-tooltip="Archivar tarea"
-          >
-            <Icon name="archive" size={16} />
-          </button>
+          <div className="task-actions" ref={actionsMenuRef}>
+            <button
+              className="btn-icon has-tooltip"
+              onClick={() => setShowActionsMenu(!showActionsMenu)}
+              data-tooltip="Más opciones"
+            >
+              <Icon name="more-vertical" size={16} />
+            </button>
+            {showActionsMenu && (
+              <div className="actions-menu">
+                {/* Opciones de mover a sprint (solo si está en backlog) */}
+                {!task.sprintId && sprints && sprints.length > 0 && (
+                  <>
+                    <div className="actions-menu-header">Mover a sprint</div>
+                    {sprints.map(sprint => (
+                      <button
+                        key={sprint.id}
+                        className="actions-menu-item"
+                        onClick={() => handleMoveToSprint(sprint.id)}
+                      >
+                        <Icon name="zap" size={14} />
+                        <span>{sprint.name}</span>
+                      </button>
+                    ))}
+                    <div className="actions-menu-divider"></div>
+                  </>
+                )}
+
+                {/* Opción de mover a backlog (solo si está en un sprint) */}
+                {task.sprintId && (
+                  <>
+                    <button
+                      className="actions-menu-item"
+                      onClick={handleMoveToBacklog}
+                    >
+                      <Icon name="list" size={14} />
+                      <span>Mover a Backlog</span>
+                    </button>
+                    <div className="actions-menu-divider"></div>
+                  </>
+                )}
+
+                {/* Opción de archivar */}
+                <button
+                  className="actions-menu-item danger"
+                  onClick={() => {
+                    setShowActionsMenu(false);
+                    handleArchive();
+                  }}
+                >
+                  <Icon name="archive" size={14} />
+                  <span>Archivar</span>
+                </button>
+              </div>
+            )}
+          </div>
         </td>
       </tr>
     </>
@@ -964,6 +1624,148 @@ const SprintModal = ({ onClose, onSave }) => {
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+};
+
+// Componente de barra de acciones masivas
+const BulkActionsBar = ({ selectedCount, onClear, onMoveToSprint, onMoveToBacklog, onAssignUser, onAssignProject, onArchive, sprints, showMoveToSprint, showMoveToBacklog }) => {
+  const [showSprintMenu, setShowSprintMenu] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showProjectMenu, setShowProjectMenu] = useState(false);
+  const sprintMenuRef = useRef(null);
+  const userMenuRef = useRef(null);
+  const projectMenuRef = useRef(null);
+
+  // Cerrar menús al hacer click fuera
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (sprintMenuRef.current && !sprintMenuRef.current.contains(event.target)) {
+        setShowSprintMenu(false);
+      }
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
+        setShowUserMenu(false);
+      }
+      if (projectMenuRef.current && !projectMenuRef.current.contains(event.target)) {
+        setShowProjectMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  return (
+    <div className="bulk-actions-bar">
+      <div className="bulk-actions-content">
+        <div className="bulk-actions-left">
+          <span className="bulk-actions-count">{selectedCount} tarea(s) seleccionada(s)</span>
+          <button className="btn btn-secondary btn-sm" onClick={onClear}>
+            <Icon name="x" size={16} />
+            Limpiar selección
+          </button>
+        </div>
+
+        <div className="bulk-actions-right flex items-center gap-sm">
+          {/* Mover a Sprint */}
+          {showMoveToSprint && sprints && sprints.length > 0 && (
+            <div className="bulk-action-menu" ref={sprintMenuRef}>
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={() => setShowSprintMenu(!showSprintMenu)}
+              >
+                <Icon name="zap" size={16} />
+                Mover a Sprint
+              </button>
+              {showSprintMenu && (
+                <div className="bulk-dropdown">
+                  {sprints.map(sprint => (
+                    <button
+                      key={sprint.id}
+                      className="bulk-dropdown-item"
+                      onClick={() => {
+                        onMoveToSprint(sprint.id);
+                        setShowSprintMenu(false);
+                      }}
+                    >
+                      <Icon name="zap" size={14} />
+                      <span>{sprint.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Mover a Backlog */}
+          {showMoveToBacklog && (
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={onMoveToBacklog}
+            >
+              <Icon name="list" size={16} />
+              Mover a Backlog
+            </button>
+          )}
+
+          {/* Asignar Usuario */}
+          <div className="bulk-action-menu" ref={userMenuRef}>
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={() => setShowUserMenu(!showUserMenu)}
+            >
+              <Icon name="user" size={16} />
+              Asignar Usuario
+            </button>
+            {showUserMenu && (
+              <div className="bulk-dropdown">
+                <UserSelect
+                  value={null}
+                  onChange={(userId) => {
+                    onAssignUser(userId);
+                    setShowUserMenu(false);
+                  }}
+                  mode="list"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Asignar Proyecto */}
+          <div className="bulk-action-menu" ref={projectMenuRef}>
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={() => setShowProjectMenu(!showProjectMenu)}
+            >
+              <Icon name="folder" size={16} />
+              Asignar Proyecto
+            </button>
+            {showProjectMenu && (
+              <div className="bulk-dropdown">
+                <ProjectSelect
+                  value={null}
+                  onChange={(projectId) => {
+                    onAssignProject(projectId);
+                    setShowProjectMenu(false);
+                  }}
+                  mode="list"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Archivar */}
+          <button
+            className="btn btn-danger btn-sm"
+            onClick={onArchive}
+          >
+            <Icon name="archive" size={16} />
+            Archivar
+          </button>
+        </div>
       </div>
     </div>
   );
