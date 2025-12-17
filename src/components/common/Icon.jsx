@@ -49,6 +49,10 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import ShuffleIcon from '@mui/icons-material/Shuffle';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import RotateLeftIcon from '@mui/icons-material/RotateLeft';
+import RotateRightIcon from '@mui/icons-material/RotateRight';
+import ZoomOutMapIcon from '@mui/icons-material/ZoomOutMap';
 
 const Icon = ({ name, size = 20, className = '' }) => {
   const iconMap = {
@@ -102,7 +106,11 @@ const Icon = ({ name, size = 20, className = '' }) => {
     'play': PlayArrowIcon,
     'shuffle': ShuffleIcon,
     'arrow-left': ArrowBackIcon,
-    'refresh-cw': RefreshIcon
+    'refresh-cw': RefreshIcon,
+    'eye': VisibilityIcon,
+    'rotate-ccw': RotateLeftIcon,
+    'rotate-cw': RotateRightIcon,
+    'maximize': ZoomOutMapIcon
   };
 
   const IconComponent = iconMap[name] || FolderIcon;
