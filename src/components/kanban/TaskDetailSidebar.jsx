@@ -15,12 +15,6 @@ import { subscribeToProjects } from '../../services/projectService';
 import { cleanupUnusedImages } from '../../utils/imageCleanup';
 import '../../styles/TaskDetailSidebar.css';
 
-const priorityLabels = {
-  low: 'Baja',
-  medium: 'Media',
-  high: 'Alta'
-};
-
 const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose }) => {
   const sidebarRef = useRef(null);
   const userSelectRef = useRef(null);
@@ -358,12 +352,6 @@ const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose }) => {
                 </h2>
               )}
               <div className="task-meta-badges">
-                <span
-                  className={`priority-badge priority-${task.priority} has-tooltip`}
-                  data-tooltip="Prioridad"
-                >
-                  {priorityLabels[task.priority]}
-                </span>
                 <span
                   className="status-badge-integrated has-tooltip"
                   data-tooltip="Estado actual"
