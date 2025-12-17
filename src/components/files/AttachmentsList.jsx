@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import Icon from '../common/Icon';
 import PdfViewer from './PdfViewer';
+import ImageViewer from './ImageViewer';
 import Toast from '../common/Toast';
 import ConfirmDialog from '../common/ConfirmDialog';
 import { uploadAttachment, formatFileSize, getFileIcon, deleteFile } from '../../services/storageService';
@@ -16,6 +17,7 @@ const AttachmentsList = ({
 }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [pdfToView, setPdfToView] = useState(null);
+  const [imageToView, setImageToView] = useState(null);
   const [toast, setToast] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const fileInputRef = useRef(null);
@@ -25,21 +27,50 @@ const AttachmentsList = ({
   };
 
   const handleFileChange = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
 
     setIsUploading(true);
-    const result = await uploadAttachment(file, taskId);
+    const newAttachments = [...attachments];
+    let uploadedCount = 0;
+    let errorCount = 0;
+
+    // Subir todos los archivos seleccionados
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const result = await uploadAttachment(file, taskId);
+
+      if (result.success && result.attachment) {
+        newAttachments.push(result.attachment);
+        uploadedCount++;
+      } else {
+        errorCount++;
+        console.error('Error al subir archivo:', file.name, result.error);
+      }
+    }
+
     setIsUploading(false);
 
-    if (result.success && result.attachment) {
-      // Notificar nuevo adjunto al padre
-      if (onAttachmentsChange) {
-        const newAttachments = [...attachments, result.attachment];
-        onAttachmentsChange(newAttachments);
-      }
-    } else {
-      setToast({ message: result.error || 'Error al subir archivo', type: 'error' });
+    // Notificar cambios al padre
+    if (uploadedCount > 0 && onAttachmentsChange) {
+      onAttachmentsChange(newAttachments);
+    }
+
+    // Mostrar mensaje de resultado
+    if (uploadedCount > 0 && errorCount === 0) {
+      setToast({
+        message: uploadedCount === 1
+          ? 'Archivo subido exitosamente'
+          : `${uploadedCount} archivos subidos exitosamente`,
+        type: 'success'
+      });
+    } else if (errorCount > 0) {
+      setToast({
+        message: errorCount === files.length
+          ? 'Error al subir los archivos'
+          : `${uploadedCount} archivos subidos, ${errorCount} con errores`,
+        type: errorCount === files.length ? 'error' : 'warning'
+      });
     }
 
     // Limpiar input
@@ -74,13 +105,27 @@ const AttachmentsList = ({
   };
 
   const handleViewOrDownload = (attachment) => {
-    // Si es un PDF, abrir el visor
+    // Si es un PDF, abrir el visor de PDF
     if (attachment.type === 'application/pdf') {
       setPdfToView(attachment);
-    } else {
-      // Para otros archivos, abrir en nueva pestaña
+    }
+    // Si es una imagen, abrir el visor de imágenes
+    else if (attachment.type.startsWith('image/')) {
+      // Encontrar el índice de esta imagen entre todas las imágenes
+      const imageAttachments = attachments.filter(a => a.type.startsWith('image/'));
+      const imageIndex = imageAttachments.findIndex(img => img.id === attachment.id);
+      setImageToView({ attachment, imageIndex, allImages: imageAttachments });
+    }
+    // Para otros archivos, abrir en nueva pestaña
+    else {
       window.open(attachment.url, '_blank');
     }
+  };
+
+  const handleImageNavigation = (newIndex) => {
+    const imageAttachments = attachments.filter(a => a.type.startsWith('image/'));
+    const newAttachment = imageAttachments[newIndex];
+    setImageToView({ attachment: newAttachment, imageIndex: newIndex, allImages: imageAttachments });
   };
 
   return (
@@ -101,6 +146,7 @@ const AttachmentsList = ({
             ref={fileInputRef}
             id={fileInputId}
             type="file"
+            multiple
             style={{ display: 'none' }}
             onChange={handleFileChange}
           />
@@ -126,9 +172,9 @@ const AttachmentsList = ({
                 <button
                   className="attachment-action-btn"
                   onClick={() => handleViewOrDownload(attachment)}
-                  title={attachment.type === 'application/pdf' ? 'Ver PDF' : 'Abrir'}
+                  title={attachment.type === 'application/pdf' ? 'Ver PDF' : attachment.type.startsWith('image/') ? 'Ver imagen' : 'Abrir'}
                 >
-                  <Icon name={attachment.type === 'application/pdf' ? 'file-text' : 'download'} size={16} />
+                  <Icon name={attachment.type === 'application/pdf' ? 'file-text' : attachment.type.startsWith('image/') ? 'eye' : 'download'} size={16} />
                 </button>
                 {!readOnly && (
                   <button
@@ -158,6 +204,18 @@ const AttachmentsList = ({
           url={pdfToView.url}
           fileName={pdfToView.name}
           onClose={() => setPdfToView(null)}
+        />
+      )}
+
+      {/* Visor de imágenes */}
+      {imageToView && (
+        <ImageViewer
+          url={imageToView.attachment.url}
+          fileName={imageToView.attachment.name}
+          allImages={imageToView.allImages}
+          currentIndex={imageToView.imageIndex}
+          onNavigate={handleImageNavigation}
+          onClose={() => setImageToView(null)}
         />
       )}
 
