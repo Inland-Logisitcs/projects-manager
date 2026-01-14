@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, memo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -18,7 +18,39 @@ import Icon from '../components/common/Icon';
 import UserAvatar from '../components/common/UserAvatar';
 import Toast from '../components/common/Toast';
 import Confetti from 'react-confetti';
+import { TransitionGroup, CSSTransition } from 'react-transition-group';
 import '../styles/PlanningPoker.css';
+
+// Componente memorizado para cada participante individual
+const ParticipantAvatar = memo(({ userId, userName, vote, sessionStatus, isModerator }) => {
+  const hasVoted = !!vote;
+  const isRevealed = sessionStatus === 'revealed';
+
+  return (
+    <div
+      key={userId}
+      className={`participant-compact ${isModerator ? 'moderator' : ''}`}
+      title={userName}
+    >
+      <UserAvatar userId={userId} userName={userName} size={32} showName={false} />
+      {sessionStatus !== 'waiting' && (
+        <div className="participant-vote-badge">
+          {hasVoted ? (
+            isRevealed ? (
+              <span className="vote-compact revealed">{vote.vote}</span>
+            ) : (
+              <Icon name="check-circle" size={12} className="text-success" />
+            )
+          ) : (
+            <span className="vote-compact pending">-</span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+});
+
+ParticipantAvatar.displayName = 'ParticipantAvatar';
 
 const PlanningPoker = () => {
   const navigate = useNavigate();
@@ -28,15 +60,30 @@ const PlanningPoker = () => {
   const [session, setSession] = useState(null);
   const [toast, setToast] = useState(null);
   const [selectedValue, setSelectedValue] = useState(null);
-  const [finalEstimate, setFinalEstimate] = useState('');
+  const [finalEstimate, setFinalEstimate] = useState(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
+  const hasJoinedRef = useRef(false);
+  const cleanupTimerRef = useRef(null);
+
 
   const isModerator = session?.moderatorId === user?.uid;
   const hasJoined = session?.participants?.some(p => p.userId === user?.uid);
   const currentUser = session?.participants?.find(p => p.userId === user?.uid);
   const currentTask = session?.currentTaskIndex !== null && session?.taskDetails ? session.taskDetails[session.currentTaskIndex] : null;
   const currentUserVote = session?.votes?.find(v => v.userId === user?.uid);
+
+  // Memorizar la lista de participantes para evitar re-renders
+  const participantsList = useMemo(() => {
+    if (!session?.participants) return [];
+    return [...session.participants];
+  }, [JSON.stringify(session?.participants?.map(p => p.userId).sort())]);
+
+  // Memorizar votos para evitar re-renders
+  const votesList = useMemo(() => {
+    if (!session?.votes) return [];
+    return [...session.votes];
+  }, [JSON.stringify(session?.votes?.map(v => `${v.userId}:${v.vote}`).sort())]);
 
   // Suscribirse a cambios en la sesión
   useEffect(() => {
@@ -55,15 +102,48 @@ const PlanningPoker = () => {
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+    };
   }, [sessionId, navigate]);
+
+  // Resetear hasJoinedRef cuando cambia la sesión
+  useEffect(() => {
+    hasJoinedRef.current = false;
+  }, [sessionId]);
 
   // Unirse automáticamente si no es el moderador
   useEffect(() => {
-    if (session && user && userProfile && !isModerator && !hasJoined) {
+    if (session && user && userProfile && !isModerator && !hasJoined && !hasJoinedRef.current) {
+      hasJoinedRef.current = true;
       handleJoinSession();
     }
   }, [session, user, userProfile, isModerator, hasJoined]);
+
+  // Desconectar al usuario cuando sale de la página
+  useEffect(() => {
+    // Limpiar cualquier timer pendiente
+    if (cleanupTimerRef.current) {
+      clearTimeout(cleanupTimerRef.current);
+      cleanupTimerRef.current = null;
+    }
+
+    // Guardar referencias para el cleanup
+    const currentSessionId = sessionId;
+    const currentUserId = user?.uid;
+    const currentIsModerator = session?.moderatorId === user?.uid;
+
+    return () => {
+      // Cleanup: desconectar al usuario cuando el componente se desmonta
+      // Usar un timer para evitar que Strict Mode cause desconexiones prematuras
+      cleanupTimerRef.current = setTimeout(() => {
+        if (currentSessionId && currentUserId && !currentIsModerator) {
+          leaveSession(currentSessionId, currentUserId);
+        }
+        cleanupTimerRef.current = null;
+      }, 500); // Timer de 500ms para mayor estabilidad
+    };
+  }, [sessionId, user?.uid]);
 
   // Detectar consenso
   useEffect(() => {
@@ -186,15 +266,31 @@ const PlanningPoker = () => {
       setToast({ message: 'Estimación guardada', type: 'success' });
       setFinalEstimate('');
       setSelectedValue(null);
+
+      // Buscar la siguiente tarea sin estimación
+      const nextTaskIndex = session.taskDetails?.findIndex((task, index) => {
+        return session.taskEstimates?.[task.id] === undefined && index !== session.currentTaskIndex;
+      });
+
+      // Si hay una siguiente tarea, presentarla automáticamente
+      if (nextTaskIndex !== undefined && nextTaskIndex !== -1) {
+        setTimeout(() => {
+          handlePresentTask(nextTaskIndex);
+        }, 500);
+      }
     } else {
       setToast({ message: 'Error al guardar', type: 'error' });
     }
   };
 
   const handleCompleteSession = async () => {
-    await completeSession(sessionId);
-    setToast({ message: 'Sesión completada', type: 'success' });
-    setTimeout(() => navigate('/backlog'), 2000);
+    const result = await completeSession(sessionId);
+    if (result.success) {
+      setToast({ message: 'Sesión completada exitosamente', type: 'success' });
+      setTimeout(() => navigate('/backlog'), 2000);
+    } else {
+      setToast({ message: 'Error al completar sesión', type: 'error' });
+    }
   };
 
   const handleCancelSession = async () => {
@@ -500,59 +596,39 @@ const PlanningPoker = () => {
                 Participantes ({(session.participants?.length || 0) + 1}):
               </span>
             </div>
-            <div className="participants-compact-list">
+            <TransitionGroup className="participants-compact-list">
               {/* Moderador */}
-              {(() => {
-                const vote = session.votes?.find(v => v.userId === session.moderatorId);
-                const hasVoted = !!vote;
-                const isRevealed = session.status === 'revealed';
-
-                return (
-                  <div className="participant-compact moderator" title={session.moderatorName}>
-                    <UserAvatar userId={session.moderatorId} size={32} showName={false} />
-                    {session.status !== 'waiting' && (
-                      <div className="participant-vote-badge">
-                        {hasVoted ? (
-                          isRevealed ? (
-                            <span className="vote-compact revealed">{vote.vote}</span>
-                          ) : (
-                            <Icon name="check-circle" size={12} className="text-success" />
-                          )
-                        ) : (
-                          <span className="vote-compact pending">-</span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
+              <CSSTransition
+                key={`mod-${session.moderatorId}`}
+                timeout={300}
+                classNames="participant-fade"
+              >
+                <ParticipantAvatar
+                  userId={session.moderatorId}
+                  userName={session.moderatorName}
+                  vote={votesList.find(v => v.userId === session.moderatorId)}
+                  sessionStatus={session.status}
+                  isModerator={true}
+                />
+              </CSSTransition>
 
               {/* Participantes */}
-              {session.participants?.map(participant => {
-                const vote = session.votes?.find(v => v.userId === participant.userId);
-                const hasVoted = !!vote;
-                const isRevealed = session.status === 'revealed';
-
-                return (
-                  <div key={participant.userId} className="participant-compact" title={participant.userName}>
-                    <UserAvatar userId={participant.userId} size={32} showName={false} />
-                    {session.status !== 'waiting' && (
-                      <div className="participant-vote-badge">
-                        {hasVoted ? (
-                          isRevealed ? (
-                            <span className="vote-compact revealed">{vote.vote}</span>
-                          ) : (
-                            <Icon name="check-circle" size={12} className="text-success" />
-                          )
-                        ) : (
-                          <span className="vote-compact pending">-</span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+              {participantsList.map(participant => (
+                <CSSTransition
+                  key={participant.userId}
+                  timeout={300}
+                  classNames="participant-fade"
+                >
+                  <ParticipantAvatar
+                    userId={participant.userId}
+                    userName={participant.userName}
+                    vote={votesList.find(v => v.userId === participant.userId)}
+                    sessionStatus={session.status}
+                    isModerator={false}
+                  />
+                </CSSTransition>
+              ))}
+            </TransitionGroup>
           </div>
         </div>
       </div>

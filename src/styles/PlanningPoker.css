@@ -87,18 +87,39 @@
 /* Cards Section */
 .planning-poker-cards {
   background-color: var(--bg-primary);
-  overflow-y: auto;
+  overflow-x: auto;
+  overflow-y: hidden;
   max-height: 400px;
 }
 
+.planning-poker-cards::-webkit-scrollbar {
+  height: 12px;
+}
+
+.planning-poker-cards::-webkit-scrollbar-track {
+  background: var(--bg-tertiary);
+  border-radius: 6px;
+}
+
+.planning-poker-cards::-webkit-scrollbar-thumb {
+  background: var(--border-medium);
+  border-radius: 6px;
+}
+
+.planning-poker-cards::-webkit-scrollbar-thumb:hover {
+  background: var(--border-dark);
+}
+
 .poker-cards-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+  display: flex;
   gap: var(--space-base);
+  min-height: min-content;
 }
 
 .poker-card {
-  aspect-ratio: 2 / 3;
+  width: 70px;
+  height: 105px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -192,8 +213,9 @@
     grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
   }
 
-  .poker-cards-grid {
-    grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+  .poker-card {
+    width: 60px;
+    height: 90px;
   }
 
   .results-stats {
@@ -320,6 +342,29 @@
   justify-content: center;
 }
 
+/* React Transition Group animations */
+.participant-fade-enter {
+  opacity: 0;
+  transform: scale(0.8);
+}
+
+.participant-fade-enter-active {
+  opacity: 1;
+  transform: scale(1);
+  transition: all 0.3s ease-in-out;
+}
+
+.participant-fade-exit {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.participant-fade-exit-active {
+  opacity: 0;
+  transform: scale(0.8);
+  transition: all 0.3s ease-in-out;
+}
+
 .participant-compact.moderator {
   border: 2px solid var(--color-primary);
   border-radius: 50%;
@@ -413,9 +458,38 @@
 .poker-deck-fixed {
   flex-shrink: 0;
   background-color: var(--bg-primary);
-  padding: var(--space-base) var(--space-lg);
+  padding: var(--space-lg) var(--space-lg) var(--space-base);
   border-top: 1px solid var(--border-light);
   box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.poker-deck-fixed h4 {
+  margin-bottom: var(--space-md);
+}
+
+.poker-deck-fixed .poker-cards-grid {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: var(--space-xs);
+  padding-top: var(--space-base);
+}
+
+.poker-deck-fixed .poker-cards-grid::-webkit-scrollbar {
+  height: 6px;
+}
+
+.poker-deck-fixed .poker-cards-grid::-webkit-scrollbar-track {
+  background: var(--bg-tertiary);
+  border-radius: 3px;
+}
+
+.poker-deck-fixed .poker-cards-grid::-webkit-scrollbar-thumb {
+  background: var(--border-medium);
+  border-radius: 3px;
+}
+
+.poker-deck-fixed .poker-cards-grid::-webkit-scrollbar-thumb:hover {
+  background: var(--border-dark);
 }
 
 /* Results Section */

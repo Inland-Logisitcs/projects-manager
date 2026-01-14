@@ -12,7 +12,8 @@ import {
   arrayUnion,
   arrayRemove,
   getDoc,
-  getDocs
+  getDocs,
+  runTransaction
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
@@ -57,29 +58,32 @@ export const createPlanningPokerSession = async (sessionData) => {
 export const joinSession = async (sessionId, userData) => {
   try {
     const sessionRef = doc(db, SESSIONS_COLLECTION, sessionId);
-    const sessionDoc = await getDoc(sessionRef);
 
-    if (!sessionDoc.exists()) {
-      return { success: false, error: 'Sesión no encontrada' };
-    }
+    await runTransaction(db, async (transaction) => {
+      const sessionDoc = await transaction.get(sessionRef);
 
-    const sessionData = sessionDoc.data();
-    const participants = sessionData.participants || [];
+      if (!sessionDoc.exists()) {
+        throw new Error('Sesión no encontrada');
+      }
 
-    // Verificar si el usuario ya está en la sesión
-    const alreadyJoined = participants.some(p => p.userId === userData.userId);
-    if (alreadyJoined) {
-      return { success: true, message: 'Ya estás en la sesión' };
-    }
+      const sessionData = sessionDoc.data();
+      const participants = sessionData.participants || [];
 
-    await updateDoc(sessionRef, {
-      participants: arrayUnion({
-        userId: userData.userId,
-        userName: userData.userName,
-        joinedAt: new Date(),
-        isReady: false
-      }),
-      updatedAt: serverTimestamp()
+      // Verificar si el usuario ya está en la sesión
+      const alreadyJoined = participants.some(p => p.userId === userData.userId);
+      if (alreadyJoined) {
+        return;
+      }
+
+      // Agregar participante usando transacción
+      transaction.update(sessionRef, {
+        participants: [...participants, {
+          userId: userData.userId,
+          userName: userData.userName,
+          joinedAt: new Date(),
+          isReady: false
+        }]
+      });
     });
 
     return { success: true };
@@ -98,23 +102,26 @@ export const joinSession = async (sessionId, userData) => {
 export const leaveSession = async (sessionId, userId) => {
   try {
     const sessionRef = doc(db, SESSIONS_COLLECTION, sessionId);
-    const sessionDoc = await getDoc(sessionRef);
 
-    if (!sessionDoc.exists()) {
-      return { success: false, error: 'Sesión no encontrada' };
-    }
+    await runTransaction(db, async (transaction) => {
+      const sessionDoc = await transaction.get(sessionRef);
 
-    const sessionData = sessionDoc.data();
-    const participants = sessionData.participants || [];
-    const participant = participants.find(p => p.userId === userId);
+      if (!sessionDoc.exists()) {
+        throw new Error('Sesión no encontrada');
+      }
 
-    if (!participant) {
-      return { success: true, message: 'No estabas en la sesión' };
-    }
+      const sessionData = sessionDoc.data();
+      const participants = sessionData.participants || [];
 
-    await updateDoc(sessionRef, {
-      participants: arrayRemove(participant),
-      updatedAt: serverTimestamp()
+      // Filtrar al usuario de la lista
+      const newParticipants = participants.filter(p => p.userId !== userId);
+
+      // Solo actualizar si realmente había un participante
+      if (newParticipants.length < participants.length) {
+        transaction.update(sessionRef, {
+          participants: newParticipants
+        });
+      }
     });
 
     return { success: true };
@@ -322,7 +329,7 @@ export const saveTaskEstimate = async (sessionId, estimate) => {
 };
 
 /**
- * Completar la sesión
+ * Completar la sesión (elimina la sesión después de completar)
  * @param {string} sessionId - ID de la sesión
  * @returns {Object} - Resultado de la operación
  */
@@ -330,11 +337,8 @@ export const completeSession = async (sessionId) => {
   try {
     const sessionRef = doc(db, SESSIONS_COLLECTION, sessionId);
 
-    await updateDoc(sessionRef, {
-      status: 'completed',
-      completedAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    });
+    // Eliminar la sesión completamente
+    await deleteDoc(sessionRef);
 
     return { success: true };
   } catch (error) {
@@ -447,6 +451,38 @@ export const getLastActiveSession = async (userId) => {
     return { success: false, session: null };
   } catch (error) {
     console.error('Error al obtener última sesión activa:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Obtener la primera sesión activa disponible (sin importar el usuario)
+ * @returns {Object} - Resultado de la operación con la sesión si existe
+ */
+export const getAnyActiveSession = async () => {
+  try {
+    const q = query(
+      collection(db, SESSIONS_COLLECTION),
+      where('status', 'in', ['waiting', 'voting', 'revealed']),
+      orderBy('createdAt', 'desc')
+    );
+
+    const snapshot = await getDocs(q);
+
+    if (!snapshot.empty) {
+      const doc = snapshot.docs[0];
+      return {
+        success: true,
+        session: {
+          id: doc.id,
+          ...doc.data()
+        }
+      };
+    }
+
+    return { success: false, session: null };
+  } catch (error) {
+    console.error('Error al obtener sesión activa:', error);
     return { success: false, error: error.message };
   }
 };

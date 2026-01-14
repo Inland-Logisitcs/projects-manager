@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { getUserProfile } from '../../services/userService';
 
+// Caché global de perfiles de usuario para evitar recargas innecesarias
+const userProfileCache = new Map();
+
 // Paleta de colores predefinida para avatares
 const AVATAR_COLORS = [
   '#015E7C', // Primary - Azul oscuro
@@ -33,33 +36,35 @@ const stringToColor = (str) => {
   return AVATAR_COLORS[index];
 };
 
-const UserAvatar = ({ userId, size = 24, showName = false, className = '', isOverbooked = false }) => {
+const UserAvatar = ({ userId, userName, size = 24, showName = false, className = '', isOverbooked = false }) => {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!userId) {
-      setLoading(false);
       return;
     }
 
+    // Verificar si el perfil ya está en caché
+    if (userProfileCache.has(userId)) {
+      setUser(userProfileCache.get(userId));
+      return;
+    }
+
+    // Cargar perfil en segundo plano (sin bloquear el render)
     const fetchUser = async () => {
       const result = await getUserProfile(userId);
       if (result.success) {
+        // Guardar en caché
+        userProfileCache.set(userId, result.user);
         setUser(result.user);
       }
-      setLoading(false);
     };
 
     fetchUser();
   }, [userId]);
 
-  if (loading) {
-    return <div className={`avatar ${className}`} style={{ width: size, height: size }} />;
-  }
-
   // Si no hay userId, mostrar avatar "NA" (Not Assigned)
-  if (!userId || !user) {
+  if (!userId) {
     return (
       <div
         className={`avatar ${className}`}
@@ -80,7 +85,8 @@ const UserAvatar = ({ userId, size = 24, showName = false, className = '', isOve
     );
   }
 
-  const displayName = user.displayName || user.email;
+  // Usar el perfil cargado si está disponible, sino usar el userName como fallback
+  const displayName = user?.displayName || user?.email || userName || 'Usuario';
   const initials = displayName
     .split(' ')
     .map(word => word[0])
@@ -88,8 +94,8 @@ const UserAvatar = ({ userId, size = 24, showName = false, className = '', isOve
     .toUpperCase()
     .slice(0, 2);
 
-  // Generar color único basado en el email (más consistente que displayName)
-  const backgroundColor = stringToColor(user.email);
+  // Generar color único basado en el email o userId
+  const backgroundColor = stringToColor(user?.email || userId);
 
   // Estilos adicionales cuando está overbooked
   const overbookedStyles = isOverbooked ? {

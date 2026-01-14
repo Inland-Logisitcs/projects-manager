@@ -16,7 +16,7 @@ import TaskDetailSidebar from '../components/kanban/TaskDetailSidebar';
 import Toast from '../components/common/Toast';
 import CapacityDetailModal from '../components/modals/CapacityDetailModal';
 import TaskSelectionModal from '../components/modals/TaskSelectionModal';
-import { createPlanningPokerSession, getLastActiveSession } from '../services/planningPokerService';
+import { createPlanningPokerSession, getAnyActiveSession, joinSession } from '../services/planningPokerService';
 import { useAuth } from '../contexts/AuthContext';
 import '../styles/Backlog.css';
 
@@ -652,12 +652,26 @@ const Backlog = () => {
 
   // Abrir modal de selección de tareas para Planning Poker
   const handleOpenTaskSelection = async () => {
-    // Verificar si hay una sesión activa para el usuario
-    const result = await getLastActiveSession(user.uid);
+    // Buscar CUALQUIER sesión activa
+    const result = await getAnyActiveSession();
 
     if (result.success && result.session) {
-      // Si hay una sesión activa, navegar directamente a ella
-      navigate(`/planning-poker?session=${result.session.id}`);
+      const session = result.session;
+
+      // Verificar si el usuario ya es parte de la sesión
+      const isModerator = session.moderatorId === user.uid;
+      const isParticipant = session.participants?.some(p => p.userId === user.uid);
+
+      if (!isModerator && !isParticipant) {
+        // Si no es moderador ni participante, unirse automáticamente
+        await joinSession(session.id, {
+          userId: user.uid,
+          userName: userProfile?.displayName || user.email
+        });
+      }
+
+      // Navegar a la sesión
+      navigate(`/planning-poker?session=${session.id}`);
     } else {
       // Si no hay sesión activa, abrir modal para crear una nueva
       setShowTaskSelection(true);
