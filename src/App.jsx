@@ -6,6 +6,7 @@ import Backlog from './pages/Backlog';
 import Projects from './pages/Projects';
 import ArchivedTasks from './pages/ArchivedTasks';
 import Users from './pages/Users';
+import PlanningPoker from './pages/PlanningPoker';
 import MainLayout from './components/layout/MainLayout';
 import ProtectedRoute from './components/routing/ProtectedRoute';
 import AdminRoute from './components/routing/AdminRoute';
@@ -27,6 +28,7 @@ function App() {
           >
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/backlog" element={<Backlog />} />
+            <Route path="/planning-poker" element={<PlanningPoker />} />
             <Route path="/projects" element={<Projects />} />
             <Route path="/archived" element={<ArchivedTasks />} />
             <Route

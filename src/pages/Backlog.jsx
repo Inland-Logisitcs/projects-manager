@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { subscribeToTasks, updateTask, createTask, archiveTask, moveTaskToSprint } from '../services/taskService';
 import { subscribeToSprints, createSprint, startSprint } from '../services/sprintService';
 import { subscribeToColumns } from '../services/columnService';
@@ -14,9 +15,14 @@ import ConfirmDialog from '../components/common/ConfirmDialog';
 import TaskDetailSidebar from '../components/kanban/TaskDetailSidebar';
 import Toast from '../components/common/Toast';
 import CapacityDetailModal from '../components/modals/CapacityDetailModal';
+import TaskSelectionModal from '../components/modals/TaskSelectionModal';
+import { createPlanningPokerSession, getLastActiveSession } from '../services/planningPokerService';
+import { useAuth } from '../contexts/AuthContext';
 import '../styles/Backlog.css';
 
 const Backlog = () => {
+  const navigate = useNavigate();
+  const { user, userProfile } = useAuth();
   const [tasks, setTasks] = useState([]);
   const [sprints, setSprints] = useState([]);
   const [columns, setColumns] = useState([]);
@@ -32,6 +38,7 @@ const Backlog = () => {
   const [toast, setToast] = useState(null);
   const [selectedTaskIds, setSelectedTaskIds] = useState([]);
   const [lastSelectedTaskId, setLastSelectedTaskId] = useState(null);
+  const [showTaskSelection, setShowTaskSelection] = useState(false);
   const newTaskInputRef = useRef(null);
   const autoScrollIntervalRef = useRef(null);
 
@@ -643,6 +650,53 @@ const Backlog = () => {
     });
   };
 
+  // Abrir modal de selección de tareas para Planning Poker
+  const handleOpenTaskSelection = async () => {
+    // Verificar si hay una sesión activa para el usuario
+    const result = await getLastActiveSession(user.uid);
+
+    if (result.success && result.session) {
+      // Si hay una sesión activa, navegar directamente a ella
+      navigate(`/planning-poker?session=${result.session.id}`);
+    } else {
+      // Si no hay sesión activa, abrir modal para crear una nueva
+      setShowTaskSelection(true);
+    }
+  };
+
+  // Confirmar selección e iniciar Planning Poker
+  const handleConfirmTaskSelection = async (selectedTasks, pokerValues) => {
+    setShowTaskSelection(false);
+
+    // Enriquecer con detalles completos de las tareas
+    const taskDetails = selectedTasks.map(t => ({
+      id: t.id,
+      title: t.title || t.name,
+      description: t.description || '',
+      attachments: t.attachments || [],
+      projectId: t.projectId,
+      projectName: getProjectName(t.projectId)
+    }));
+
+    const result = await createPlanningPokerSession({
+      tasks: selectedTasks.map(t => t.id),
+      taskDetails: taskDetails,
+      moderatorId: user.uid,
+      moderatorName: userProfile.displayName || userProfile.email,
+      pokerValues: pokerValues
+    });
+
+    if (result.success) {
+      // Navegar a la página de Planning Poker con el ID de la sesión
+      navigate(`/planning-poker?session=${result.sessionId}`);
+    } else {
+      setToast({
+        message: 'Error al crear sesión de Planning Poker',
+        type: 'error'
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="backlog-page">
@@ -692,6 +746,14 @@ const Backlog = () => {
           <h2 className="heading-1 text-primary">Backlog</h2>
         </div>
         <div className="flex gap-sm">
+          <button
+            className="btn btn-success flex items-center gap-xs"
+            onClick={handleOpenTaskSelection}
+            disabled={backlogTasks.length === 0}
+          >
+            <Icon name="zap" size={18} />
+            Planning Poker
+          </button>
           <button className="btn btn-primary flex items-center gap-xs" onClick={() => setShowSprintModal(true)}>
             <Icon name="plus" size={18} />
             Crear Sprint
@@ -834,6 +896,7 @@ const Backlog = () => {
                     sprint={null}
                     users={users}
                     allTasks={tasks}
+                    onOpenPlanningPoker={null}
                   />
                 ))}
               </tbody>
@@ -872,6 +935,18 @@ const Backlog = () => {
           message={toast.message}
           type={toast.type}
           onClose={() => setToast(null)}
+        />
+      )}
+
+      {/* Task Selection Modal */}
+      {showTaskSelection && (
+        <TaskSelectionModal
+          tasks={backlogTasks.map(t => ({
+            ...t,
+            projectName: getProjectName(t.projectId)
+          }))}
+          onClose={() => setShowTaskSelection(false)}
+          onConfirm={handleConfirmTaskSelection}
         />
       )}
     </div>
@@ -1121,6 +1196,7 @@ const SprintSection = ({ sprint, tasks, users, onDragOver, onDrop, onStartSprint
                     sprint={sprint}
                     users={users}
                     allTasks={tasks}
+                    onOpenPlanningPoker={null}
                   />
                 ))}
               </tbody>
@@ -1142,7 +1218,7 @@ const SprintSection = ({ sprint, tasks, users, onDragOver, onDrop, onStartSprint
 };
 
 // Componente de fila de tarea
-const TaskRow = ({ task, onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop, onArchive, onUpdateTask, onTaskClick, getProjectName, getProjectColor, sprints, onMoveToSprint, currentSprintId, isSelected, onToggleSelection, sprint, users, allTasks }) => {
+const TaskRow = ({ task, onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop, onArchive, onUpdateTask, onTaskClick, getProjectName, getProjectColor, sprints, onMoveToSprint, currentSprintId, isSelected, onToggleSelection, sprint, users, allTasks, onOpenPlanningPoker }) => {
   const [showConfirm, setShowConfirm] = useState(false);
   const [showUserSelect, setShowUserSelect] = useState(false);
   const [showProjectSelect, setShowProjectSelect] = useState(false);
