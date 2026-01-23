@@ -254,6 +254,31 @@
   overflow-y: auto;
 }
 
+/* Mobile task list toggle button */
+.task-list-toggle-mobile {
+  display: none;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm);
+  background-color: var(--color-primary);
+  color: var(--text-inverse);
+  border: none;
+  font-size: var(--font-sm);
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+  justify-content: center;
+  transition: background-color 0.2s ease;
+}
+
+.task-list-toggle-mobile:hover {
+  background-color: var(--color-accent);
+}
+
+.task-list-toggle-mobile:active {
+  transform: scale(0.98);
+}
+
 .planning-poker-main {
   flex: 1;
   overflow: hidden;
@@ -266,6 +291,25 @@
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
+}
+
+/* Scrollbar personalizado para el área scrollable */
+.planning-poker-scrollable::-webkit-scrollbar {
+  width: 8px;
+}
+
+.planning-poker-scrollable::-webkit-scrollbar-track {
+  background: #f3f4f6;
+  border-radius: 4px;
+}
+
+.planning-poker-scrollable::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 4px;
+}
+
+.planning-poker-scrollable::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
 }
 
 /* Task Queue */
@@ -405,7 +449,112 @@
   color: var(--text-tertiary);
 }
 
-/* Task Presentation */
+/* Task Section - Similar a TaskDetailSidebar */
+.poker-task-section {
+  background-color: white;
+  padding: 2rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.poker-task-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #111827;
+  margin: 0;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+}
+
+.poker-section-label {
+  margin-bottom: 1rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.poker-task-description {
+  line-height: 1.6;
+  color: #374151;
+  font-size: 0.9375rem;
+  /* Removido el scroll individual */
+}
+
+/* Rich text formatting in description */
+.poker-task-description h1,
+.poker-task-description h2,
+.poker-task-description h3 {
+  font-weight: 600;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  color: #111827;
+}
+
+.poker-task-description h1 {
+  font-size: 1.5rem;
+}
+
+.poker-task-description h2 {
+  font-size: 1.25rem;
+}
+
+.poker-task-description h3 {
+  font-size: 1.125rem;
+}
+
+.poker-task-description p {
+  margin-bottom: 1rem;
+}
+
+.poker-task-description ul,
+.poker-task-description ol {
+  margin-left: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.poker-task-description li {
+  margin-bottom: 0.5rem;
+}
+
+.poker-task-description a {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+.poker-task-description code {
+  background-color: #f3f4f6;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  font-family: monospace;
+  font-size: 0.875em;
+}
+
+.poker-task-description pre {
+  background-color: #f3f4f6;
+  padding: 1rem;
+  border-radius: 0.375rem;
+  overflow-x: auto;
+  margin-bottom: 1rem;
+}
+
+.poker-task-description blockquote {
+  border-left: 3px solid var(--color-primary);
+  padding-left: 1rem;
+  margin-left: 0;
+  margin-bottom: 1rem;
+  color: #6b7280;
+  font-style: italic;
+}
+
+.poker-task-description img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.375rem;
+  margin: 1rem 0;
+}
+
+/* Task Presentation - Legacy (mantener para compatibilidad) */
 .task-presentation {
   background-color: var(--bg-primary);
   padding: var(--space-lg);
@@ -520,5 +669,577 @@
     border-right: none;
     border-bottom: 1px solid var(--border-light);
     max-height: 200px;
+  }
+}
+
+/* Mobile optimizations */
+@media (max-width: 640px) {
+  /* Header - Make more compact */
+  .planning-poker-header {
+    padding: var(--space-sm);
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+  }
+
+  .planning-poker-header .btn {
+    padding: var(--space-xs) var(--space-sm);
+    font-size: var(--font-sm);
+  }
+
+  .planning-poker-header .btn .btn-text-mobile-hidden {
+    display: none;
+  }
+
+  .planning-poker-header .flex-1 {
+    flex: unset;
+    order: -1;
+    width: 100%;
+    margin-bottom: var(--space-xs);
+  }
+
+  .planning-poker-header h2 {
+    font-size: var(--font-lg);
+  }
+
+  .planning-poker-header p {
+    font-size: var(--font-xs);
+  }
+
+  /* Sidebar - Convertir en modal flotante */
+  .task-list-toggle-mobile {
+    display: flex;
+  }
+
+  .planning-poker-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-height: 100vh;
+    z-index: 1000;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    box-shadow: var(--shadow-xl);
+  }
+
+  .planning-poker-sidebar.show-mobile {
+    transform: translateX(0);
+  }
+
+  /* Poker cards - Más pequeñas */
+  .poker-card {
+    width: 50px;
+    height: 75px;
+    font-size: var(--font-xl);
+  }
+
+  .poker-deck-fixed {
+    padding: var(--space-base) var(--space-sm);
+  }
+
+  .poker-deck-fixed h4 {
+    font-size: var(--font-base);
+    margin-bottom: var(--space-sm);
+  }
+
+  /* Task presentation */
+  .task-presentation {
+    padding: var(--space-base);
+  }
+
+  .task-presentation h4 {
+    font-size: var(--font-base);
+  }
+
+  /* Results section */
+  .results-section {
+    padding: var(--space-base);
+  }
+
+  .results-stats {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-sm);
+  }
+
+  .stat-card {
+    padding: var(--space-sm);
+  }
+
+  .stat-value {
+    font-size: var(--font-xl);
+  }
+
+  .results-section .form-group {
+    margin-top: var(--space-base);
+  }
+
+  .results-section .flex {
+    flex-direction: column;
+    gap: var(--space-xs);
+  }
+
+  .results-section .btn {
+    width: 100%;
+  }
+
+  /* Participants footer */
+  .participants-footer {
+    padding: var(--space-xs) var(--space-sm);
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+  }
+
+  .participants-footer .flex {
+    width: 100%;
+    margin-bottom: var(--space-xs);
+  }
+
+  .participants-compact-list {
+    justify-content: center;
+    gap: var(--space-xs);
+  }
+
+  /* Task queue items */
+  .task-queue-item {
+    padding: var(--space-xs);
+  }
+
+  .task-queue-item span {
+    font-size: var(--font-xs);
+  }
+
+  .task-queue-item .badge {
+    font-size: var(--font-xs);
+    padding: 2px 6px;
+  }
+
+  /* Empty state */
+  .empty-state {
+    padding: var(--space-lg) var(--space-base) !important;
+  }
+
+  .empty-state h4 {
+    font-size: var(--font-base);
+  }
+
+  .empty-state p {
+    font-size: var(--font-sm);
+  }
+
+  /* Consensus message */
+  .consensus-message {
+    padding: var(--space-sm) !important;
+  }
+
+  .consensus-message p {
+    font-size: var(--font-sm);
+  }
+
+  /* Attachments */
+  .task-attachments {
+    margin-top: var(--space-xs);
+  }
+
+  .task-attachments .badge {
+    font-size: var(--font-xs);
+    padding: 4px 8px;
+  }
+
+  /* Scrollable section - let it flex naturally */
+  .planning-poker-scrollable {
+    /* Removed max-height to allow dynamic expansion */
+  }
+
+  /* Show mobile voting button and hide desktop deck */
+  .poker-vote-button-mobile {
+    display: block !important;
+    padding: var(--space-base);
+    border-top: 1px solid var(--border-light);
+    background-color: var(--bg-primary);
+    flex-shrink: 0;
+  }
+
+  .poker-deck-desktop {
+    display: none !important;
+  }
+
+  /* Task section mobile adjustments */
+  .poker-task-section {
+    padding: var(--space-base);
+  }
+
+  .poker-task-title {
+    font-size: var(--font-xl);
+  }
+
+  .poker-task-description {
+    font-size: var(--font-sm);
+  }
+
+  /* Voting Modal adjustments */
+  .voting-card-large {
+    width: 180px;
+    height: 270px;
+    min-width: 180px;
+    min-height: 270px;
+    max-width: 180px;
+    max-height: 270px;
+    font-size: 4rem;
+  }
+
+  .voting-nav-button {
+    width: 50px;
+    height: 50px;
+  }
+
+  .voting-modal-content {
+    padding: var(--space-lg);
+  }
+}
+
+/* Voting Modal for Mobile */
+.voting-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.9);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.3s ease;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.voting-modal-content {
+  width: 100%;
+  max-width: 500px;
+  padding: var(--space-2xl);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2xl);
+  position: relative;
+}
+
+.voting-modal-close {
+  position: absolute;
+  top: var(--space-base);
+  right: var(--space-base);
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: white;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.voting-modal-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.voting-modal-title {
+  color: white;
+  font-size: var(--font-xl);
+  font-weight: 600;
+  margin: 0;
+  text-align: center;
+}
+
+.voting-modal-card-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-lg);
+  width: 100%;
+  position: relative;
+  overflow: visible;
+  padding: 0 var(--space-sm);
+}
+
+.voting-card-large {
+  width: 200px;
+  height: 300px;
+  min-width: 200px;
+  min-height: 300px;
+  max-width: 200px;
+  max-height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: white;
+  border: 4px solid var(--color-primary);
+  border-radius: var(--radius-lg);
+  font-size: 5rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  box-shadow: var(--shadow-xl);
+  flex-shrink: 0;
+  flex-grow: 0;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  transition: all 0.3s ease;
+}
+
+.voting-card-large.locked {
+  border-color: var(--color-success);
+  color: var(--color-success);
+  opacity: 0.9;
+}
+
+@keyframes cardPop {
+  0% {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Slide animations for card navigation */
+@keyframes slideInFromRight {
+  0% {
+    transform: translateX(50%) scale(0.9) rotateY(-15deg);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(0) scale(1) rotateY(0deg);
+    opacity: 1;
+  }
+}
+
+@keyframes slideInFromLeft {
+  0% {
+    transform: translateX(-50%) scale(0.9) rotateY(15deg);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(0) scale(1) rotateY(0deg);
+    opacity: 1;
+  }
+}
+
+/* Apply animations based on navigation direction */
+.voting-card-large.slide-next {
+  animation: slideInFromRight 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.voting-card-large.slide-prev {
+  animation: slideInFromLeft 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.voting-nav-button {
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.voting-nav-button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: scale(1.1);
+}
+
+.voting-nav-button:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.voting-nav-button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.voting-modal-indicator {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: center;
+  justify-content: center;
+}
+
+.voting-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.3);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.voting-dot.active {
+  background-color: white;
+  width: 14px;
+  height: 14px;
+}
+
+.voting-dot:hover {
+  background-color: rgba(255, 255, 255, 0.6);
+}
+
+/* Voting modal waiting badge */
+.voting-waiting-badge {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-base);
+  background-color: rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-lg);
+  color: white;
+  font-size: var(--font-sm);
+  font-weight: 500;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* Voting modal results */
+.voting-modal-results {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-base);
+}
+
+.voting-results-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-sm);
+}
+
+.voting-modal-results .stat-card {
+  background-color: white;
+  border: none;
+}
+
+.voting-modal-results .stat-label {
+  color: var(--text-secondary);
+}
+
+.voting-modal-results .stat-value {
+  color: var(--color-primary);
+}
+
+.voting-results-votes {
+  background-color: white;
+  border-radius: var(--radius-base);
+  padding: var(--space-base);
+  color: var(--text-primary);
+}
+
+.voting-results-votes h4 {
+  color: var(--text-secondary);
+}
+
+.votes-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.vote-item {
+  background-color: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-light);
+}
+
+/* Voting modal action buttons */
+.voting-modal-results .btn {
+  background-color: white;
+  color: var(--text-primary);
+  border: 2px solid var(--border-medium);
+}
+
+.voting-modal-results .btn-primary {
+  background-color: white;
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.voting-modal-results .btn-primary:hover {
+  background-color: var(--color-primary);
+  color: white;
+}
+
+.voting-modal-results .btn-secondary {
+  background-color: white;
+  color: var(--text-secondary);
+  border-color: var(--border-medium);
+}
+
+.voting-modal-results .btn-secondary:hover {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+/* Mobile vote button - Hidden by default (desktop) */
+.poker-vote-button-mobile {
+  display: none;
+}
+
+/* Extra small devices */
+@media (max-width: 375px) {
+  .poker-card {
+    width: 45px;
+    height: 68px;
+    font-size: var(--font-lg);
+  }
+
+  .participants-footer {
+    padding: var(--space-xs);
+  }
+
+  .participant-compact {
+    transform: scale(0.9);
+  }
+
+  .stat-value {
+    font-size: var(--font-lg);
+  }
+
+  .voting-card-large {
+    width: 150px;
+    height: 225px;
+    min-width: 150px;
+    min-height: 225px;
+    max-width: 150px;
+    max-height: 225px;
+    font-size: 3.5rem;
+  }
+
+  .voting-nav-button {
+    width: 45px;
+    height: 45px;
+  }
+
+  .voting-modal-content {
+    padding: var(--space-base);
   }
 }

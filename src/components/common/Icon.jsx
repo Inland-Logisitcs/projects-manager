@@ -53,6 +53,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import RotateLeftIcon from '@mui/icons-material/RotateLeft';
 import RotateRightIcon from '@mui/icons-material/RotateRight';
 import ZoomOutMapIcon from '@mui/icons-material/ZoomOutMap';
+import MenuIcon from '@mui/icons-material/Menu';
 
 const Icon = ({ name, size = 20, className = '' }) => {
   const iconMap = {
@@ -110,7 +111,8 @@ const Icon = ({ name, size = 20, className = '' }) => {
     'eye': VisibilityIcon,
     'rotate-ccw': RotateLeftIcon,
     'rotate-cw': RotateRightIcon,
-    'maximize': ZoomOutMapIcon
+    'maximize': ZoomOutMapIcon,
+    'menu': MenuIcon
   };
 
   const IconComponent = iconMap[name] || FolderIcon;

@@ -63,6 +63,11 @@ const PlanningPoker = () => {
   const [finalEstimate, setFinalEstimate] = useState(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
+  const [showTaskList, setShowTaskList] = useState(false);
+  const [showVotingModal, setShowVotingModal] = useState(false);
+  const [selectedCardIndex, setSelectedCardIndex] = useState(0);
+  const [slideDirection, setSlideDirection] = useState(null);
+  const [isEditingVote, setIsEditingVote] = useState(false);
   const hasJoinedRef = useRef(false);
   const cleanupTimerRef = useRef(null);
 
@@ -226,6 +231,7 @@ const PlanningPoker = () => {
   const handlePresentTask = async (index) => {
     setSelectedValue(null);
     setFinalEstimate('');
+    setShowTaskList(false); // Cerrar sidebar en móvil
     await presentTask(sessionId, index);
   };
 
@@ -242,6 +248,74 @@ const PlanningPoker = () => {
     if (!result.success) {
       setToast({ message: 'Error al registrar voto', type: 'error' });
     }
+  };
+
+  const handleOpenVotingModal = () => {
+    setShowVotingModal(true);
+    setIsEditingVote(false);
+    // Encontrar el índice de la carta ya seleccionada, o empezar en 0
+    const currentIndex = session.pokerValues?.findIndex(v => v === selectedValue) ?? 0;
+    setSelectedCardIndex(currentIndex >= 0 ? currentIndex : 0);
+  };
+
+  const handleConfirmVote = async () => {
+    const selectedValue = session.pokerValues[selectedCardIndex];
+    await handleVote(selectedValue);
+    setIsEditingVote(false);
+    // No cerrar el modal, mantenerlo abierto
+  };
+
+  const handleStartEditingVote = () => {
+    setIsEditingVote(true);
+  };
+
+  const handleNextCard = () => {
+    if (currentUserVote && !isEditingVote) return;
+    if (selectedCardIndex < session.pokerValues.length - 1) {
+      setSlideDirection('next');
+      setTimeout(() => setSlideDirection(null), 300);
+      setSelectedCardIndex((prev) => prev + 1);
+    }
+  };
+
+  const handlePrevCard = () => {
+    if (currentUserVote && !isEditingVote) return;
+    if (selectedCardIndex > 0) {
+      setSlideDirection('prev');
+      setTimeout(() => setSlideDirection(null), 300);
+      setSelectedCardIndex((prev) => prev - 1);
+    }
+  };
+
+  // Soporte para swipe
+  const touchStartRef = useRef(null);
+
+  const handleTouchStart = (e) => {
+    touchStartRef.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = (e) => {
+    if (!touchStartRef.current) return;
+    if (currentUserVote && !isEditingVote) {
+      touchStartRef.current = null;
+      return;
+    }
+
+    const touchEnd = e.changedTouches[0].clientX;
+    const diff = touchStartRef.current - touchEnd;
+
+    // Si deslizó más de 50px
+    if (Math.abs(diff) > 50) {
+      if (diff > 0) {
+        // Deslizó hacia la izquierda -> siguiente
+        handleNextCard();
+      } else {
+        // Deslizó hacia la derecha -> anterior
+        handlePrevCard();
+      }
+    }
+
+    touchStartRef.current = null;
   };
 
   const handleReveal = async () => {
@@ -303,23 +377,29 @@ const PlanningPoker = () => {
     if (!session?.votes || session.votes.length === 0) return null;
 
     const numericVotes = session.votes
-      .filter(v => typeof v.vote === 'number')
-      .map(v => v.vote);
+      .filter(v => v && v.vote !== null && v.vote !== undefined && !isNaN(parseFloat(v.vote)))
+      .map(v => parseFloat(v.vote));
 
     if (numericVotes.length === 0) return null;
 
     const sum = numericVotes.reduce((acc, val) => acc + val, 0);
-    const avg = sum / numericVotes.length;
+    const average = Number((sum / numericVotes.length).toFixed(1));
     const sorted = [...numericVotes].sort((a, b) => a - b);
     const min = sorted[0];
     const max = sorted[sorted.length - 1];
-    const median = sorted.length % 2 === 0
-      ? (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2
-      : sorted[Math.floor(sorted.length / 2)];
+
+    // Calcular la moda (valor más frecuente)
+    const frequency = {};
+    numericVotes.forEach(vote => {
+      frequency[vote] = (frequency[vote] || 0) + 1;
+    });
+    const maxFreq = Math.max(...Object.values(frequency));
+    const modes = Object.keys(frequency).filter(key => frequency[key] === maxFreq);
+    const mode = modes.length > 0 ? modes[0] : numericVotes[0];
 
     const allSame = numericVotes.every(v => v === numericVotes[0]);
 
-    return { avg, min, max, median, allSame };
+    return { average, min, max, mode, allSame };
   };
 
   const stats = session?.status === 'revealed' ? getVoteStats() : null;
@@ -339,13 +419,17 @@ const PlanningPoker = () => {
 
   return (
     <div className="planning-poker-page">
-      {showConfetti && <Confetti width={windowSize.width} height={windowSize.height} recycle={false} numberOfPieces={500} />}
+      {showConfetti && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 9999, pointerEvents: 'none' }}>
+          <Confetti width={windowSize.width} height={windowSize.height} recycle={false} numberOfPieces={500} />
+        </div>
+      )}
 
       {/* Header */}
       <div className="planning-poker-header">
         <button className="btn btn-secondary flex items-center gap-xs" onClick={handleLeaveSession}>
           <Icon name="arrow-left" size={18} />
-          Volver al Backlog
+          <span className="btn-text-mobile-hidden">Volver al Backlog</span>
         </button>
         <div className="flex items-center gap-base flex-1">
           <Icon name="zap" size={24} />
@@ -359,14 +443,23 @@ const PlanningPoker = () => {
         {isModerator && (
           <button className="btn btn-danger flex items-center gap-xs" onClick={handleCancelSession}>
             <Icon name="x" size={18} />
-            Cancelar Sesión
+            <span className="btn-text-mobile-hidden">Cancelar Sesión</span>
           </button>
         )}
       </div>
 
       <div className="planning-poker-content">
+        {/* Toggle button for mobile */}
+        <button
+          className="task-list-toggle-mobile"
+          onClick={() => setShowTaskList(!showTaskList)}
+        >
+          <Icon name={showTaskList ? 'x' : 'list'} size={18} />
+          <span>{showTaskList ? 'Cerrar' : 'Tareas'} ({session.tasks?.length || 0})</span>
+        </button>
+
         {/* Sidebar: Lista de tareas */}
-        <div className="planning-poker-sidebar">
+        <div className={`planning-poker-sidebar ${showTaskList ? 'show-mobile' : ''}`}>
           <div className="flex items-center justify-between mb-base">
             <h4 className="heading-4 text-primary m-0">Tareas ({session.tasks?.length || 0})</h4>
             {isModerator && !currentTask && (
@@ -445,44 +538,45 @@ const PlanningPoker = () => {
             <>
               {/* Área scrollable con información de la tarea */}
               <div className="planning-poker-scrollable">
-                {/* Información de la tarea */}
-                <div className="task-presentation border-b-light">
-                <div className="flex items-center justify-between mb-sm">
-                  <h4 className="heading-3 text-primary m-0">{currentTask.title}</h4>
-                  <span className={`badge ${session.status === 'voting' ? 'badge-success' : session.status === 'revealed' ? 'badge-primary' : 'badge-secondary'} text-xs`}>
-                    {session.status === 'voting' ? 'Votando' : session.status === 'revealed' ? 'Revelado' : 'Esperando'}
-                  </span>
-                </div>
-                {currentTask.description && (
-                  <div className="task-description-wrapper" style={{ maxHeight: '200px', overflowY: 'auto', marginTop: 'var(--space-sm)' }}>
-                    <div
-                      className="text-sm text-secondary"
-                      dangerouslySetInnerHTML={{ __html: currentTask.description }}
-                    />
+                {/* Información de la tarea - Estilo similar a TaskDetailSidebar */}
+                <div className="poker-task-section">
+                  <div className="flex items-center justify-between mb-base">
+                    <h3 className="poker-task-title">{currentTask.title}</h3>
+                    {session.status === 'revealed' && (
+                      <span className="badge badge-primary">Revelado</span>
+                    )}
                   </div>
-                )}
-                {currentTask.attachments && currentTask.attachments.length > 0 && (
-                  <div className="task-attachments">
-                    <p className="text-sm font-semibold text-primary mb-xs">
-                      Archivos adjuntos ({currentTask.attachments.length})
-                    </p>
-                    <div className="flex flex-wrap gap-xs">
-                      {currentTask.attachments.map(att => (
-                        <a
-                          key={att.url}
-                          href={att.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="badge badge-secondary flex items-center gap-xs"
-                        >
-                          <Icon name="paperclip" size={12} />
-                          {att.name}
-                        </a>
-                      ))}
+                  {currentTask.description && (
+                    <div>
+                      <h4 className="poker-section-label">Descripción</h4>
+                      <div
+                        className="poker-task-description"
+                        dangerouslySetInnerHTML={{ __html: currentTask.description }}
+                      />
                     </div>
-                  </div>
-                )}
-              </div>
+                  )}
+                  {currentTask.attachments && currentTask.attachments.length > 0 && (
+                    <div className="mt-base">
+                      <h4 className="poker-section-label">
+                        Archivos adjuntos ({currentTask.attachments.length})
+                      </h4>
+                      <div className="flex flex-wrap gap-xs">
+                        {currentTask.attachments.map(att => (
+                          <a
+                            key={att.url}
+                            href={att.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="badge badge-secondary flex items-center gap-xs"
+                          >
+                            <Icon name="paperclip" size={12} />
+                            {att.name}
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 {/* Resultados */}
                 {session.status === 'revealed' && stats && (
@@ -497,11 +591,11 @@ const PlanningPoker = () => {
                     <div className="results-stats mb-base">
                       <div className="stat-card">
                         <span className="stat-label">Promedio</span>
-                        <span className="stat-value">{stats.avg.toFixed(1)}</span>
+                        <span className="stat-value">{stats.average}</span>
                       </div>
                       <div className="stat-card">
-                        <span className="stat-label">Mediana</span>
-                        <span className="stat-value">{stats.median}</span>
+                        <span className="stat-label">Moda</span>
+                        <span className="stat-value">{stats.mode}</span>
                       </div>
                       <div className="stat-card">
                         <span className="stat-label">Mínimo</span>
@@ -548,9 +642,9 @@ const PlanningPoker = () => {
                 )}
               </div>
 
-              {/* Mazo de cartas - FIJO arriba del footer */}
+              {/* Mazo de cartas - FIJO arriba del footer (DESKTOP) */}
               {session.status === 'voting' && (
-                <div className="poker-deck-fixed">
+                <div className="poker-deck-fixed poker-deck-desktop">
                   <h4 className="heading-4 text-primary mb-base">Selecciona tu estimación</h4>
                   <div className="poker-cards-grid">
                     {(session.pokerValues || []).map(value => (
@@ -582,6 +676,33 @@ const PlanningPoker = () => {
                     <div className="text-center mt-sm">
                       <span className="badge badge-success">Todos votaron - Esperando revelación</span>
                     </div>
+                  )}
+                </div>
+              )}
+
+              {/* Botón de votar para MÓVIL */}
+              {session.status === 'voting' && (
+                <div className="poker-vote-button-mobile">
+                  {isModerator ? (
+                    <div className="flex gap-xs">
+                      <button className="btn btn-primary btn-lg flex-1" onClick={handleOpenVotingModal}>
+                        <Icon name="credit-card" size={20} />
+                        {currentUserVote ? `Cambiar (${currentUserVote.vote})` : 'Votar'}
+                      </button>
+                      <button
+                        className="btn btn-secondary btn-lg"
+                        onClick={handleReveal}
+                        disabled={(session.votes?.length || 0) === 0}
+                      >
+                        <Icon name="eye" size={16} />
+                        Revelar ({session.votes?.length || 0})
+                      </button>
+                    </div>
+                  ) : (
+                    <button className="btn btn-primary btn-lg w-full" onClick={handleOpenVotingModal}>
+                      <Icon name="credit-card" size={20} />
+                      {currentUserVote ? `Cambiar voto (${currentUserVote.vote})` : 'Votar'}
+                    </button>
                   )}
                 </div>
               )}
@@ -639,6 +760,141 @@ const PlanningPoker = () => {
           type={toast.type}
           onClose={() => setToast(null)}
         />
+      )}
+
+      {/* Modal de votación para móvil */}
+      {showVotingModal && session.pokerValues && (
+        <div className="voting-modal-overlay" onClick={() => setShowVotingModal(false)}>
+          <div className="voting-modal-content" onClick={(e) => e.stopPropagation()}>
+            <button className="voting-modal-close" onClick={() => setShowVotingModal(false)}>
+              <Icon name="x" size={24} />
+            </button>
+
+            {session.status === 'voting' && (
+              <>
+                <h3 className="voting-modal-title">
+                  {currentUserVote && !isEditingVote ? `Tu voto: ${currentUserVote.vote}` : 'Selecciona tu estimación'}
+                </h3>
+
+                {currentUserVote && !isEditingVote && (
+                  <div className="voting-waiting-badge">
+                    <Icon name="clock" size={16} />
+                    <span>Esperando... ({session.votes?.length || 0}/{session.participants?.length || 0})</span>
+                  </div>
+                )}
+
+                <div className="voting-modal-card-container">
+                  <button
+                    className="voting-nav-button voting-nav-left"
+                    onClick={handlePrevCard}
+                    disabled={selectedCardIndex === 0 || (currentUserVote && !isEditingVote)}
+                  >
+                    <Icon name="chevron-left" size={32} />
+                  </button>
+
+                  <div
+                    className={`voting-card-large ${currentUserVote && !isEditingVote ? 'locked' : ''} ${slideDirection === 'next' ? 'slide-next' : slideDirection === 'prev' ? 'slide-prev' : ''}`}
+                    onTouchStart={handleTouchStart}
+                    onTouchEnd={handleTouchEnd}
+                    key={selectedCardIndex}
+                  >
+                    {currentUserVote && !isEditingVote ? currentUserVote.vote : session.pokerValues[selectedCardIndex]}
+                  </div>
+
+                  <button
+                    className="voting-nav-button voting-nav-right"
+                    onClick={handleNextCard}
+                    disabled={selectedCardIndex === session.pokerValues.length - 1 || (currentUserVote && !isEditingVote)}
+                  >
+                    <Icon name="chevron-right" size={32} />
+                  </button>
+                </div>
+
+                {(!currentUserVote || isEditingVote) && (
+                  <div className="voting-modal-indicator">
+                    {session.pokerValues.map((value, index) => (
+                      <span
+                        key={value}
+                        className={`voting-dot ${index === selectedCardIndex ? 'active' : ''}`}
+                        onClick={() => setSelectedCardIndex(index)}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {currentUserVote && !isEditingVote ? (
+                  <button className="btn btn-primary btn-lg w-full" onClick={handleStartEditingVote}>
+                    <Icon name="edit" size={20} />
+                    Cambiar voto
+                  </button>
+                ) : (
+                  <button className="btn btn-success btn-lg w-full" onClick={handleConfirmVote}>
+                    <Icon name="check" size={20} />
+                    Confirmar voto: {session.pokerValues[selectedCardIndex]}
+                  </button>
+                )}
+              </>
+            )}
+
+            {session.status === 'revealed' && stats && (
+              <div className="voting-modal-results">
+                <h3 className="voting-modal-title mb-base">Resultados</h3>
+
+                {stats.allSame && (
+                  <div className="consensus-message text-center mb-base p-base" style={{ backgroundColor: 'var(--color-success)', color: 'white', borderRadius: 'var(--radius-base)' }}>
+                    <Icon name="check-circle" size={24} />
+                    <p className="text-base font-bold m-0">¡Consenso alcanzado!</p>
+                    <p className="text-lg font-bold m-0 mt-xs">{stats.mode}</p>
+                  </div>
+                )}
+
+                <div className="voting-results-stats">
+                  <div className="stat-card">
+                    <span className="stat-label">Promedio</span>
+                    <span className="stat-value">{stats.average}</span>
+                  </div>
+                  <div className="stat-card">
+                    <span className="stat-label">Moda</span>
+                    <span className="stat-value">{stats.mode}</span>
+                  </div>
+                  <div className="stat-card">
+                    <span className="stat-label">Mínimo</span>
+                    <span className="stat-value">{stats.min}</span>
+                  </div>
+                  <div className="stat-card">
+                    <span className="stat-label">Máximo</span>
+                    <span className="stat-value">{stats.max}</span>
+                  </div>
+                </div>
+
+                <div className="voting-results-votes">
+                  <h4 className="text-sm text-secondary font-medium mb-sm">Votos individuales</h4>
+                  <div className="votes-list">
+                    {session.votes?.map(vote => (
+                      <div key={vote.userId} className="vote-item flex items-center justify-between p-sm">
+                        <span className="text-base">{vote.userName}</span>
+                        <span className="badge badge-primary">{vote.vote}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {isModerator && (
+                  <div className="flex flex-col gap-xs mt-base">
+                    <button className="btn btn-primary btn-lg w-full" onClick={() => setShowVotingModal(false)}>
+                      <Icon name="check" size={20} />
+                      Cerrar
+                    </button>
+                    <button className="btn btn-secondary btn-lg w-full" onClick={handleRestartVoting}>
+                      <Icon name="refresh-cw" size={20} />
+                      Votar de nuevo
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

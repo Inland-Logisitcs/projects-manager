@@ -25,7 +25,30 @@
   top: 0;
   z-index: 50;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  min-height: 73px;
+  min-height: 64px;
+  height: 64px;
+}
+
+.header-title {
+  font-size: 1.25rem;
+}
+
+/* Mobile menu button - hidden on desktop */
+.mobile-menu-button {
+  display: none;
+}
+
+/* Mobile backdrop overlay */
+.mobile-backdrop {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 90;
+  animation: fadeIn 0.2s ease;
 }
 
 .user-menu {
@@ -85,7 +108,17 @@
   max-width: 100%;
 }
 
-@media (max-width: 768px) {
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Tablet and mobile styles */
+@media (max-width: 1024px) {
   .main-content {
     margin-left: 0;
   }
@@ -94,15 +127,53 @@
     margin-left: 0;
   }
 
+  .main-header {
+    min-height: 56px;
+    height: 56px;
+    padding-left: var(--space-sm);
+    padding-right: var(--space-sm);
+  }
+
+  .mobile-menu-button {
+    display: flex;
+  }
+
+  .mobile-backdrop {
+    display: block;
+  }
+
   .user-email {
     display: none;
+  }
+
+  .header-title {
+    font-size: 1.125rem;
+  }
+
+  .user-button {
+    padding: 0.5rem;
+    border: none;
+  }
+
+  .user-button:hover {
+    background-color: transparent;
+  }
+}
+
+/* Mobile-specific adjustments */
+@media (max-width: 640px) {
+  .main-header {
+    min-height: 52px;
+    height: 52px;
   }
 
   .header-title {
     font-size: 1rem;
   }
 
-  .main-container {
-    padding: 1rem;
+  .avatar-sm {
+    width: 32px;
+    height: 32px;
+    font-size: 0.875rem;
   }
 }

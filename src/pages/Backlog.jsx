@@ -755,22 +755,27 @@ const Backlog = () => {
       {renderBulkActionsBar()}
 
       {/* Header */}
-      <div className="backlog-header flex justify-between items-center mb-md pb-base">
-        <div className="flex items-center gap-base">
-          <h2 className="heading-1 text-primary">Backlog</h2>
+      <div className="backlog-header mb-md pb-base">
+        <div className="backlog-header-title">
+          <h2 className="heading-1 text-primary m-0">Backlog</h2>
         </div>
-        <div className="flex gap-sm">
+        <div className="backlog-header-actions">
           <button
-            className="btn btn-success flex items-center gap-xs"
+            className="btn btn-planning-poker flex items-center gap-xs"
             onClick={handleOpenTaskSelection}
             disabled={backlogTasks.length === 0}
           >
             <Icon name="zap" size={18} />
-            Planning Poker
+            <span className="btn-text-desktop">Planning Poker</span>
+            <span className="btn-text-mobile">Poker</span>
           </button>
-          <button className="btn btn-primary flex items-center gap-xs" onClick={() => setShowSprintModal(true)}>
+          <button
+            className="btn btn-create-sprint flex items-center gap-xs"
+            onClick={() => setShowSprintModal(true)}
+          >
             <Icon name="plus" size={18} />
-            Crear Sprint
+            <span className="btn-text-desktop">Crear Sprint</span>
+            <span className="btn-text-mobile">Sprint</span>
           </button>
         </div>
       </div>
@@ -840,6 +845,8 @@ const Backlog = () => {
               </button>
             </div>
           ) : (
+            <>
+            {/* Desktop table view */}
             <table>
               <thead>
                 <tr>
@@ -915,6 +922,31 @@ const Backlog = () => {
                 ))}
               </tbody>
             </table>
+
+            {/* Mobile card view */}
+            <div className="tasks-cards-mobile">
+              {backlogTasks.map(task => (
+                <TaskCardMobile
+                  key={task.id}
+                  task={task}
+                  onDragStart={handleDragStart}
+                  onDragEnd={handleDragEnd}
+                  onArchive={archiveTask}
+                  onUpdateTask={updateTask}
+                  onTaskClick={setSelectedTask}
+                  getProjectName={getProjectName}
+                  getProjectColor={getProjectColor}
+                  sprints={activeSprints}
+                  onMoveToSprint={moveTaskToSprint}
+                  isSelected={selectedTaskIds.includes(task.id)}
+                  onToggleSelection={handleToggleTaskSelection}
+                  sprint={null}
+                  users={users}
+                  allTasks={tasks}
+                />
+              ))}
+            </div>
+            </>
           )}
         </div>
       </div>
@@ -1139,6 +1171,8 @@ const SprintSection = ({ sprint, tasks, users, onDragOver, onDrop, onStartSprint
               </button>
             </div>
           ) : (
+            <>
+            {/* Desktop table view */}
             <table>
               <thead>
                 <tr>
@@ -1215,6 +1249,31 @@ const SprintSection = ({ sprint, tasks, users, onDragOver, onDrop, onStartSprint
                 ))}
               </tbody>
             </table>
+
+            {/* Mobile card view */}
+            <div className="tasks-cards-mobile">
+              {tasks.map(task => (
+                <TaskCardMobile
+                  key={task.id}
+                  task={task}
+                  onDragStart={(e) => onDragStart(e, task)}
+                  onDragEnd={onDragEnd}
+                  onArchive={archiveTask}
+                  onUpdateTask={onUpdateTask}
+                  onTaskClick={onTaskClick}
+                  getProjectName={getProjectName}
+                  getProjectColor={getProjectColor}
+                  sprints={sprints}
+                  onMoveToSprint={onMoveToSprint}
+                  isSelected={selectedTaskIds.includes(task.id)}
+                  onToggleSelection={onToggleTaskSelection}
+                  sprint={sprint}
+                  users={users}
+                  allTasks={tasks}
+                />
+              ))}
+            </div>
+            </>
           )}
         </div>
       )}
@@ -1227,6 +1286,174 @@ const SprintSection = ({ sprint, tasks, users, onDragOver, onDrop, onStartSprint
         users={users}
         tasks={tasks}
       />
+    </div>
+  );
+};
+
+// Componente de tarjeta móvil para tareas
+const TaskCardMobile = ({ task, onDragStart, onDragEnd, onArchive, onUpdateTask, onTaskClick, getProjectName, getProjectColor, sprints, onMoveToSprint, isSelected, onToggleSelection, sprint, users, allTasks }) => {
+  const [showActionsMenu, setShowActionsMenu] = useState(false);
+  const actionsMenuRef = useRef(null);
+
+  // Cerrar menú de acciones al hacer click fuera
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (actionsMenuRef.current && !actionsMenuRef.current.contains(event.target)) {
+        setShowActionsMenu(false);
+      }
+    };
+
+    if (showActionsMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [showActionsMenu]);
+
+  const handleMoveToBacklog = async () => {
+    await onMoveToSprint(task.id, null, false);
+    setShowActionsMenu(false);
+  };
+
+  const handleMoveToSprint = async (sprintId) => {
+    const sprint = sprints?.find(s => s.id === sprintId);
+    const isSprintActive = sprint?.status === 'active';
+    await onMoveToSprint(task.id, sprintId, isSprintActive);
+    setShowActionsMenu(false);
+  };
+
+  const handleArchive = () => {
+    onArchive(task.id);
+    setShowActionsMenu(false);
+  };
+
+  return (
+    <div
+      className={`task-card-mobile ${isSelected ? 'selected' : ''}`}
+      draggable
+      onDragStart={(e) => onDragStart(e, task)}
+      onDragEnd={onDragEnd}
+    >
+      <div className="task-card-header">
+        <div className="task-card-checkbox">
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={(e) => {
+              e.stopPropagation();
+              onToggleSelection(task.id, e);
+            }}
+            className="task-checkbox"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+        <div
+          className="task-card-title"
+          onClick={() => onTaskClick(task)}
+        >
+          {task.title || task.name}
+        </div>
+        <div className="task-card-drag-handle">
+          <Icon name="grip-vertical" size={18} />
+        </div>
+        <div className="task-card-actions" ref={actionsMenuRef}>
+          <button
+            className="btn-icon"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowActionsMenu(!showActionsMenu);
+            }}
+          >
+            <Icon name="more-vertical" size={18} />
+          </button>
+          {showActionsMenu && (
+            <div className="actions-menu">
+              {/* Opciones de mover a sprint (solo si está en backlog) */}
+              {!task.sprintId && sprints && sprints.length > 0 && (
+                <>
+                  <div className="actions-menu-header">Mover a sprint</div>
+                  {sprints.map(sprint => (
+                    <button
+                      key={sprint.id}
+                      className="actions-menu-item"
+                      onClick={() => handleMoveToSprint(sprint.id)}
+                    >
+                      <Icon name="zap" size={14} />
+                      <span>{sprint.name}</span>
+                    </button>
+                  ))}
+                  <div className="actions-menu-divider"></div>
+                </>
+              )}
+
+              {/* Opción de mover a backlog (solo si está en un sprint) */}
+              {task.sprintId && (
+                <>
+                  <button
+                    className="actions-menu-item"
+                    onClick={handleMoveToBacklog}
+                  >
+                    <Icon name="list" size={14} />
+                    <span>Mover a Backlog</span>
+                  </button>
+                  <div className="actions-menu-divider"></div>
+                </>
+              )}
+
+              {/* Opción de archivar */}
+              <button
+                className="actions-menu-item danger"
+                onClick={handleArchive}
+              >
+                <Icon name="archive" size={14} />
+                <span>Archivar</span>
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="task-card-meta">
+        {task.projectId && (
+          <div
+            className="task-card-meta-item"
+            style={{
+              backgroundColor: `${getProjectColor(task.projectId)}15`,
+              border: `1px solid ${getProjectColor(task.projectId)}40`,
+              color: getProjectColor(task.projectId),
+              padding: '0.125rem 0.5rem',
+              borderRadius: '4px',
+              fontWeight: 500,
+              fontSize: '0.75rem'
+            }}
+          >
+            <Icon name="folder" size={12} />
+            <span>{getProjectName(task.projectId)}</span>
+          </div>
+        )}
+        {task.storyPoints && (
+          <div className="task-card-meta-item">
+            <Icon name="zap" size={12} />
+            <span>{task.storyPoints} pts</span>
+          </div>
+        )}
+        {task.status && (
+          <span className={`status-badge ${task.status}`}>
+            {task.status}
+          </span>
+        )}
+        {task.assignedTo && (
+          <div className="task-card-meta-item">
+            <UserAvatar
+              userId={task.assignedTo}
+              size={24}
+              showName={false}
+              isOverbooked={task.assignedTo && sprint ? isUserOverbooked(task.assignedTo, sprint, allTasks || [], users || []) : false}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 };

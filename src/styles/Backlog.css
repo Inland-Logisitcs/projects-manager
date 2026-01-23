@@ -41,7 +41,83 @@
 }
 
 .backlog-header {
-  padding-bottom: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-md);
+  padding-bottom: var(--space-base);
+  gap: var(--space-base);
+}
+
+.backlog-header-title {
+  flex: 1;
+}
+
+.backlog-header-actions {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* Planning Poker button styling - Minimal outline design */
+.btn.btn-planning-poker {
+  background: transparent !important;
+  color: #10B981 !important;
+  border: 1.5px solid #10B981 !important;
+  font-weight: 500;
+  box-shadow: none !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+}
+
+.btn.btn-planning-poker:hover:not(:disabled) {
+  background: rgba(16, 185, 129, 0.1) !important;
+  border-color: #059669 !important;
+  color: #059669 !important;
+}
+
+.btn.btn-planning-poker:active:not(:disabled) {
+  background: rgba(16, 185, 129, 0.15) !important;
+}
+
+.btn.btn-planning-poker:disabled {
+  border-color: var(--border-light) !important;
+  color: var(--text-tertiary) !important;
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* Create Sprint button - Minimal outline design */
+.btn.btn-create-sprint {
+  background: transparent !important;
+  color: var(--primary-color) !important;
+  border: 1.5px solid var(--primary-color) !important;
+  font-weight: 500;
+  box-shadow: none !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+}
+
+.btn.btn-create-sprint:hover {
+  background: rgba(1, 94, 124, 0.1) !important;
+  border-color: #014F66 !important;
+  color: #014F66 !important;
+}
+
+.btn.btn-create-sprint:active {
+  background: rgba(1, 94, 124, 0.15) !important;
+}
+
+/* Button text for desktop */
+.btn-text-desktop {
+  display: inline;
+}
+
+.btn-text-mobile {
+  display: none;
 }
 
 .task-count {
@@ -254,23 +330,330 @@ th {
   grid-template-columns: 1fr 1fr;
 }
 
+/* Mobile Task Cards */
+.tasks-cards-mobile {
+  display: none; /* Hidden by default, shown on mobile */
+}
+
+.task-card-mobile {
+  background-color: white;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  padding: var(--space-base);
+  margin-bottom: var(--space-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  touch-action: manipulation;
+}
+
+.task-card-mobile:hover {
+  border-color: var(--accent-color);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.task-card-mobile:active {
+  transform: scale(0.98);
+}
+
+.task-card-mobile.selected {
+  background-color: rgba(1, 94, 124, 0.06);
+  border-color: var(--primary-color);
+}
+
+.task-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+
+.task-card-checkbox {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.task-card-title {
+  flex: 1;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  min-width: 0;
+}
+
+.task-card-actions {
+  flex-shrink: 0;
+}
+
+.task-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  align-items: center;
+  margin-top: var(--space-sm);
+}
+
+.task-card-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.task-card-drag-handle {
+  opacity: 0.4;
+  cursor: grab;
+  touch-action: none;
+}
+
+.task-card-drag-handle:active {
+  cursor: grabbing;
+}
+
 /* Responsive */
+@media (max-width: 1024px) {
+  .backlog-page {
+    padding: var(--space-base);
+  }
+
+  .backlog-header {
+    gap: var(--space-base);
+  }
+
+  .backlog-header-title {
+    flex: 1;
+  }
+
+  .backlog-header-actions {
+    flex-shrink: 0;
+  }
+
+  /* Bulk actions bar adjustments */
+  .bulk-actions-bar {
+    bottom: 1rem;
+    left: var(--space-sm);
+    right: var(--space-sm);
+    transform: none;
+    max-width: none;
+    border-radius: 8px;
+  }
+
+  .bulk-actions-content {
+    flex-direction: column;
+    gap: var(--space-base);
+    padding: var(--space-base);
+  }
+
+  .bulk-actions-left,
+  .bulk-actions-right {
+    width: 100%;
+  }
+
+  .bulk-actions-right {
+    flex-wrap: wrap;
+  }
+
+  .bulk-actions-count {
+    font-size: 0.8125rem;
+  }
+
+  /* Sprint section header responsive */
+  .section-header {
+    flex-wrap: wrap;
+    padding: var(--space-base) !important;
+  }
+
+  .section-header > div:first-child {
+    width: 100%;
+    margin-bottom: var(--space-sm);
+  }
+
+  .section-header .flex-1 {
+    flex-wrap: wrap;
+    row-gap: var(--space-xs);
+  }
+}
+
 @media (max-width: 768px) {
   .backlog-page {
-    padding: 1rem;
+    padding: var(--space-base);
   }
 
   .form-row {
     grid-template-columns: 1fr;
   }
 
-  table {
-    font-size: 0.85rem;
+  /* Hide table, show cards on mobile */
+  .tasks-table table,
+  .sprint-tasks table {
+    display: none;
   }
 
-  th,
-  .task-row td {
-    padding: 0.5rem;
+  .tasks-cards-mobile {
+    display: block;
+  }
+
+  /* Adjust header spacing */
+  .backlog-header {
+    margin-bottom: var(--space-base);
+    padding-bottom: var(--space-sm);
+    padding-left: var(--space-xs);
+    padding-right: var(--space-xs);
+  }
+
+  .backlog-header h2 {
+    font-size: 1.5rem;
+  }
+
+  /* Button responsive behavior - modern icon-only buttons */
+  .btn-text-desktop,
+  .btn-text-mobile {
+    display: none;
+  }
+
+  .btn-planning-poker,
+  .btn-create-sprint {
+    min-width: 40px;
+    min-height: 40px;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    justify-content: center;
+    border-radius: 8px;
+  }
+
+  .btn-planning-poker span,
+  .btn-create-sprint span {
+    display: none;
+  }
+
+  /* Icon size in mobile */
+  .btn-planning-poker svg,
+  .btn-create-sprint svg {
+    font-size: 20px;
+  }
+
+  /* Sprint section adjustments */
+  .count-badge {
+    font-size: 0.6875rem;
+    padding: 0.1875rem 0.4rem;
+  }
+
+  .status-badge {
+    font-size: 0.5625rem;
+    padding: 0.125rem 0.3rem;
+  }
+
+  /* Capacity indicator on mobile */
+  .capacity-indicator {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+  }
+
+  .capacity-bar {
+    width: 40px;
+    height: 4px;
+  }
+
+  /* Empty states */
+  .empty-state,
+  .empty-sprint {
+    padding: var(--space-lg) !important;
+  }
+
+  .empty-state p,
+  .empty-sprint p {
+    font-size: 0.875rem;
+  }
+
+  /* Inline create on mobile */
+  .inline-create-row {
+    display: none; /* Hide inline creation row on mobile */
+  }
+
+  /* Hide "Crear tarea rápida" button text on mobile */
+  .section-header .btn[data-tooltip="Crear tarea rápida"] span {
+    display: none;
+  }
+
+  /* Dropdown adjustments for mobile */
+  .user-select-dropdown-backlog,
+  .actions-menu,
+  .bulk-dropdown {
+    max-height: 60vh;
+    overflow-y: auto;
+  }
+
+  /* Make modals more mobile-friendly */
+  .modal-content {
+    max-height: 90vh;
+    overflow-y: auto;
+    margin: var(--space-base);
+    max-width: calc(100vw - 2rem);
+  }
+}
+
+@media (max-width: 640px) {
+  .backlog-page {
+    padding: var(--space-sm);
+  }
+
+  .backlog-header {
+    margin-bottom: var(--space-sm);
+    padding-left: var(--space-xs);
+    padding-right: var(--space-xs);
+  }
+
+  .backlog-header h2 {
+    font-size: 1.25rem;
+  }
+
+  /* Slightly smaller buttons on very small screens */
+  .btn-planning-poker,
+  .btn-create-sprint {
+    min-width: 36px;
+    min-height: 36px;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+  }
+
+  .btn-planning-poker svg,
+  .btn-create-sprint svg {
+    font-size: 18px;
+  }
+
+  /* Smaller buttons */
+  .btn-sm {
+    font-size: 0.8125rem;
+    padding: 0.375rem 0.75rem;
+  }
+
+  /* Task cards tighter spacing */
+  .task-card-mobile {
+    padding: var(--space-sm);
+  }
+
+  .task-card-title {
+    font-size: 0.875rem;
+  }
+
+  .task-card-meta {
+    gap: 0.375rem;
+  }
+
+  .task-card-meta-item {
+    font-size: 0.75rem;
+  }
+
+  /* Sprint section more compact */
+  .section-header {
+    padding: var(--space-sm) !important;
+  }
+
+  .section-header .heading-3 {
+    font-size: 1rem;
   }
 }
 
@@ -397,6 +780,13 @@ th {
 
 /* Actions Menu */
 .task-actions {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.task-card-actions {
   position: relative;
   display: flex;
   align-items: center;

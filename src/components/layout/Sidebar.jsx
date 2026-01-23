@@ -4,7 +4,7 @@ import logo from '../../assets/images/logo.svg';
 import Icon from '../common/Icon';
 import '../../styles/Sidebar.css';
 
-const Sidebar = ({ collapsed, onToggle }) => {
+const Sidebar = ({ collapsed, mobileOpen, onToggle, onMobileClose }) => {
   const location = useLocation();
   const { isAdmin } = useAuth();
 
@@ -53,15 +53,35 @@ const Sidebar = ({ collapsed, onToggle }) => {
     return location.pathname === path;
   };
 
+  const handleLinkClick = () => {
+    // Close mobile menu when a link is clicked
+    if (onMobileClose) {
+      onMobileClose();
+    }
+  };
+
   return (
-    <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
+    <aside className={`sidebar ${collapsed ? 'collapsed' : ''} ${mobileOpen ? 'mobile-open' : ''}`}>
       <div className="sidebar-header flex items-center justify-between p-base">
         <div className="sidebar-logo flex items-center gap-sm">
           <img src={logo} alt="Sync Projects" className="sidebar-logo-img" />
           {!collapsed && <span className="font-bold text-lg text-primary">Sync Projects</span>}
         </div>
-        <button className="sidebar-toggle flex items-center justify-center" onClick={onToggle}>
-          {collapsed ? '▶' : '◀'}
+
+        {/* Toggle/Close button - collapse on desktop, close on mobile */}
+        <button
+          className="sidebar-toggle flex items-center justify-center"
+          onClick={() => {
+            // On mobile, close the menu. On desktop, toggle collapse
+            if (window.innerWidth <= 768) {
+              onMobileClose();
+            } else {
+              onToggle();
+            }
+          }}
+          aria-label={window.innerWidth <= 768 ? "Close menu" : "Toggle sidebar"}
+        >
+          <Icon name="x" size={24} />
         </button>
       </div>
 
@@ -72,6 +92,7 @@ const Sidebar = ({ collapsed, onToggle }) => {
             to={item.path}
             className={`sidebar-item flex items-center gap-sm ${isActive(item.path) ? 'active' : ''}`}
             title={collapsed ? item.label : ''}
+            onClick={handleLinkClick}
           >
             <span className="sidebar-icon">
               <Icon name={item.icon} size={22} />
