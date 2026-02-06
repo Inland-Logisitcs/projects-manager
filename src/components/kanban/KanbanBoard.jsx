@@ -409,16 +409,16 @@ const KanbanBoard = ({ activeSprintId = null }) => {
       )}
 
       <div className="kanban-board">
-        <div className="kanban-header flex justify-between items-center pb-lg border-b-light">
-          <div className="kanban-stats flex gap-lg">
-            <span className="stat text-sm text-secondary">
-              <strong className="text-primary">{tasks.length}</strong> tareas totales
+        <div className="kanban-header">
+          <div className="kanban-stats">
+            <span className="stat">
+              <strong>{tasks.length}</strong> tareas totales
             </span>
-            <span className="stat text-sm text-secondary">
-              <strong className="text-primary">{tasks.filter(t => t.status === 'completed').length}</strong> completadas
+            <span className="stat">
+              <strong>{tasks.filter(t => t.status === 'completed').length}</strong> completadas
             </span>
-            <span className="stat text-sm text-secondary">
-              <strong className="text-primary">
+            <span className="stat">
+              <strong>
                 {tasks.filter(t => t.status === 'completed').reduce((sum, task) => sum + (task.storyPoints || 0), 0)}/
                 {tasks.reduce((sum, task) => sum + (task.storyPoints || 0), 0)}
               </strong> story points
@@ -430,7 +430,7 @@ const KanbanBoard = ({ activeSprintId = null }) => {
             data-tooltip="Gestionar columnas"
           >
             <Icon name="settings" size={18} />
-            <span>Gestionar Columnas</span>
+            <span className="kanban-header-btn-text">Gestionar Columnas</span>
           </button>
         </div>
 

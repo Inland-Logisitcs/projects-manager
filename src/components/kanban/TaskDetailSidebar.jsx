@@ -127,12 +127,14 @@ const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose }) => {
 
   // Obtener el nombre de la columna por su ID
   const getColumnName = (columnId) => {
+    if (!columns || columns.length === 0) return columnId;
     const column = columns.find(c => c.id === columnId);
     return column ? column.title : columnId;
   };
 
   // Obtener el color de la columna por su ID
   const getColumnColor = (columnId) => {
+    if (!columns || columns.length === 0) return '#3b82f6';
     const column = columns.find(c => c.id === columnId);
     return column ? column.color : '#3b82f6';
   };

@@ -24,8 +24,8 @@ const Sidebar = ({ collapsed, mobileOpen, onToggle, onMobileClose }) => {
     {
       id: 'projects',
       path: '/projects',
-      icon: 'timeline',
-      label: 'Cronograma'
+      icon: 'folder',
+      label: 'Proyectos'
     },
     {
       id: 'archived',
