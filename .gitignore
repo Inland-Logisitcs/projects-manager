@@ -43,3 +43,38 @@ firestore.rules
 SETUP.md
 
 SYNC_PROJECTS_DB_RULES.md
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
+.playwright-mcp/
+playwright.config.ts
+tests/
+
+# Screenshots and debug images
+*.png
+*.jpg
+*.jpeg
+
+# Documentation and notes (temporary/debug files)
+*.md
+!README.md
+!CLAUDE.md
+
+# Debug output files
+console-*.txt
+*.log.txt
+
+# Firebase config
+.firebaserc
+firebase.json
+functions/
+
+# Temporary scripts
+check-sp.cjs
+
+# Word documents
+*.docx
