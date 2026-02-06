@@ -12,6 +12,34 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - For confirmations: Use the [ConfirmDialog](src/components/ConfirmDialog.jsx) component
   - For user input: Create custom modal dialogs
 
+## Frontend Testing and Debugging
+
+**PREFERRED APPROACH**: For frontend tasks, testing, and debugging UI issues, always use the MCP Playwright browser tools instead of just reading code. This allows you to:
+- Verify that implementations work correctly in the actual browser
+- Debug visual issues, layout problems, and interactive behaviors
+- Test user flows end-to-end
+- Investigate bugs by reproducing them in real-time
+- Validate that UI components render and function as expected
+
+**Login Credentials**: When you need to log in to test authenticated features, use the credentials from the `.env` file
+
+**Testing Workflow**:
+1. Start the dev server with `npm run dev` if not already running
+2. Use MCP Playwright tools to navigate to `http://localhost:3000`
+3. Log in using the credentials above
+4. Test the feature or investigate the issue interactively
+5. Take snapshots or screenshots to document findings
+6. Make code changes based on what you observe
+7. Verify the fixes work by testing again in the browser
+
+**When to Use MCP Playwright**:
+- After implementing new UI features (verify they work)
+- When debugging visual or interaction issues
+- To investigate reported bugs
+- To test responsive behavior
+- To validate form submissions and user flows
+- To check accessibility and user experience
+
 ## Project Overview
 
 Sync Projects is a Kanban-based project management application built with React and Firebase. The app features sprint management, drag-and-drop task organization, rich text editing, file attachments, and a Gantt timeline view.
