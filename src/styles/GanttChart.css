@@ -1,0 +1,203 @@
+/**
+ * Estilos personalizados para el Gantt Chart moderno
+ */
+
+.modern-gantt-container {
+  background: white;
+  border-radius: var(--radius-base);
+  border: 1px solid var(--border-light);
+  overflow: hidden;
+}
+
+.gantt-header-info {
+  padding: var(--space-lg);
+  border-bottom: 1px solid var(--border-light);
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  flex-wrap: wrap;
+  gap: var(--space-base);
+}
+
+.gantt-legend-compact {
+  display: flex;
+  align-items: center;
+  gap: var(--space-base);
+  flex-wrap: wrap;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.legend-color {
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.gantt-chart-wrapper {
+  padding: var(--space-base);
+  overflow-x: auto;
+  background: var(--bg-primary);
+}
+
+.gantt-footer-info {
+  padding: var(--space-base) var(--space-lg);
+  border-top: 1px solid var(--border-light);
+  background: var(--bg-secondary);
+}
+
+.legend-indicator {
+  width: 20px;
+  height: 12px;
+  border-radius: var(--radius-sm);
+}
+
+/* Patrón de riesgo para la leyenda */
+.legend-indicator[style*="risk-pattern"] {
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(239, 68, 68, 0.4),
+    rgba(239, 68, 68, 0.4) 2px,
+    transparent 2px,
+    transparent 4px
+  );
+}
+
+/* Sobrescribir estilos de la librería gantt-task-react */
+._3T2K4 {
+  font-family: inherit !important;
+}
+
+/* Header de la tabla */
+._3jgwR {
+  background: var(--bg-secondary) !important;
+  border-bottom: 2px solid var(--border-medium) !important;
+}
+
+/* Filas de la tabla */
+._1xNYz {
+  border-bottom: 1px solid var(--border-light) !important;
+}
+
+._1xNYz:hover {
+  background: var(--bg-secondary) !important;
+}
+
+/* Grid lines */
+._3zRJQ {
+  stroke: var(--border-light) !important;
+}
+
+/* Today indicator */
+._2VqhQ {
+  fill: rgba(251, 191, 36, 0.15) !important;
+}
+
+/* Task bars - ajustar para mejor visibilidad */
+._1EhGP {
+  cursor: pointer !important;
+  transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+  pointer-events: all !important;
+}
+
+._1EhGP:hover {
+  transform: translateY(-2px) !important;
+  filter: brightness(1.1) !important;
+}
+
+/* Ocultar tooltip nativo de gantt-task-react */
+.gantt-container [class*="tooltip"],
+.gantt-container ._3FRhJ,
+.gantt-container [class*="_3FRhJ"],
+.gantt-tooltip {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+}
+
+/* Texto dentro de las barras */
+._1u4fw {
+  fill: white !important;
+  font-weight: 600 !important;
+  font-size: 13px !important;
+}
+
+/* Ocultar columnas de fechas from-to de la librería gantt-task-react */
+/* Estas son las clases específicas de la librería para las fechas */
+.gantt-chart-wrapper ._1meLy,
+.gantt-chart-wrapper ._2xvP0,
+.gantt-chart-wrapper svg text[class*="taskListHeaderLabel"]:not(:first-child),
+.gantt-chart-wrapper svg text[class*="taskListLabel"]:not(:first-child) {
+  display: none !important;
+}
+
+/* Ocultar segunda y tercera columnas de la tabla (From y To) */
+.gantt-chart-wrapper svg > g > g:nth-child(2) > text,
+.gantt-chart-wrapper svg > g > g:nth-child(3) > text {
+  display: none !important;
+}
+
+/* Ajustar ancho de la lista para compensar columnas ocultas */
+.gantt-chart-wrapper svg g[class*="taskList"] {
+  width: 200px !important;
+}
+
+/* Arrow (dependencias) */
+._2dZDO {
+  stroke: var(--color-primary) !important;
+  stroke-width: 2 !important;
+}
+
+/* Scrollbar styling */
+.gantt-chart-wrapper::-webkit-scrollbar {
+  height: 8px;
+}
+
+.gantt-chart-wrapper::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+  border-radius: var(--radius-base);
+}
+
+.gantt-chart-wrapper::-webkit-scrollbar-thumb {
+  background: var(--border-medium);
+  border-radius: var(--radius-base);
+}
+
+.gantt-chart-wrapper::-webkit-scrollbar-thumb:hover {
+  background: var(--text-tertiary);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .gantt-header-info {
+    flex-direction: column;
+    align-items: start;
+  }
+
+  .gantt-legend-compact {
+    width: 100%;
+  }
+
+  .gantt-chart-wrapper {
+    padding: var(--space-sm);
+  }
+}
+
+/* Tooltip personalizado */
+.gantt-custom-tooltip {
+  position: fixed;
+  z-index: 10000;
+  pointer-events: none;
+}
+
+/* Dark mode support (si lo implementas en el futuro) */
+@media (prefers-color-scheme: dark) {
+  .modern-gantt-container {
+    background: var(--bg-primary);
+  }
+}
