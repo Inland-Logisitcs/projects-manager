@@ -545,6 +545,16 @@ th {
     padding: 0.125rem 0.3rem;
   }
 
+  /* Sprint dates on mobile - show compact format */
+  .sprint-dates-backlog .date-full {
+    display: none;
+  }
+
+  .sprint-dates-backlog .date-compact {
+    display: inline;
+    font-size: 0.75rem;
+  }
+
   /* Capacity indicator on mobile */
   .capacity-indicator {
     padding: 0.25rem 0.5rem;
@@ -986,4 +996,13 @@ th {
   height: 100%;
   transition: width 0.3s ease, background-color 0.3s ease;
   border-radius: 3px;
+}
+
+/* Sprint dates styling */
+.sprint-dates-backlog .date-compact {
+  display: none;
+}
+
+.sprint-dates-backlog .date-full {
+  display: inline;
 }

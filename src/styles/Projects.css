@@ -26,6 +26,43 @@
   text-align: center;
 }
 
+/* Projects Tabs */
+.projects-tabs {
+  display: flex;
+  gap: var(--space-xs);
+  border-bottom: 2px solid var(--border-light);
+}
+
+.projects-tab {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-base);
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  color: var(--text-secondary);
+  font-size: var(--font-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.projects-tab:hover {
+  color: var(--color-primary);
+  background-color: rgba(0, 153, 204, 0.05);
+}
+
+.projects-tab.active {
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
+}
+
+.projects-content {
+  padding-top: var(--space-base);
+}
+
 /* View Tabs */
 .view-tabs {
   display: flex;
@@ -196,23 +233,119 @@
   box-shadow: 0 4px 12px rgba(0, 153, 204, 0.3);
 }
 
-/* Timeline container */
-.projects-timeline {
-  background-color: var(--bg-primary);
-  border-radius: 0;
-  border: none;
-  border-top: 1px solid var(--border-color);
-  border-bottom: 1px solid var(--border-color);
+/* Projects List */
+.projects-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-base);
+}
+
+.project-card {
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.project-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+/* Drag Handle */
+.drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  cursor: grab;
+  padding: var(--space-xs);
+  border-radius: var(--radius-sm);
+  transition: all 0.2s ease;
+}
+
+.drag-handle:hover {
+  color: var(--color-primary);
+  background-color: var(--bg-secondary);
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+/* Priority Badge */
+.priority-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 26px;
+  padding: 0 var(--space-sm);
+  background-color: #015E7C;
+  color: #ffffff;
+  font-size: 0.875rem;
+  font-weight: 700;
+  border-radius: 6px;
+  letter-spacing: 0.3px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  flex-shrink: 0;
+}
+
+.project-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.progress-bar {
+  flex: 1;
+  height: 6px;
+  background-color: var(--bg-tertiary);
+  border-radius: 3px;
   overflow: hidden;
-  box-shadow: none;
-  width: 100%;
-  max-width: 100%;
+}
+
+.progress-fill {
+  height: 100%;
+  background-color: var(--color-accent);
+  border-radius: 3px;
+  transition: width 0.3s ease;
 }
 
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1rem;
+}
+
+/* Modal Large for Risk Management */
+.modal-large {
+  max-width: 700px;
+  width: 90%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-large > .flex:first-child {
+  flex-shrink: 0;
+  padding: 0;
+  margin: 0 0 var(--space-base) 0;
+  border-bottom: 1px solid var(--border-light);
+  padding-bottom: var(--space-base);
+}
+
+.modal-large > div:not(.flex):not(.modal-footer) {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.modal-large .modal-footer {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border-light);
+  padding-top: var(--space-base);
+  margin-top: var(--space-base);
+  background: var(--bg-primary);
 }
 
 @media (max-width: 768px) {
@@ -260,5 +393,10 @@
 
   .empty-state-content {
     padding: 2rem 1rem;
+  }
+
+  .modal-large {
+    max-width: 95%;
+    width: 95%;
   }
 }

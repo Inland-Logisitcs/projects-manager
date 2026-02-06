@@ -13,6 +13,37 @@
   padding: 1.5rem 0;
 }
 
+.sprint-info {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.sprint-dates {
+  white-space: nowrap;
+}
+
+/* Mostrar formato completo por defecto */
+.date-compact {
+  display: none;
+}
+
+.date-full {
+  display: inline;
+}
+
+.sprint-capacity {
+  background-color: var(--bg-secondary);
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--border-light);
+}
+
+.capacity-bar {
+  flex-shrink: 0;
+}
+
 /* Complete Sprint Modal */
 .complete-sprint-modal {
   max-width: 600px;
@@ -98,14 +129,89 @@
 /* Responsive */
 @media (max-width: 768px) {
   .dashboard-page {
-    padding: 1rem;
+    padding: 0.5rem;
   }
 
   .sprint-header {
     flex-direction: column;
     align-items: flex-start !important;
-    gap: 1rem;
-    padding: 1rem 0 1rem 0;
+    gap: 0.75rem;
+    padding: 1rem 0.5rem;
+  }
+
+  .sprint-info {
+    width: 100%;
+    gap: 0.75rem;
+  }
+
+  .sprint-info h2 {
+    font-size: 1.125rem;
+    width: 100%;
+  }
+
+  .sprint-info h2 svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .sprint-dates {
+    font-size: 0.8rem;
+  }
+
+  .sprint-dates svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  /* Mostrar formato compacto en móvil */
+  .date-full {
+    display: none;
+  }
+
+  .date-compact {
+    display: inline;
+  }
+
+  /* Ajustar capacidad info en móvil */
+  .sprint-header > div:first-child {
+    width: 100%;
+  }
+
+  .sprint-capacity {
+    width: 100%;
+    padding: 0.5rem;
+    font-size: 0.8rem;
+  }
+
+  .sprint-capacity svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .capacity-text {
+    font-size: 0.8rem;
+  }
+
+  .capacity-bar {
+    flex: 1;
+    max-width: 80px;
+  }
+
+  .capacity-percentage {
+    font-size: 0.7rem;
+  }
+
+  .sprint-header > div:last-child {
+    width: 100%;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .sprint-header > div:last-child button {
+    width: 100%;
+    justify-content: center;
+    padding: 0.625rem 1rem;
+    font-size: 0.875rem;
   }
 
   .move-options {
@@ -114,5 +220,28 @@
 
   .dashboard-form-row {
     grid-template-columns: 1fr;
+  }
+
+  .complete-sprint-modal {
+    max-width: 100%;
+  }
+}
+
+/* Móviles pequeños */
+@media (max-width: 375px) {
+  .dashboard-page {
+    padding: 0.25rem;
+  }
+
+  .sprint-header {
+    padding: 0.75rem 0.25rem;
+  }
+
+  .sprint-info h2 {
+    font-size: 1rem;
+  }
+
+  .sprint-dates {
+    font-size: 0.75rem;
   }
 }

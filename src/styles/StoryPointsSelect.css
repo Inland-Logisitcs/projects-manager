@@ -40,16 +40,18 @@
 }
 
 .story-points-badge.empty {
-  background-color: var(--bg-secondary);
-  color: var(--text-tertiary);
-  border: 1px dashed var(--border-medium);
+  background-color: #f3f4f6;
+  color: #6b7280;
+  border: 1.5px dashed #d1d5db;
+  font-weight: 500;
 }
 
 .story-points-badge.empty:hover {
-  border-color: var(--accent-color);
+  border-color: #0099cc;
   border-style: solid;
-  color: var(--accent-color);
-  background-color: rgba(0, 153, 204, 0.05);
+  color: #0099cc;
+  background-color: rgba(0, 153, 204, 0.08);
+  transform: translateY(-1px);
 }
 
 /* Input de edición */
