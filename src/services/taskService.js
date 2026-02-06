@@ -438,3 +438,96 @@ export const removeTaskDependency = async (taskId, dependsOnTaskId) => {
     return { success: false, error: error.message };
   }
 };
+
+/**
+ * Guardar la optimización: asignar usuarios y orden de planificación a las tareas
+ * @param {Array} assignmentsData - Array de objetos { taskId, assignedTo, planningOrder, duracionBase, tiempoRiesgo, tiempoRedondeo }
+ * @returns {Object} - Resultado de la operación con estadísticas
+ */
+export const saveOptimization = async (assignmentsData) => {
+  try {
+    if (!assignmentsData || assignmentsData.length === 0) {
+      return { success: false, error: 'No hay asignaciones para guardar' };
+    }
+
+    const optimizedAt = new Date();
+    const updates = [];
+    let successCount = 0;
+    let errorCount = 0;
+    const errors = [];
+
+    // Actualizar cada tarea
+    for (const assignment of assignmentsData) {
+      try {
+        const taskRef = doc(db, TASKS_COLLECTION, assignment.taskId);
+        const taskDoc = await getDoc(taskRef);
+
+        if (!taskDoc.exists()) {
+          errorCount++;
+          errors.push({ taskId: assignment.taskId, error: 'Tarea no encontrada' });
+          continue;
+        }
+
+        const currentData = taskDoc.data();
+        const updateData = {
+          assignedTo: assignment.assignedTo,
+          planningOrder: assignment.planningOrder,
+          optimizedAt: optimizedAt,
+          updatedAt: serverTimestamp(),
+          // Guardar información de duración y riesgos
+          optimizedDuration: {
+            duracionBase: assignment.duracionBase || 0,
+            tiempoRiesgo: assignment.tiempoRiesgo || 0,
+            tiempoRiesgoUsuario: assignment.tiempoRiesgoUsuario || 0,
+            tiempoRiesgoProyecto: assignment.tiempoRiesgoProyecto || 0,
+            tiempoRedondeo: assignment.tiempoRedondeo || 0,
+            duracionTotal: assignment.duracionTotal || 0
+          }
+        };
+
+        // Registrar cambio de asignación si cambió
+        if (currentData.assignedTo !== assignment.assignedTo) {
+          updateData.movementHistory = arrayUnion({
+            type: 'assignment_change',
+            from: currentData.assignedTo || null,
+            to: assignment.assignedTo,
+            timestamp: optimizedAt,
+            source: 'optimizer'
+          });
+        }
+
+        await updateDoc(taskRef, updateData);
+        successCount++;
+        updates.push({
+          taskId: assignment.taskId,
+          taskName: currentData.title || currentData.name,
+          previousUser: currentData.assignedTo,
+          newUser: assignment.assignedTo,
+          planningOrder: assignment.planningOrder,
+          duration: updateData.optimizedDuration
+        });
+      } catch (error) {
+        errorCount++;
+        errors.push({ taskId: assignment.taskId, error: error.message });
+        console.error(`Error al actualizar tarea ${assignment.taskId}:`, error);
+      }
+    }
+
+    // Retornar resultado con estadísticas
+    return {
+      success: errorCount === 0,
+      partial: successCount > 0 && errorCount > 0,
+      stats: {
+        total: assignmentsData.length,
+        success: successCount,
+        errors: errorCount
+      },
+      updates,
+      errors: errors.length > 0 ? errors : undefined,
+      optimizedAt
+    };
+  } catch (error) {
+    console.error('Error al guardar optimización:', error);
+    return { success: false, error: error.message };
+  }
+};

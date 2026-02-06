@@ -20,6 +20,7 @@ export const createProject = async (projectData) => {
   try {
     const docRef = await addDoc(collection(db, PROJECTS_COLLECTION), {
       ...projectData,
+      priority: projectData.priority ?? 0, // Prioridad por defecto
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
@@ -60,18 +61,56 @@ export const deleteProject = async (projectId) => {
 // Escuchar cambios en tiempo real
 export const subscribeToProjects = (callback) => {
   try {
-    const q = query(collection(db, PROJECTS_COLLECTION), orderBy('createdAt', 'desc'));
+    // Primero intentar ordenar por priority
+    const q = query(collection(db, PROJECTS_COLLECTION));
 
     return onSnapshot(q,
-      (snapshot) => {
+      async (snapshot) => {
         const projects = [];
+        let needsMigration = false;
+
         snapshot.forEach((doc) => {
+          const data = doc.data();
           projects.push({
             id: doc.id,
-            ...doc.data()
+            ...data,
+            priority: data.priority ?? 999999 // Valor alto temporal para proyectos sin priority
           });
+
+          // Detectar si hay proyectos sin priority
+          if (data.priority === undefined || data.priority === null) {
+            needsMigration = true;
+          }
         });
-        callback(projects);
+
+        // Ordenar localmente por priority, luego por createdAt
+        projects.sort((a, b) => {
+          if (a.priority !== b.priority) {
+            return a.priority - b.priority;
+          }
+          // Si ambos tienen el mismo priority (o ninguno), ordenar por createdAt
+          const aTime = a.createdAt?.toMillis?.() || 0;
+          const bTime = b.createdAt?.toMillis?.() || 0;
+          return bTime - aTime; // Más reciente primero
+        });
+
+        // Si hay proyectos sin priority, asignarlos automáticamente
+        if (needsMigration) {
+          console.log('⚠️ Detectados proyectos sin priority, migrando...');
+          const updates = projects.map((project, index) => {
+            if (project.priority === 999999) {
+              const projectRef = doc(db, PROJECTS_COLLECTION, project.id);
+              updateDoc(projectRef, {
+                priority: index
+              }).catch(err => console.error(`Error al actualizar priority de ${project.name}:`, err));
+              return { ...project, priority: index };
+            }
+            return project;
+          });
+          callback(updates);
+        } else {
+          callback(projects);
+        }
       },
       (error) => {
         console.error('❌ Error al escuchar proyectos:', {
@@ -90,6 +129,25 @@ export const subscribeToProjects = (callback) => {
     console.error('❌ Error al inicializar subscripción de proyectos:', error);
     callback([]);
     return () => {};
+  }
+};
+
+// Actualizar el orden de múltiples proyectos
+export const updateProjectsOrder = async (projectsWithNewOrder) => {
+  try {
+    const updatePromises = projectsWithNewOrder.map(({ id, priority }) => {
+      const projectRef = doc(db, PROJECTS_COLLECTION, id);
+      return updateDoc(projectRef, {
+        priority,
+        updatedAt: serverTimestamp()
+      });
+    });
+
+    await Promise.all(updatePromises);
+    return { success: true };
+  } catch (error) {
+    console.error('Error al actualizar orden de proyectos:', error);
+    return { success: false, error: error.message };
   }
 };
 
