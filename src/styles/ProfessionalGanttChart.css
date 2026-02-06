@@ -1,0 +1,248 @@
+/* Professional Gantt Chart usando DHTMLX */
+
+.professional-gantt-container {
+  background: var(--bg-primary);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.gantt-header {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.gantt-chart {
+  background: var(--bg-primary);
+}
+
+/* Personalización de DHTMLX Gantt */
+
+/* Grid de la izquierda */
+.gantt_grid_scale,
+.gantt_grid_head_cell {
+  background: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-light) !important;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.gantt_grid_data .gantt_cell {
+  color: var(--text-primary) !important;
+  border-color: var(--border-light) !important;
+  font-size: 0.875rem;
+}
+
+/* Filas del grid */
+.gantt_row {
+  background: var(--bg-primary) !important;
+  border-color: var(--border-light) !important;
+}
+
+.gantt_row:hover {
+  background: var(--bg-secondary) !important;
+}
+
+.gantt_row.gantt_project {
+  background: var(--bg-secondary) !important;
+  font-weight: 600;
+}
+
+/* Timeline header */
+.gantt_task_scale {
+  background: var(--bg-secondary) !important;
+  border-color: var(--border-light) !important;
+}
+
+.gantt_scale_cell {
+  color: var(--text-primary) !important;
+  border-color: var(--border-light) !important;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+/* Timeline background */
+.gantt_task_bg {
+  background: var(--bg-primary) !important;
+}
+
+.gantt_task_row {
+  border-color: var(--border-light) !important;
+}
+
+/* Líneas verticales del timeline */
+.gantt_task_cell {
+  border-right: 1px solid var(--border-light) !important;
+}
+
+/* Barras de tareas */
+.gantt_task_line {
+  border-radius: var(--radius-sm);
+  border: none !important;
+}
+
+/* Tareas en progreso - color verde */
+.gantt_task_line.task-in-progress {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+.gantt_task_line.task-in-progress .gantt_task_progress {
+  background: rgba(255, 255, 255, 0.2) !important;
+}
+
+/* Tareas con riesgo - borde rojo */
+.gantt_task_line.task-with-risk {
+  border: 2px solid #ef4444 !important;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.2);
+}
+
+/* Overlays de riesgo y redondeo dentro de las barras */
+.gantt-risk-overlay,
+.gantt-rounding-overlay {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Overlay de riesgo - diagonal roja */
+.gantt-risk-overlay {
+  right: 0;
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(239, 68, 68, 0.3),
+    rgba(239, 68, 68, 0.3) 10px,
+    rgba(239, 68, 68, 0.5) 10px,
+    rgba(239, 68, 68, 0.5) 20px
+  );
+  border-left: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+/* Overlay de redondeo - diagonal naranja */
+.gantt-rounding-overlay {
+  right: 0;
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(245, 158, 11, 0.3),
+    rgba(245, 158, 11, 0.3) 10px,
+    rgba(245, 158, 11, 0.5) 10px,
+    rgba(245, 158, 11, 0.5) 20px
+  );
+  border-left: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+/* Texto dentro de las barras */
+.gantt_task_line .gantt_task_content {
+  color: white !important;
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0 8px;
+}
+
+/* Líneas de dependencias */
+.gantt_line_wrapper div {
+  background-color: rgba(100, 116, 139, 0.5) !important;
+}
+
+.gantt_task_link .gantt_link_arrow {
+  border-color: rgba(100, 116, 139, 0.7) !important;
+}
+
+.gantt_task_link:hover .gantt_line_wrapper div {
+  background-color: #3b82f6 !important;
+  box-shadow: 0 0 5px rgba(59, 130, 246, 0.5);
+}
+
+.gantt_task_link:hover .gantt_link_arrow {
+  border-color: #3b82f6 !important;
+}
+
+/* Tooltip */
+.gantt_tooltip {
+  background: var(--bg-primary) !important;
+  border: 1px solid var(--border-medium) !important;
+  border-radius: var(--radius-base);
+  box-shadow: var(--shadow-lg);
+  color: var(--text-primary) !important;
+  padding: 12px !important;
+  font-size: 0.875rem;
+  max-width: 350px;
+}
+
+.gantt_tooltip b {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* Scrollbars */
+.gantt_layout_cell::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.gantt_layout_cell::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+.gantt_layout_cell::-webkit-scrollbar-thumb {
+  background: var(--border-medium);
+  border-radius: 4px;
+}
+
+.gantt_layout_cell::-webkit-scrollbar-thumb:hover {
+  background: var(--border-dark);
+}
+
+/* Línea de "hoy" */
+.gantt_marker {
+  background-color: rgba(251, 191, 36, 0.3) !important;
+}
+
+.gantt_marker_content {
+  color: #f59e0b !important;
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+/* Grid resizer */
+.gantt_grid_head_cell .gantt_grid_head_resizer {
+  background-color: var(--border-medium) !important;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .gantt-chart {
+    height: 400px !important;
+  }
+
+  .gantt_grid_scale,
+  .gantt_scale_cell,
+  .gantt_grid_data .gantt_cell {
+    font-size: 0.75rem !important;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .gantt_grid_scale,
+  .gantt_grid_head_cell,
+  .gantt_task_scale {
+    background: #1f2937 !important;
+  }
+
+  .gantt_row,
+  .gantt_task_bg {
+    background: #111827 !important;
+  }
+
+  .gantt_row:hover {
+    background: #1f2937 !important;
+  }
+
+  .gantt_tooltip {
+    background: #1f2937 !important;
+    border-color: #374151 !important;
+  }
+}
