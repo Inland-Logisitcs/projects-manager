@@ -73,10 +73,10 @@ const StoryPointsSelect = ({
     <div
       className={`story-points-badge story-points-${size} ${value !== null && value !== undefined ? 'has-value' : 'empty'} has-tooltip`}
       onClick={handleClick}
-      data-tooltip="Story Points"
+      data-tooltip="Story Points (click para editar)"
     >
       <Icon name="zap" size={12} />
-      <span>{value !== null && value !== undefined ? value : '-'}</span>
+      <span>{value !== null && value !== undefined ? value : 'SP'}</span>
     </div>
   );
 };
