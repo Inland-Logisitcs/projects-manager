@@ -1073,11 +1073,18 @@ const SprintSection = ({ sprint, tasks, users, onDragOver, onDrop, onStartSprint
     }
   };
 
-  // Formatear fechas
-  const formatSprintDate = (dateString) => {
+  // Formatear fechas - versión completa
+  const formatSprintDateFull = (dateString) => {
     if (!dateString) return '';
     const date = new Date(dateString);
     return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+  };
+
+  // Formatear fechas - versión compacta para móvil
+  const formatSprintDateCompact = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'numeric' });
   };
 
   // Determinar el color del indicador de capacidad
@@ -1116,8 +1123,9 @@ const SprintSection = ({ sprint, tasks, users, onDragOver, onDrop, onStartSprint
           </span>
           <span className="count-badge">{tasks.length}</span>
           {sprint.startDate && sprint.endDate && (
-            <span className="text-sm text-secondary">
-              {formatSprintDate(sprint.startDate)} - {formatSprintDate(sprint.endDate)}
+            <span className="sprint-dates-backlog text-sm text-secondary">
+              <span className="date-full">{formatSprintDateFull(sprint.startDate)} - {formatSprintDateFull(sprint.endDate)}</span>
+              <span className="date-compact">{formatSprintDateCompact(sprint.startDate)} - {formatSprintDateCompact(sprint.endDate)}</span>
             </span>
           )}
           {capacityInfo.completedPoints > 0 && (

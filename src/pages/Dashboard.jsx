@@ -75,29 +75,32 @@ const Dashboard = () => {
       {activeSprint ? (
         <>
           <div className="sprint-header flex justify-between items-center pb-lg mb-md">
-            <div className="flex items-center gap-lg">
+            <div className="sprint-info">
               <h2 className="heading-2 text-primary flex items-center gap-sm">
                 <Icon name="zap" size={20} />
                 {activeSprint.name}
               </h2>
               {activeSprint.startDate && activeSprint.endDate && (
-                <div className="flex items-center gap-xs text-sm text-secondary">
+                <div className="sprint-dates flex items-center gap-xs text-sm text-secondary">
                   <Icon name="calendar" size={16} />
-                  <span className="font-medium">{new Date(activeSprint.startDate).toLocaleDateString('es')} - {new Date(activeSprint.endDate).toLocaleDateString('es')}</span>
+                  <span className="font-medium">
+                    <span className="date-full">{new Date(activeSprint.startDate).toLocaleDateString('es', { day: 'numeric', month: 'short' })} - {new Date(activeSprint.endDate).toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                    <span className="date-compact">{new Date(activeSprint.startDate).toLocaleDateString('es', { day: 'numeric', month: 'numeric' })} - {new Date(activeSprint.endDate).toLocaleDateString('es', { day: 'numeric', month: 'numeric' })}</span>
+                  </span>
                 </div>
               )}
               {capacityInfo && capacityInfo.capacity > 0 && (
                 <div
-                  className="flex items-center gap-xs text-sm has-tooltip"
+                  className="sprint-capacity flex items-center gap-xs text-sm has-tooltip"
                   style={{ cursor: 'pointer' }}
                   onClick={() => setShowCapacityModal(true)}
                   data-tooltip={`Capacidad restante: ${capacityInfo.capacity} pts | Pendiente: ${capacityInfo.assignedPoints} pts | Completado: ${capacityInfo.completedPoints} pts | Click para ver detalles`}
                 >
                   <Icon name="users" size={16} />
-                  <span className="font-semibold" style={{ color: getCapacityColor() }}>
+                  <span className="capacity-text font-semibold" style={{ color: getCapacityColor() }}>
                     {capacityInfo.assignedPoints}/{capacityInfo.capacity} pts
                   </span>
-                  <div style={{ width: '60px', height: '6px', backgroundColor: '#E5E7EB', borderRadius: '3px', overflow: 'hidden' }}>
+                  <div className="capacity-bar" style={{ width: '60px', height: '6px', backgroundColor: '#E5E7EB', borderRadius: '3px', overflow: 'hidden' }}>
                     <div
                       style={{
                         width: `${Math.min(capacityInfo.percentage, 100)}%`,
@@ -107,7 +110,7 @@ const Dashboard = () => {
                       }}
                     />
                   </div>
-                  <span className="text-xs text-secondary">{capacityInfo.percentage}%</span>
+                  <span className="capacity-percentage text-xs text-secondary">{capacityInfo.percentage}%</span>
                 </div>
               )}
             </div>
