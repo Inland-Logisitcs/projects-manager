@@ -6,7 +6,7 @@ import '../../styles/CustomGanttChart.css';
  * Gantt Chart personalizado con soporte completo para decimales
  * Diseñado específicamente para el optimizador de tareas
  */
-const CustomGanttChart = ({ solucion, makespan, proyectos, onTaskClick }) => {
+const CustomGanttChart = ({ solucion, makespan, proyectos, usuarios, onTaskClick }) => {
   const [hoveredTask, setHoveredTask] = useState(null);
   const ganttRef = useRef(null);
   const [hoveredDependency, setHoveredDependency] = useState(null);
@@ -36,11 +36,6 @@ const CustomGanttChart = ({ solucion, makespan, proyectos, onTaskClick }) => {
     return `${dias.toFixed(decimals)}d`;
   }, []);
 
-  // Redondear duración al bloque de 0.5 días más cercano superior
-  const roundToHalfDay = useCallback((duration) => {
-    return Math.ceil(duration * 2) / 2;
-  }, []);
-
   // Formatear fecha para los headers del Gantt
   const formatearFecha = useCallback((diasDesdeHoy) => {
     const hoy = new Date();
@@ -52,6 +47,104 @@ const CustomGanttChart = ({ solucion, makespan, proyectos, onTaskClick }) => {
 
     return `${dia} ${mes}`;
   }, []);
+
+  // Verificar si un día es fin de semana (sábado=6, domingo=0)
+  const esFinDeSemana = useCallback((diasDesdeHoy) => {
+    const hoy = new Date();
+    const fecha = new Date(hoy);
+    fecha.setDate(hoy.getDate() + diasDesdeHoy);
+    const diaSemana = fecha.getDay();
+    return diaSemana === 0 || diaSemana === 6;
+  }, []);
+
+  // Verificar si un día es laborable para un usuario específico
+  // Usa el sistema de "casillas": cada 0.5 días = 1 casilla
+  // Ambas casillas del mismo día (AM y PM) tienen el mismo estado de laborable
+  const esDiaLaborable = useCallback((diasDesdeHoy, diasLaborablesUsuario) => {
+    if (!diasLaborablesUsuario || diasLaborablesUsuario.length === 0) {
+      return true; // Si no hay configuración, asumir que todos los días son laborables
+    }
+
+    // With snapped diaInicio (always on 0.5-day grid), Math.floor gives the correct day index
+    const indiceDia = Math.floor(diasDesdeHoy);
+
+    // Calcular el día de la semana usando el mismo método que esFinDeSemana
+    const hoy = new Date();
+    const fecha = new Date(hoy);
+    fecha.setDate(hoy.getDate() + indiceDia);
+    const diaSemana = fecha.getDay();
+
+    // Convertir: domingo=0 -> 7, lunes=1 -> 1, etc.
+    const diaNumero = diaSemana === 0 ? 7 : diaSemana;
+
+    return diasLaborablesUsuario.includes(diaNumero);
+  }, []);
+
+  const calcularSegmentosTarea = useCallback((task) => {
+    const segmentos = [];
+    const diaInicio = task.diaInicio;
+    const diaFin = task.diaFin;
+
+    // Obtener días laborables del usuario asignado
+    const usuario = usuarios?.find(u => u.id === task.usuarioId);
+    const diasLaborablesUsuario = usuario?.workingDays || [1, 2, 3, 4, 5];
+
+    // Presupuestos en medios dias de trabajo
+    // Redondeo se suma al riesgo (las tareas siempre se redondean a 0.5)
+    const medioDiasBase = Math.round((task.duracionBase || 0) * 2);
+    const medioDiasRiesgo = Math.round(((task.tiempoRiesgo || 0) + (task.tiempoRedondeo || 0)) * 2);
+
+    let medioDiasTrabajados = 0;
+
+    // Recorrer en incrementos de 0.5 dias
+    let diaActual = Math.floor(diaInicio * 2) / 2;
+    if (diaActual < diaInicio) diaActual += 0.5;
+
+    let segmentoActual = null;
+
+    // Fragmento inicial si no alineado
+    if (diaInicio < diaActual && diaInicio < diaFin) {
+      const esLaborable = esDiaLaborable(diaInicio, diasLaborablesUsuario);
+      let tipo;
+      if (!esLaborable) {
+        tipo = 'no-laborable';
+      } else if (medioDiasTrabajados < medioDiasBase) {
+        tipo = 'base';
+        medioDiasTrabajados++;
+      } else {
+        tipo = 'riesgo';
+        medioDiasTrabajados++;
+      }
+      segmentoActual = { inicio: diaInicio, fin: Math.min(diaActual, diaFin), tipo };
+    }
+
+    while (diaActual < diaFin) {
+      const esLaborable = esDiaLaborable(diaActual, diasLaborablesUsuario);
+      let tipo;
+      if (!esLaborable) {
+        tipo = 'no-laborable';
+      } else if (medioDiasTrabajados < medioDiasBase) {
+        tipo = 'base';
+        medioDiasTrabajados++;
+      } else {
+        tipo = 'riesgo';
+        medioDiasTrabajados++;
+      }
+
+      if (!segmentoActual || segmentoActual.tipo !== tipo) {
+        if (segmentoActual) segmentos.push(segmentoActual);
+        segmentoActual = { inicio: diaActual, fin: Math.min(diaActual + 0.5, diaFin), tipo };
+      } else {
+        segmentoActual.fin = Math.min(diaActual + 0.5, diaFin);
+      }
+
+      diaActual += 0.5;
+    }
+
+    if (segmentoActual) segmentos.push(segmentoActual);
+
+    return { segmentos, diaFinRecalculado: diaFin };
+  }, [esDiaLaborable, usuarios]);
 
   // Verificar si hay tareas para mostrar
   if (!solucion || solucion.length === 0) {
@@ -116,6 +209,7 @@ const CustomGanttChart = ({ solucion, makespan, proyectos, onTaskClick }) => {
         id: tarea.id,
         name: tarea.nombre,
         usuario: tarea.usuario,
+        usuarioId: tarea.usuarioId,
         diaInicio: tarea.diaInicio,
         diaFin: tarea.diaFin,
         duracion: tarea.duracion,
@@ -145,39 +239,27 @@ const CustomGanttChart = ({ solucion, makespan, proyectos, onTaskClick }) => {
     });
 
     return result;
-  }, [solucion]);
+  }, [solucion, usuarios]);
 
   const data = useMemo(() => ganttData(), [ganttData]);
 
   // Componente memoizado para barras de tareas (optimización de rendimiento)
   const TaskBar = useMemo(() => memo(({ task }) => {
-    // Calcular duración redondeada a bloques de 0.5 días
-    const duracionBase = task.duracionBase || 0;
-    const tiempoRiesgo = task.tiempoRiesgo || 0;
-    const duracionAntesCeil = duracionBase + tiempoRiesgo;
-    const duracionRedondeada = roundToHalfDay(duracionAntesCeil);
-    const tiempoRedondeo = duracionRedondeada - duracionAntesCeil;
+    const resultadoSegmentos = calcularSegmentosTarea(task);
+    const segmentos = resultadoSegmentos.segmentos;
+    const diaFin = resultadoSegmentos.diaFinRecalculado;
 
     // === POSICIONAMIENTO BASADO EN CUADRÍCULA ===
-    // Convertir días a celdas (1 día = 2 celdas)
     const diaInicioConOffset = task.diaInicio + offset;
-    const duracionEnDias = task.diaFin - task.diaInicio;
+    const duracionEnDias = diaFin - task.diaInicio;
 
-    // Calcular posición de inicio en celdas (redondear a la celda más cercana)
     const celdaInicio = Math.round(diaInicioConOffset * CELLS_PER_DAY);
-
-    // Calcular duración en celdas (redondear hacia arriba para cubrir toda la duración)
     const celdasDuracion = Math.ceil(duracionEnDias * CELLS_PER_DAY);
 
-    // Posición X y ancho en píxeles, alineados a la cuadrícula
     const x = celdaInicio * CELL_WIDTH;
-    const width = Math.max(celdasDuracion * CELL_WIDTH, CELL_WIDTH); // Mínimo 1 celda
+    const width = Math.max(celdasDuracion * CELL_WIDTH, CELL_WIDTH);
 
     const color = getProjectColor(task.proyectoId);
-
-    // Calcular proporciones de riesgo y redondeo para los overlays
-    const proporcionRiesgo = tiempoRiesgo > 0 ? (tiempoRiesgo / duracionRedondeada) : 0;
-    const proporcionRedondeo = tiempoRedondeo > 0 ? (tiempoRedondeo / duracionRedondeada) : 0;
 
     return (
       <div
@@ -185,51 +267,55 @@ const CustomGanttChart = ({ solucion, makespan, proyectos, onTaskClick }) => {
         style={{
           left: `${x}px`,
           width: `${width}px`,
-          backgroundColor: color,
+          backgroundColor: 'transparent',
         }}
         onMouseEnter={() => setHoveredTask(task.id)}
         onMouseLeave={() => setHoveredTask(null)}
         onClick={() => {
-          setHoveredTask(null); // Ocultar tooltip al hacer clic
+          setHoveredTask(null);
           if (onTaskClick) {
             onTaskClick({ taskId: task.id });
           }
         }}
       >
-        {/* Overlay de riesgo (diagonal roja) */}
-        {tiempoRiesgo > 0 && (
-          <div
-            className="gantt-risk-overlay"
-            style={{
-              width: `${(proporcionRiesgo * 100).toFixed(1)}%`,
-              right: `${(proporcionRedondeo * 100).toFixed(1)}%`,
-            }}
-          />
-        )}
+        {segmentos.map((segmento, idx) => {
+          const segmentoInicioConOffset = segmento.inicio + offset;
+          const segmentoDuracion = segmento.fin - segmento.inicio;
 
-        {/* Overlay de redondeo (diagonal naranja) */}
-        {tiempoRedondeo > 0 && (
-          <div
-            className="gantt-rounding-overlay"
-            style={{
-              width: `${(proporcionRedondeo * 100).toFixed(1)}%`,
-            }}
-          />
-        )}
+          const segmentoCeldaInicio = Math.round(segmentoInicioConOffset * CELLS_PER_DAY);
+          const segmentoCeldasDuracion = Math.ceil(segmentoDuracion * CELLS_PER_DAY);
 
-        {/* Label de la tarea */}
+          const segmentoX = (segmentoCeldaInicio - celdaInicio) * CELL_WIDTH;
+          const segmentoWidth = Math.max(segmentoCeldasDuracion * CELL_WIDTH, 1);
+
+          const isWorkSegment = segmento.tipo !== 'no-laborable';
+
+          return (
+            <div
+              key={idx}
+              className={`gantt-task-segment ${segmento.tipo}`}
+              style={{
+                position: 'absolute',
+                left: `${segmentoX}px`,
+                width: `${segmentoWidth}px`,
+                height: '100%',
+                backgroundColor: isWorkSegment ? color : undefined,
+              }}
+            />
+          );
+        })}
+
         <span className="gantt-task-label">
           {task.name}
           {task.storyPoints > 0 && ` (${task.storyPoints} SP)`}
         </span>
 
-        {/* Indicador de en progreso */}
         {task.enProgreso && (
           <div className="gantt-progress-indicator" />
         )}
       </div>
     );
-  }), [hoveredTask, offset, CELL_WIDTH, CELLS_PER_DAY, roundToHalfDay, getProjectColor, onTaskClick]);
+  }), [hoveredTask, offset, CELL_WIDTH, CELLS_PER_DAY, getProjectColor, onTaskClick, calcularSegmentosTarea]);
 
   // Función para obtener la posición Y de una tarea en el Gantt
   const getTaskYPosition = useCallback((taskId) => {
@@ -259,34 +345,17 @@ const CustomGanttChart = ({ solucion, makespan, proyectos, onTaskClick }) => {
     const lines = [];
     const allTasks = data.flatMap(item => item.type === 'group' ? item.tasks : [item]);
 
-    // Debug: ver cuántas tareas tienen dependencias
-    const tareasConDeps = allTasks.filter(t => (t.dependencias || []).length > 0);
-    if (tareasConDeps.length > 0) {
-      console.log(`🔗 ${tareasConDeps.length} tareas con dependencias:`, tareasConDeps.map(t => ({
-        nombre: t.name,
-        dependencias: t.dependencias
-      })));
-    }
-
     allTasks.forEach(task => {
       const dependencias = task.dependencias || [];
 
       dependencias.forEach(depId => {
         const depTask = allTasks.find(t => t.id === depId);
-        if (!depTask) {
-          console.warn(`⚠️ Dependencia no encontrada: tarea "${task.name}" (${task.id}) depende de ID "${depId}" que no existe en el Gantt`);
-          return;
-        }
+        if (!depTask) return;
 
         const fromY = getTaskYPosition(depId);
         const toY = getTaskYPosition(task.id);
 
-        if (fromY === null || toY === null) {
-          console.warn(`⚠️ No se pudo obtener posición Y: de "${depTask.name}" (fromY: ${fromY}) a "${task.name}" (toY: ${toY})`);
-          return;
-        }
-
-        console.log(`✅ Dibujando línea de dependencia: "${depTask.name}" → "${task.name}"`);
+        if (fromY === null || toY === null) return;
 
         // Ajustar posiciones X basadas en cuadrícula
         const fromCelda = Math.round((depTask.diaFin + offset) * CELLS_PER_DAY);
@@ -439,15 +508,16 @@ const CustomGanttChart = ({ solucion, makespan, proyectos, onTaskClick }) => {
                 // Calcular el día real: si hay offset, los primeros días serán negativos
                 const diaReal = i - offset;
                 const isToday = diaReal === 0; // Marcar el día 0 como "hoy"
+                const isWeekend = esFinDeSemana(diaReal);
                 const fechaFormateada = formatearFecha(diaReal);
 
                 return (
                   <div
                     key={i}
-                    className={`gantt-day-header ${isToday ? 'today' : ''}`}
+                    className={`gantt-day-header ${isToday ? 'today' : ''} ${isWeekend ? 'weekend' : ''}`}
                     style={{ width: `${DAY_WIDTH}px` }}
                   >
-                    <span className={`${isToday ? 'text-warning font-bold' : 'text-secondary'}`}>
+                    <span className={`${isToday ? 'text-warning font-bold' : isWeekend ? 'text-tertiary' : 'text-secondary'}`}>
                       {fechaFormateada}
                     </span>
                   </div>
@@ -461,13 +531,16 @@ const CustomGanttChart = ({ solucion, makespan, proyectos, onTaskClick }) => {
               <div className="gantt-grid">
                 {Array.from({ length: totalCells }, (_, i) => {
                   // Cada 2 celdas = 1 día
-                  const isToday = Math.floor(i / CELLS_PER_DAY) === offset;
+                  const dayIndex = Math.floor(i / CELLS_PER_DAY);
+                  const diaReal = dayIndex - offset;
+                  const isToday = dayIndex === offset;
+                  const isWeekend = esFinDeSemana(diaReal);
                   const isHalfDay = i % CELLS_PER_DAY === 1; // Segunda celda del día (AM/PM)
 
                   return (
                     <div
                       key={i}
-                      className={`gantt-grid-cell ${isToday ? 'today-cell' : ''} ${isHalfDay ? 'half-day' : ''}`}
+                      className={`gantt-grid-cell ${isToday ? 'today-cell' : ''} ${isWeekend ? 'weekend-cell' : ''} ${isHalfDay ? 'half-day' : ''}`}
                       style={{
                         left: `${i * CELL_WIDTH}px`,
                         width: `${CELL_WIDTH}px`
@@ -561,12 +634,9 @@ const CustomGanttChart = ({ solucion, makespan, proyectos, onTaskClick }) => {
         const task = solucion.find(t => t.id === hoveredTask);
         if (!task) return null;
 
-        // Calcular redondeo para el tooltip
         const duracionBase = task.duracionBase || 0;
-        const tiempoRiesgo = task.tiempoRiesgo || 0;
-        const duracionAntesCeil = duracionBase + tiempoRiesgo;
-        const duracionRedondeada = roundToHalfDay(duracionAntesCeil);
-        const tiempoRedondeo = duracionRedondeada - duracionAntesCeil;
+        const tiempoRiesgoTotal = (task.tiempoRiesgo || 0) + (task.tiempoRedondeo || 0);
+        const duracionTotal = duracionBase + tiempoRiesgoTotal;
 
         return (
           <div className="gantt-tooltip">
@@ -581,10 +651,10 @@ const CustomGanttChart = ({ solucion, makespan, proyectos, onTaskClick }) => {
             </div>
             <div className="gantt-tooltip-item">
               <Icon name="clock" size={14} />
-              {tiempoRiesgo > 0 || tiempoRedondeo > 0 ? (
+              {tiempoRiesgoTotal > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                   <div>
-                    {formatDuration(duracionBase)} + {formatDuration(tiempoRiesgo)} <span style={{ color: '#ef4444' }}>riesgo</span> + {formatDuration(tiempoRedondeo)} <span style={{ color: '#f59e0b' }}>redondeo</span> = {formatDuration(duracionRedondeada)}
+                    {formatDuration(duracionBase)} + {formatDuration(tiempoRiesgoTotal)} <span style={{ color: '#ef4444' }}>riesgo</span> = {formatDuration(duracionTotal)}
                   </div>
                   {(task.tiempoRiesgoUsuario > 0 || task.tiempoRiesgoProyecto > 0) && (
                     <div style={{ fontSize: '11px', opacity: 0.8, marginLeft: '4px' }}>
@@ -597,7 +667,7 @@ const CustomGanttChart = ({ solucion, makespan, proyectos, onTaskClick }) => {
                   )}
                 </div>
               ) : (
-                <span>{formatDuration(duracionRedondeada)}</span>
+                <span>{formatDuration(duracionTotal)}</span>
               )}
             </div>
             {task.storyPoints > 0 && (
@@ -610,7 +680,7 @@ const CustomGanttChart = ({ solucion, makespan, proyectos, onTaskClick }) => {
               <div className="gantt-tooltip-badge">En progreso</div>
             )}
             {task.forzado && (
-              <div className="gantt-tooltip-badge">Asignación forzada</div>
+              <div className="gantt-tooltip-badge">Asignacion forzada</div>
             )}
           </div>
         );
@@ -628,15 +698,15 @@ const CustomGanttChart = ({ solucion, makespan, proyectos, onTaskClick }) => {
             <span className="text-secondary">Pendiente</span>
           </div>
           <div className="flex items-center gap-xs">
+            <div className="legend-indicator with-non-working" />
+            <span className="text-secondary">Días no laborables</span>
+          </div>
+          <div className="flex items-center gap-xs">
             <div className="legend-indicator with-risk" />
-            <span className="text-secondary">Tiempo de riesgo (diagonal roja)</span>
+            <span className="text-secondary">Tiempo de riesgo</span>
           </div>
           <div className="flex items-center gap-xs">
-            <div className="legend-indicator with-rounding" />
-            <span className="text-secondary">Redondeo (diagonal naranja)</span>
-          </div>
-          <div className="flex items-center gap-xs">
-            <span className="text-secondary">💡 Haz clic en una tarea para ver detalles</span>
+            <span className="text-secondary">Haz clic en una tarea para ver detalles</span>
           </div>
         </div>
       </div>

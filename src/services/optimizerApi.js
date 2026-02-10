@@ -27,7 +27,8 @@ const transformarDatos = (proyectos, usuarios, tareas, factoresRiesgo = []) => {
       id: u.id,
       nombre: u.displayName || u.nombre,
       capacidadDiaria: Number(u.dailyCapacity || u.capacidadDiaria),
-      proyectosAsignados: u.projectsAssigned || u.proyectosAsignados || []
+      proyectosAsignados: u.projectsAssigned || u.proyectosAsignados || [],
+      diasLaborables: u.workingDays || [1, 2, 3, 4, 5]
     })),
     tareas: tareas.map(t => ({
       id: t.id,
@@ -81,25 +82,6 @@ export const optimizerApi = {
         tiempoLimite
       };
 
-      console.log('Enviando datos a optimizador:', payload);
-      console.log('Tareas en progreso:', tareasEnProgreso);
-
-      // Debug: log usuarios y sus capacidades
-      if (payload.usuarios) {
-        payload.usuarios.forEach(u => {
-          console.log(`Usuario: ${u.nombre}, Capacidad: ${u.capacidadDiaria} SP/día`);
-        });
-      }
-
-      // Debug: log tareas "Resumen" y "Mis Rutas"
-      if (payload.tareas) {
-        payload.tareas.forEach(t => {
-          if (t.nombre.includes('Resumen') || t.nombre.includes('Mis Rutas')) {
-            console.log(`Tarea ENVIADA: ${t.nombre}, SP: ${t.storyPoints}, Tipo SP: ${typeof t.storyPoints}`);
-          }
-        });
-      }
-
       // Llamar a Cloud Function
       const response = await fetch(CLOUD_FUNCTION_URL, {
         method: 'POST',
@@ -119,19 +101,6 @@ export const optimizerApi = {
       }
 
       const resultado = await response.json();
-      console.log('Resultado de optimización:', resultado);
-
-      // Save to window for debugging
-      window.__lastOptimizationResult = resultado;
-
-      // Log tasks with risk for debugging
-      if (resultado.solucion) {
-        const tasksWithRisk = resultado.solucion.filter(t => t.tiempoRiesgo > 0);
-        console.log('Tareas con riesgo:', tasksWithRisk.length, 'de', resultado.solucion.length);
-        if (tasksWithRisk.length > 0) {
-          console.log('Ejemplos de tareas con riesgo:', tasksWithRisk.slice(0, 3));
-        }
-      }
 
       return {
         success: true,

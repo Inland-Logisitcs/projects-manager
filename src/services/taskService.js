@@ -531,3 +531,95 @@ export const saveOptimization = async (assignmentsData) => {
     return { success: false, error: error.message };
   }
 };
+
+/**
+ * Limpiar los detalles de optimización de las tareas manteniendo el assignedTo
+ * Elimina: planningOrder, optimizedAt, optimizedDuration
+ * Mantiene: assignedTo
+ * @param {Array<string>} taskIds - IDs de las tareas a limpiar (opcional, si no se provee limpia todas las optimizadas)
+ * @returns {Object} - Resultado de la operación con estadísticas
+ */
+export const clearOptimizationDetails = async (taskIds = null) => {
+  try {
+    let tasksToClean = [];
+
+    // Si no se proporcionan IDs, buscar todas las tareas optimizadas
+    if (!taskIds || taskIds.length === 0) {
+      const q = query(
+        collection(db, TASKS_COLLECTION),
+        where('archived', '==', false)
+      );
+      const snapshot = await getDocs(q);
+
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        // Solo tareas que tengan planningOrder definido (están optimizadas)
+        if (typeof data.planningOrder === 'number') {
+          tasksToClean.push(doc.id);
+        }
+      });
+    } else {
+      tasksToClean = taskIds;
+    }
+
+    if (tasksToClean.length === 0) {
+      return { success: true, stats: { total: 0, success: 0, errors: 0 }, message: 'No hay tareas optimizadas para limpiar' };
+    }
+
+    let successCount = 0;
+    let errorCount = 0;
+    const errors = [];
+    const cleaned = [];
+
+    // Limpiar cada tarea
+    for (const taskId of tasksToClean) {
+      try {
+        const taskRef = doc(db, TASKS_COLLECTION, taskId);
+        const taskDoc = await getDoc(taskRef);
+
+        if (!taskDoc.exists()) {
+          errorCount++;
+          errors.push({ taskId, error: 'Tarea no encontrada' });
+          continue;
+        }
+
+        const currentData = taskDoc.data();
+
+        // Actualizar tarea eliminando solo los campos de optimización
+        await updateDoc(taskRef, {
+          planningOrder: null,
+          optimizedAt: null,
+          optimizedDuration: null,
+          updatedAt: serverTimestamp()
+        });
+
+        successCount++;
+        cleaned.push({
+          taskId,
+          taskName: currentData.title || currentData.name,
+          assignedTo: currentData.assignedTo // Se mantiene
+        });
+      } catch (error) {
+        errorCount++;
+        errors.push({ taskId, error: error.message });
+        console.error(`Error al limpiar tarea ${taskId}:`, error);
+      }
+    }
+
+    // Retornar resultado con estadísticas
+    return {
+      success: errorCount === 0,
+      partial: successCount > 0 && errorCount > 0,
+      stats: {
+        total: tasksToClean.length,
+        success: successCount,
+        errors: errorCount
+      },
+      cleaned,
+      errors: errors.length > 0 ? errors : undefined
+    };
+  } catch (error) {
+    console.error('Error al limpiar optimización:', error);
+    return { success: false, error: error.message };
+  }
+};

@@ -1,13 +1,361 @@
 import { useState, useEffect } from 'react';
 import { useOptimizer } from '../../hooks/useOptimizer';
 import { subscribeToUsers } from '../../services/userService';
-import { saveOptimization } from '../../services/taskService';
+import { saveOptimization, clearOptimizationDetails } from '../../services/taskService';
 import Icon from '../common/Icon';
 import Toast from '../common/Toast';
 import ConfirmDialog from '../common/ConfirmDialog';
 import CustomGanttChart from './CustomGanttChart';
 import TaskDetailSidebar from '../kanban/TaskDetailSidebar';
 import '../../styles/TaskScheduler.css';
+
+/**
+ * Avanza desde un día calendario de inicio contando N días de trabajo,
+ * saltando días no laborables. Retorna el día calendario donde termina.
+ *
+ * @param {number} diaInicio - Día calendario de inicio (puede ser negativo)
+ * @param {number} diasTrabajo - Días de trabajo efectivo (ej: 2.5)
+ * @param {number[]} diasLaborables - Días laborables [1=Lun..7=Dom]
+ * @returns {number} Día calendario de fin
+ */
+const avanzarDiasLaborables = (diaInicio, diasTrabajo, diasLaborables) => {
+  if (!diasLaborables || diasLaborables.length === 0 || diasLaborables.length === 7) {
+    return diaInicio + diasTrabajo;
+  }
+
+  const diasLabSet = new Set(diasLaborables);
+  const unidadesTrabajo = Math.ceil(diasTrabajo * 2); // Convertir a medios días
+
+  if (unidadesTrabajo <= 0) return diaInicio;
+
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+
+  // Normalizar diaInicio a medios días enteros
+  let diasCompletosInicio;
+  let enMedioDia;
+
+  if (diaInicio < 0 && diaInicio > -1) {
+    diasCompletosInicio = 0;
+    enMedioDia = false;
+  } else {
+    diasCompletosInicio = Math.floor(diaInicio);
+    enMedioDia = (diaInicio - diasCompletosInicio) >= 0.5;
+  }
+
+  const fechaActual = new Date(hoy);
+  fechaActual.setDate(hoy.getDate() + diasCompletosInicio);
+
+  let medioDiasTrabajados = 0;
+
+  while (medioDiasTrabajados < unidadesTrabajo) {
+    const diaSemanaJS = fechaActual.getDay();
+    const diaSemana = diaSemanaJS === 0 ? 7 : diaSemanaJS;
+
+    if (diasLabSet.has(diaSemana)) {
+      medioDiasTrabajados += 1;
+
+      if (medioDiasTrabajados >= unidadesTrabajo) {
+        const msDesdeHoy = fechaActual - hoy;
+        const diasDesdeHoy = Math.round(msDesdeHoy / (1000 * 60 * 60 * 24));
+        const unidadesDesdeHoy = diasDesdeHoy * 2 + (enMedioDia ? 1 : 0);
+        return (unidadesDesdeHoy + 1) / 2.0;
+      }
+    }
+
+    if (enMedioDia) {
+      fechaActual.setDate(fechaActual.getDate() + 1);
+      enMedioDia = false;
+    } else {
+      enMedioDia = true;
+    }
+  }
+
+  return diaInicio + diasTrabajo; // Fallback
+};
+
+/**
+ * Calcula duracion total de una tarea incluyendo riesgos y redondeo a 0.5 dias.
+ *
+ * @param {Object} tarea - Tarea con storyPoints, id, projectId, assignedTo
+ * @param {Object} usuario - Usuario con dailyCapacity/capacidadDiaria
+ * @param {Array} factoresRiesgo - Factores de riesgo del sistema
+ * @returns {Object} { duracionBase, tiempoRiesgo, tiempoRiesgoUsuario, tiempoRiesgoProyecto, tiempoRedondeo, duracionTotal }
+ */
+const calcularDuracionConRiesgos = (tarea, usuario, factoresRiesgo) => {
+  const capacidad = usuario?.dailyCapacity || usuario?.capacidadDiaria || 1;
+  const storyPoints = tarea.storyPoints || 0;
+  const duracionBase = storyPoints / capacidad;
+
+  let porcentajeUsuario = 0;
+  let porcentajeProyecto = 0;
+  let diasExtra = 0;
+
+  factoresRiesgo.forEach(riesgo => {
+    if (riesgo.usuarioId === tarea.assignedTo && riesgo.tareaId === tarea.id) {
+      porcentajeUsuario = riesgo.porcentajeExtra || 0;
+      diasExtra += riesgo.diasExtra || 0;
+    } else if (riesgo.usuarioId === tarea.assignedTo && riesgo.proyectoId === (tarea.projectId || tarea.proyectoId)) {
+      porcentajeUsuario = riesgo.porcentajeExtra || 0;
+      diasExtra += riesgo.diasExtra || 0;
+    } else if (!riesgo.usuarioId && riesgo.tareaId === tarea.id) {
+      porcentajeProyecto = riesgo.porcentajeExtra || 0;
+      diasExtra += riesgo.diasExtra || 0;
+    } else if (!riesgo.usuarioId && riesgo.proyectoId === (tarea.projectId || tarea.proyectoId)) {
+      porcentajeProyecto = riesgo.porcentajeExtra || 0;
+      diasExtra += riesgo.diasExtra || 0;
+    }
+  });
+
+  const riesgoUsuarioEnSP = storyPoints * porcentajeUsuario;
+  const riesgoProyectoEnSP = storyPoints * porcentajeProyecto;
+  const tiempoRiesgoUsuario = riesgoUsuarioEnSP / capacidad;
+  const tiempoRiesgoProyecto = riesgoProyectoEnSP / capacidad;
+  const tiempoRiesgoTotal = tiempoRiesgoUsuario + tiempoRiesgoProyecto + diasExtra;
+
+  const duracionSinRedondeo = duracionBase + tiempoRiesgoTotal;
+  const duracionTotal = Math.ceil(duracionSinRedondeo * 2) / 2;
+  const tiempoRedondeo = duracionTotal - duracionSinRedondeo;
+
+  return {
+    duracionBase,
+    tiempoRiesgo: tiempoRiesgoTotal,
+    tiempoRiesgoUsuario,
+    tiempoRiesgoProyecto,
+    tiempoRedondeo,
+    duracionTotal
+  };
+};
+
+/**
+ * Calcula posiciones calendario para todas las tareas del Gantt.
+ * Fuente unica de verdad para posiciones: tareas en progreso, ya optimizadas, y nuevas.
+ *
+ * @param {Object} params
+ * @param {Array} params.tareasOptimizador - Tareas nuevas del optimizador (con ordenGlobal, usuarioId)
+ * @param {Array} params.tareasEnProgreso - Tareas en progreso (raw de Firebase)
+ * @param {Array} params.tareasYaOptimizadas - Tareas ya optimizadas (raw de Firebase)
+ * @param {Array} params.usuarios - Usuarios del sistema
+ * @param {Array} params.factoresRiesgo - Factores de riesgo
+ * @param {Array} params.proyectos - Proyectos
+ * @param {Function} params.calcularRiesgos - Funcion calcularDuracionConRiesgos
+ * @returns {Array} Tareas con posiciones para el Gantt
+ */
+const calcularPosicionesParaGantt = ({
+  tareasOptimizador = [],
+  tareasEnProgreso = [],
+  tareasYaOptimizadas = [],
+  usuarios,
+  factoresRiesgo,
+  proyectos,
+  calcularRiesgos
+}) => {
+  const resultado = [];
+  // Track posicion disponible por usuario (dia calendario donde puede empezar la siguiente tarea)
+  const posicionUsuario = {};
+
+  // Helper para obtener datos del usuario
+  const getUsuario = (userId) => usuarios.find(u => u.id === userId);
+  const getDiasLab = (userId) => {
+    const u = getUsuario(userId);
+    return u?.workingDays || [1, 2, 3, 4, 5];
+  };
+  const getNombreUsuario = (userId) => {
+    const u = getUsuario(userId);
+    return u?.displayName || u?.nombre || 'Sin asignar';
+  };
+  const getNombreProyecto = (proyectoId) =>
+    proyectos.find(p => p.id === proyectoId)?.name || 'Sin proyecto';
+
+  // 1. Tareas en progreso
+  tareasEnProgreso.forEach(t => {
+    const usuario = getUsuario(t.assignedTo);
+    if (!usuario) return;
+
+    // Usar optimizedDuration guardada si existe, sino recalcular
+    let riesgos;
+    if (t.optimizedDuration) {
+      riesgos = {
+        duracionBase: t.optimizedDuration.duracionBase || 0,
+        tiempoRiesgo: t.optimizedDuration.tiempoRiesgo || 0,
+        tiempoRiesgoUsuario: t.optimizedDuration.tiempoRiesgoUsuario || 0,
+        tiempoRiesgoProyecto: t.optimizedDuration.tiempoRiesgoProyecto || 0,
+        tiempoRedondeo: t.optimizedDuration.tiempoRedondeo || 0,
+        duracionTotal: t.optimizedDuration.duracionTotal || 0
+      };
+    } else {
+      riesgos = calcularRiesgos(t, usuario, factoresRiesgo);
+    }
+    const diasLab = getDiasLab(t.assignedTo);
+
+    let diasTranscurridos = 0;
+    // Buscar la ultima transicion pending -> in-progress en movementHistory
+    let fechaInicioTrabajo = null;
+    if (t.movementHistory && t.movementHistory.length > 0) {
+      for (let i = t.movementHistory.length - 1; i >= 0; i--) {
+        const mov = t.movementHistory[i];
+        if (mov.type === 'status_change' && mov.from === 'pending' && mov.to === 'in-progress') {
+          const ts = mov.timestamp;
+          fechaInicioTrabajo = ts?.toDate ? ts.toDate() : ts?.seconds ? new Date(ts.seconds * 1000) : new Date(ts);
+          break;
+        }
+      }
+    }
+    // Fallback a lastStatusChange si no se encuentra la transicion especifica
+    if (!fechaInicioTrabajo && t.lastStatusChange) {
+      fechaInicioTrabajo = t.lastStatusChange.toDate ? t.lastStatusChange.toDate() : new Date(t.lastStatusChange);
+    }
+    if (fechaInicioTrabajo) {
+      diasTranscurridos = (new Date() - fechaInicioTrabajo) / (1000 * 60 * 60 * 24);
+    }
+
+    // Snap to 0.5-day grid for consistent segment rendering in the Gantt
+    const diaInicio = Math.round(-diasTranscurridos * 2) / 2;
+    const diaFin = avanzarDiasLaborables(diaInicio, riesgos.duracionTotal, diasLab);
+
+    resultado.push({
+      id: t.id,
+      nombre: t.title || t.nombre,
+      usuario: getNombreUsuario(t.assignedTo),
+      usuarioId: t.assignedTo,
+      proyectoId: t.projectId || t.proyectoId,
+      proyectoNombre: getNombreProyecto(t.projectId || t.proyectoId),
+      diaInicio,
+      diaFin,
+      duracionBase: riesgos.duracionBase,
+      tiempoRiesgo: riesgos.tiempoRiesgo,
+      tiempoRiesgoUsuario: riesgos.tiempoRiesgoUsuario,
+      tiempoRiesgoProyecto: riesgos.tiempoRiesgoProyecto,
+      tiempoRedondeo: riesgos.tiempoRedondeo,
+      storyPoints: t.storyPoints,
+      enProgreso: true,
+      forzado: false,
+      dependencias: t.dependencies || [],
+      diasTranscurridos
+    });
+
+    // Actualizar posicion del usuario
+    posicionUsuario[t.assignedTo] = Math.max(posicionUsuario[t.assignedTo] || 0, diaFin);
+  });
+
+  // 2. Tareas ya optimizadas (ordenadas por planningOrder dentro de cada usuario)
+  const yaOptPorUsuario = {};
+  tareasYaOptimizadas.forEach(t => {
+    if (!yaOptPorUsuario[t.assignedTo]) yaOptPorUsuario[t.assignedTo] = [];
+    yaOptPorUsuario[t.assignedTo].push(t);
+  });
+  Object.values(yaOptPorUsuario).forEach(arr => arr.sort((a, b) => a.planningOrder - b.planningOrder));
+
+  Object.entries(yaOptPorUsuario).forEach(([userId, tareas]) => {
+    const usuario = getUsuario(userId);
+    if (!usuario) return;
+    const diasLab = getDiasLab(userId);
+
+    tareas.forEach(t => {
+      let duracionBase, tiempoRiesgo, tiempoRiesgoUsuario, tiempoRiesgoProyecto, tiempoRedondeo, duracionTotal;
+
+      if (t.optimizedDuration) {
+        duracionBase = t.optimizedDuration.duracionBase || 0;
+        tiempoRiesgo = t.optimizedDuration.tiempoRiesgo || 0;
+        tiempoRiesgoUsuario = t.optimizedDuration.tiempoRiesgoUsuario || 0;
+        tiempoRiesgoProyecto = t.optimizedDuration.tiempoRiesgoProyecto || 0;
+        tiempoRedondeo = t.optimizedDuration.tiempoRedondeo || 0;
+        duracionTotal = t.optimizedDuration.duracionTotal || duracionBase + tiempoRiesgo + tiempoRedondeo;
+      } else {
+        const riesgos = calcularRiesgos(t, usuario, factoresRiesgo);
+        duracionBase = riesgos.duracionBase;
+        tiempoRiesgo = riesgos.tiempoRiesgo;
+        tiempoRiesgoUsuario = riesgos.tiempoRiesgoUsuario;
+        tiempoRiesgoProyecto = riesgos.tiempoRiesgoProyecto;
+        tiempoRedondeo = riesgos.tiempoRedondeo;
+        duracionTotal = riesgos.duracionTotal;
+      }
+
+      const diaInicio = Math.max(posicionUsuario[userId] || 0, 0);
+      const diaFin = avanzarDiasLaborables(diaInicio, duracionTotal, diasLab);
+
+      resultado.push({
+        id: t.id,
+        nombre: t.title || t.nombre,
+        usuario: getNombreUsuario(userId),
+        usuarioId: userId,
+        proyectoId: t.projectId || t.proyectoId,
+        proyectoNombre: getNombreProyecto(t.projectId || t.proyectoId),
+        diaInicio,
+        diaFin,
+        duracionBase,
+        tiempoRiesgo,
+        tiempoRiesgoUsuario,
+        tiempoRiesgoProyecto,
+        tiempoRedondeo,
+        storyPoints: t.storyPoints,
+        enProgreso: false,
+        forzado: true,
+        dependencias: t.dependencies || [],
+        planningOrder: t.planningOrder
+      });
+
+      posicionUsuario[userId] = diaFin;
+    });
+  });
+
+  // 3. Tareas nuevas del optimizador (ordenadas por ordenGlobal para respetar dependencias)
+  const tareasOrdenadas = [...tareasOptimizador].sort((a, b) => (a.ordenGlobal || 0) - (b.ordenGlobal || 0));
+
+  // Mapa de diaFin por taskId para resolver dependencias
+  const finPorTarea = {};
+  resultado.forEach(t => { finPorTarea[t.id] = t.diaFin; });
+
+  tareasOrdenadas.forEach(t => {
+    const usuario = getUsuario(t.usuarioId);
+    if (!usuario) return;
+    const diasLab = getDiasLab(t.usuarioId);
+
+    const riesgos = calcularRiesgos(
+      { ...t, assignedTo: t.usuarioId, projectId: t.proyectoId },
+      usuario,
+      factoresRiesgo
+    );
+
+    // diaInicio = max(posicionUsuario, max(diaFin de dependencias))
+    let diaInicio = posicionUsuario[t.usuarioId] || 0;
+    if (t.dependencias && t.dependencias.length > 0) {
+      t.dependencias.forEach(depId => {
+        if (finPorTarea[depId] !== undefined) {
+          diaInicio = Math.max(diaInicio, finPorTarea[depId]);
+        }
+      });
+    }
+
+    const diaFin = avanzarDiasLaborables(diaInicio, riesgos.duracionTotal, diasLab);
+
+    const tareaGantt = {
+      id: t.id || t.taskId,
+      nombre: t.nombre,
+      usuario: getNombreUsuario(t.usuarioId),
+      usuarioId: t.usuarioId,
+      proyectoId: t.proyectoId,
+      proyectoNombre: t.proyectoNombre || getNombreProyecto(t.proyectoId),
+      diaInicio,
+      diaFin,
+      duracionBase: riesgos.duracionBase,
+      tiempoRiesgo: riesgos.tiempoRiesgo,
+      tiempoRiesgoUsuario: riesgos.tiempoRiesgoUsuario,
+      tiempoRiesgoProyecto: riesgos.tiempoRiesgoProyecto,
+      tiempoRedondeo: riesgos.tiempoRedondeo,
+      storyPoints: t.storyPoints,
+      enProgreso: false,
+      forzado: t.forzado || false,
+      dependencias: t.dependencias || []
+    };
+
+    resultado.push(tareaGantt);
+    finPorTarea[tareaGantt.id] = diaFin;
+    posicionUsuario[t.usuarioId] = diaFin;
+  });
+
+  return resultado;
+};
 
 /**
  * Componente principal del planificador/optimizador de tareas
@@ -22,6 +370,8 @@ const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {} }) =
   const [selectedTask, setSelectedTask] = useState(null); // Tarea seleccionada para el sidebar
   const [saving, setSaving] = useState(false); // Estado de guardado
   const [showSaveConfirm, setShowSaveConfirm] = useState(false); // Mostrar confirmación de guardado
+  const [showClearConfirm, setShowClearConfirm] = useState(false); // Mostrar confirmación de limpieza
+  const [clearing, setClearing] = useState(false); // Estado de limpieza
 
   const { optimizar, loading, error, resultado, limpiar } = useOptimizer();
 
@@ -57,163 +407,26 @@ const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {} }) =
       !t.archived
     );
 
-    // Separar tareas en progreso y pendientes
-    const tareasEnProgreso = tareasConPlanificacion.filter(t => t.status === 'in-progress');
-    const tareasPendientes = tareasConPlanificacion.filter(t => t.status !== 'in-progress');
+    if (tareasConPlanificacion.length === 0) {
+      setTareasPlaneadas([]);
+      return;
+    }
 
-    // Agrupar por usuario y ordenar por planningOrder
-    const tareasPorUsuario = {};
-    tareasConPlanificacion.forEach(tarea => {
-      if (!tareasPorUsuario[tarea.assignedTo]) {
-        tareasPorUsuario[tarea.assignedTo] = [];
-      }
-      tareasPorUsuario[tarea.assignedTo].push(tarea);
-    });
+    const enProgreso = tareasConPlanificacion.filter(t => t.status === 'in-progress');
+    const pendientes = tareasConPlanificacion.filter(t => t.status !== 'in-progress');
 
-    // Ordenar tareas de cada usuario por planningOrder
-    Object.keys(tareasPorUsuario).forEach(usuarioId => {
-      tareasPorUsuario[usuarioId].sort((a, b) => a.planningOrder - b.planningOrder);
-    });
-
-    // Convertir a formato Gantt
-    const tareasGantt = [];
-
-    Object.entries(tareasPorUsuario).forEach(([usuarioId, tareasUsuario]) => {
-      const usuario = usuarios.find(u => u.id === usuarioId);
-      if (!usuario) return;
-
-      const capacidad = usuario.dailyCapacity || usuario.capacidadDiaria || 1;
-
-      // Procesar cada tarea del usuario
-      tareasUsuario.forEach((tarea, index) => {
-        // Usar la duración optimizada si existe, sino calcular basándose en story points
-        let duracion, duracionBase, tiempoRiesgo, tiempoRiesgoUsuario, tiempoRiesgoProyecto, tiempoRedondeo;
-
-        if (tarea.optimizedDuration) {
-          // Usar datos guardados del optimizador
-          duracionBase = tarea.optimizedDuration.duracionBase || 0;
-          tiempoRiesgo = tarea.optimizedDuration.tiempoRiesgo || 0;
-          tiempoRiesgoUsuario = tarea.optimizedDuration.tiempoRiesgoUsuario || 0;
-          tiempoRiesgoProyecto = tarea.optimizedDuration.tiempoRiesgoProyecto || 0;
-          tiempoRedondeo = tarea.optimizedDuration.tiempoRedondeo || 0;
-          duracion = tarea.optimizedDuration.duracionTotal || duracionBase + tiempoRiesgo + tiempoRedondeo;
-        } else {
-          // Calcular duración simple basándose en story points
-          duracionBase = tarea.storyPoints ? (tarea.storyPoints / capacidad) : 1;
-          duracion = duracionBase;
-          tiempoRiesgo = 0;
-          tiempoRiesgoUsuario = 0;
-          tiempoRiesgoProyecto = 0;
-          tiempoRedondeo = 0;
-        }
-
-        // Calcular posición de inicio y días transcurridos
-        let diaInicio = 0;
-        let diasTranscurridos = 0;
-
-        if (tarea.status === 'in-progress' && tarea.lastStatusChange) {
-          // Tarea en progreso: calcular días negativos
-          const fechaInicio = tarea.lastStatusChange.toDate ? tarea.lastStatusChange.toDate() : new Date(tarea.lastStatusChange);
-          const ahora = new Date();
-          const diferenciaMs = ahora - fechaInicio;
-          diasTranscurridos = diferenciaMs / (1000 * 60 * 60 * 24);
-
-          // Empezar en negativo según días transcurridos
-          diaInicio = -diasTranscurridos;
-        } else {
-          // Tarea pendiente: calcular inicio basándose en tareas anteriores del mismo usuario
-          // Encontrar la última tarea anterior que termine más tarde
-          let maxFinAnterior = 0;
-          for (let i = 0; i < index; i++) {
-            const tareaAnterior = tareasUsuario[i];
-            const tareaAnteriorGantt = tareasGantt.find(t => t.id === tareaAnterior.id);
-            if (tareaAnteriorGantt) {
-              maxFinAnterior = Math.max(maxFinAnterior, tareaAnteriorGantt.diaFin);
-            }
-          }
-          diaInicio = maxFinAnterior;
-        }
-
-        const diaFin = diaInicio + duracion;
-
-        tareasGantt.push({
-          id: tarea.id,
-          nombre: tarea.title || tarea.nombre,
-          usuario: usuario.displayName || usuario.nombre || 'Sin nombre',
-          proyectoId: tarea.projectId || tarea.proyectoId,
-          proyectoNombre: proyectos.find(p => p.id === (tarea.projectId || tarea.proyectoId))?.name || 'Sin proyecto',
-          diaInicio: diaInicio,
-          diaFin: diaFin,
-          duracion: duracion,
-          duracionBase: duracionBase,
-          tiempoRiesgo: tiempoRiesgo,
-          tiempoRiesgoUsuario: tiempoRiesgoUsuario,
-          tiempoRiesgoProyecto: tiempoRiesgoProyecto,
-          duracionAntesCeil: duracionBase + tiempoRiesgo, // Para el overlay de redondeo
-          storyPoints: tarea.storyPoints,
-          forzado: true, // Las tareas planeadas son "forzadas"
-          enProgreso: tarea.status === 'in-progress',
-          planningOrder: tarea.planningOrder,
-          dependencias: tarea.dependencies || [], // Incluir dependencias
-          diasTranscurridos: diasTranscurridos // Para el tooltip
-        });
-      });
+    const tareasGantt = calcularPosicionesParaGantt({
+      tareasOptimizador: [],
+      tareasEnProgreso: enProgreso,
+      tareasYaOptimizadas: pendientes,
+      usuarios,
+      factoresRiesgo: [],
+      proyectos,
+      calcularRiesgos: calcularDuracionConRiesgos
     });
 
     setTareasPlaneadas(tareasGantt);
   }, [tareas, usuarios, proyectos]);
-
-  // Función helper para calcular duración con riesgos
-  const calcularDuracionConRiesgos = (tarea, usuario, factoresRiesgo) => {
-    const capacidad = usuario?.dailyCapacity || usuario?.capacidadDiaria || 1;
-    const storyPoints = tarea.storyPoints || 0;
-    const duracionBase = storyPoints / capacidad;
-
-    // Buscar riesgos aplicables
-    let porcentajeUsuario = 0;
-    let porcentajeProyecto = 0;
-    let diasExtra = 0;
-
-    factoresRiesgo.forEach(riesgo => {
-      // Riesgo específico del usuario para esta tarea
-      if (riesgo.usuarioId === tarea.assignedTo && riesgo.tareaId === tarea.id) {
-        porcentajeUsuario = riesgo.porcentajeExtra || 0;
-        diasExtra += riesgo.diasExtra || 0;
-      }
-      // Riesgo del usuario para todo el proyecto
-      else if (riesgo.usuarioId === tarea.assignedTo && riesgo.proyectoId === (tarea.projectId || tarea.proyectoId)) {
-        porcentajeUsuario = riesgo.porcentajeExtra || 0;
-        diasExtra += riesgo.diasExtra || 0;
-      }
-      // Riesgo general para esta tarea (sin usuarioId)
-      else if (!riesgo.usuarioId && riesgo.tareaId === tarea.id) {
-        porcentajeProyecto = riesgo.porcentajeExtra || 0;
-        diasExtra += riesgo.diasExtra || 0;
-      }
-      // Riesgo general del proyecto (sin usuarioId)
-      else if (!riesgo.usuarioId && riesgo.proyectoId === (tarea.projectId || tarea.proyectoId)) {
-        porcentajeProyecto = riesgo.porcentajeExtra || 0;
-        diasExtra += riesgo.diasExtra || 0;
-      }
-    });
-
-    // Calcular riesgo en story points primero, luego convertir a días
-    // Esto es importante para usuarios part-time
-    const riesgoUsuarioEnSP = storyPoints * porcentajeUsuario;
-    const riesgoProyectoEnSP = storyPoints * porcentajeProyecto;
-    const tiempoRiesgoUsuario = riesgoUsuarioEnSP / capacidad;
-    const tiempoRiesgoProyecto = riesgoProyectoEnSP / capacidad;
-    const tiempoRiesgoTotal = tiempoRiesgoUsuario + tiempoRiesgoProyecto + diasExtra;
-    const duracionTotal = duracionBase + tiempoRiesgoTotal;
-
-    return {
-      duracionBase,
-      tiempoRiesgo: tiempoRiesgoTotal,
-      tiempoRiesgoUsuario,
-      tiempoRiesgoProyecto,
-      duracion: duracionTotal
-    };
-  };
 
   // Validar datos antes de optimizar
   const validarDatos = () => {
@@ -236,397 +449,196 @@ const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {} }) =
   };
 
   const handleOptimizar = async () => {
-    // Validar datos
     const errorValidacion = validarDatos();
     if (errorValidacion) {
-      setToast({
-        isOpen: true,
-        message: errorValidacion,
-        type: 'error'
-      });
+      setToast({ isOpen: true, message: errorValidacion, type: 'error' });
       return;
     }
 
-    // Validar que haya al menos un proyecto seleccionado
     if (selectedProyectos.length === 0) {
-      setToast({
-        isOpen: true,
-        message: 'Debes seleccionar al menos un proyecto para optimizar',
-        type: 'error'
-      });
+      setToast({ isOpen: true, message: 'Debes seleccionar al menos un proyecto para optimizar', type: 'error' });
       return;
     }
 
-    // Separar tareas en doing (en progreso) y pendientes, filtrando por proyectos seleccionados
-    const tareasDoing = tareas.filter(t =>
+    // Separar tareas en doing y pendientes, filtrando por proyectos seleccionados
+    const tareasDoingRaw = tareas.filter(t =>
       t.status === 'in-progress' &&
-      t.storyPoints &&
-      t.storyPoints > 0 &&
+      t.storyPoints && t.storyPoints > 0 &&
       selectedProyectos.includes(t.projectId || t.proyectoId)
     );
 
-    // Filtrar tareas pendientes (ni doing, ni terminadas) y de proyectos seleccionados
     const todasLasPendientes = tareas.filter(t => {
       const tieneStoryPoints = t.storyPoints && t.storyPoints > 0;
       const estadoValido = t.status !== 'qa' && t.status !== 'completed' && t.status !== 'in-progress';
-      const proyectoSeleccionado = selectedProyectos.includes(t.projectId || t.proyectoId);
-      return tieneStoryPoints && estadoValido && proyectoSeleccionado;
+      return tieneStoryPoints && estadoValido && selectedProyectos.includes(t.projectId || t.proyectoId);
     });
 
-    // Separar las pendientes en: ya optimizadas vs. no optimizadas
     const tareasYaOptimizadas = todasLasPendientes.filter(t =>
       t.assignedTo && typeof t.planningOrder === 'number'
     );
-
     const tareasPendientes = todasLasPendientes.filter(t =>
       !t.assignedTo || typeof t.planningOrder !== 'number'
     );
 
-    // Contar tareas excluidas y ya optimizadas
-    const tareasExcluidasPorProyecto = tareas.filter(t => {
-      const tieneStoryPoints = t.storyPoints && t.storyPoints > 0;
-      const estadoValido = t.status !== 'qa' && t.status !== 'completed' && t.status !== 'in-progress';
-      const proyectoNoSeleccionado = !selectedProyectos.includes(t.projectId || t.proyectoId);
-      return tieneStoryPoints && estadoValido && proyectoNoSeleccionado;
-    }).length;
-
-    const numTareasYaOptimizadas = tareasYaOptimizadas.length;
-
-    // Filtrar usuarios con capacidad válida
-    const usuariosValidos = usuarios.filter(u => {
-      const capacidad = u.dailyCapacity || u.capacidadDiaria || 0;
-      return capacidad > 0;
-    });
-    const usuariosSinCapacidad = usuarios.length - usuariosValidos.length;
-
-    // Combinar factores de riesgo de cada proyecto seleccionado
+    // Combinar factores de riesgo
     const todosLosRiesgos = [];
-    selectedProyectos.forEach(proyectoId => {
-      const riesgosProyecto = projectRisks[proyectoId] || [];
-      todosLosRiesgos.push(...riesgosProyecto);
+    selectedProyectos.forEach(pid => {
+      todosLosRiesgos.push(...(projectRisks[pid] || []));
     });
 
-    // Mostrar info sobre optimización
+    // Info toast
     const mensajes = [];
-    const proyectosSeleccionadosNombres = proyectos
-      .filter(p => selectedProyectos.includes(p.id))
-      .map(p => p.name)
-      .join(', ');
-
     if (selectedProyectos.length < proyectos.length) {
-      mensajes.push(`Proyectos: ${proyectosSeleccionadosNombres}`);
+      mensajes.push(`Proyectos: ${proyectos.filter(p => selectedProyectos.includes(p.id)).map(p => p.name).join(', ')}`);
     }
-    if (tareasDoing.length > 0) {
-      mensajes.push(`${tareasDoing.length} tarea(s) en progreso`);
-    }
-    if (numTareasYaOptimizadas > 0) {
-      mensajes.push(`${numTareasYaOptimizadas} tarea(s) ya optimizadas (se mantendrán)`);
-    }
-    if (tareasExcluidasPorProyecto > 0) {
-      mensajes.push(`${tareasExcluidasPorProyecto} tarea(s) de proyectos no seleccionados`);
-    }
-    if (usuariosSinCapacidad > 0) {
-      mensajes.push(`${usuariosSinCapacidad} usuario(s) sin capacidad`);
-    }
-    if (todosLosRiesgos.length > 0) {
-      mensajes.push(`${todosLosRiesgos.length} factor(es) de riesgo`);
-    }
-
+    if (tareasDoingRaw.length > 0) mensajes.push(`${tareasDoingRaw.length} tarea(s) en progreso`);
+    if (tareasYaOptimizadas.length > 0) mensajes.push(`${tareasYaOptimizadas.length} tarea(s) ya optimizadas`);
+    if (todosLosRiesgos.length > 0) mensajes.push(`${todosLosRiesgos.length} factor(es) de riesgo`);
     if (mensajes.length > 0) {
-      setToast({
-        isOpen: true,
-        message: `Optimizando: ${mensajes.join(' • ')}`,
-        type: 'info'
-      });
+      setToast({ isOpen: true, message: `Optimizando: ${mensajes.join(' - ')}`, type: 'info' });
     }
 
-    // Limpiar resultados anteriores
     limpiar();
 
-    // Preparar info de tareas en progreso para el optimizador
-    // IMPORTANTE: Validar que las tareas en progreso no tengan dependencias pendientes
+    // Preparar restricciones para el optimizador
     const tareasEnProgresoInvalidas = [];
-    const tareasEnProgreso = tareasDoing
-      .map(t => {
-        const usuario = usuarios.find(u => u.id === t.assignedTo);
-        const { duracion } = calcularDuracionConRiesgos(t, usuario, todosLosRiesgos);
-        const dependencias = t.dependencies || [];
-
-        // Calcular cuántos días lleva la tarea en progreso
-        let diasTranscurridos = 0;
-        if (t.lastStatusChange) {
-          const fechaInicio = t.lastStatusChange.toDate ? t.lastStatusChange.toDate() : new Date(t.lastStatusChange);
-          const ahora = new Date();
-          const diferenciaMs = ahora - fechaInicio;
-          diasTranscurridos = diferenciaMs / (1000 * 60 * 60 * 24);
-        }
-
-        // Calcular duración RESTANTE (no la duración total)
-        // Si la tarea lleva 1.2 días en progreso y la duración total es 3 días,
-        // entonces quedan 1.8 días
-        const duracionRestante = Math.max(0, duracion - diasTranscurridos);
-
-        // Verificar si alguna dependencia está en tareasPendientes (inconsistencia)
-        const dependenciasPendientes = dependencias.filter(depId =>
-          tareasPendientes.some(tp => tp.id === depId)
-        );
-
-        if (dependenciasPendientes.length > 0) {
-          tareasEnProgresoInvalidas.push({
-            tarea: t.title || t.nombre,
-            dependencias: dependenciasPendientes.map(depId => {
-              const dep = tareasPendientes.find(tp => tp.id === depId);
-              return dep?.title || dep?.nombre || depId;
-            })
-          });
-        }
-
-        return {
-          id: t.id,
-          usuarioId: t.assignedTo,
-          duracion: duracionRestante, // Usar duración restante en lugar de duración total
-          dependencias: dependencias // Incluir dependencias para verificación cruzada
-        };
-      });
-
-    // Preparar tareas ya optimizadas para pasar al optimizador como restricciones
-    // IMPORTANTE: Pasar cada tarea individualmente para que el optimizador las trate como
-    // tareas forzadas ya asignadas. El optimizador debe posicionar las tareas nuevas DESPUÉS.
-    const tareasOptimizadasParaAlgoritmo = tareasYaOptimizadas.map(t => {
+    const tareasEnProgreso = tareasDoingRaw.map(t => {
       const usuario = usuarios.find(u => u.id === t.assignedTo);
+      const { duracionTotal } = calcularDuracionConRiesgos(t, usuario, todosLosRiesgos);
+      const dependencias = t.dependencies || [];
 
-      // Usar la duración optimizada guardada si existe, sino calcular
-      let duracion;
-      if (t.optimizedDuration && t.optimizedDuration.duracionTotal) {
-        duracion = t.optimizedDuration.duracionTotal;
-      } else {
-        const result = calcularDuracionConRiesgos(t, usuario, todosLosRiesgos);
-        duracion = result.duracion;
+      // Buscar la ultima transicion pending -> in-progress en movementHistory
+      let fechaInicioTrabajo = null;
+      if (t.movementHistory && t.movementHistory.length > 0) {
+        for (let i = t.movementHistory.length - 1; i >= 0; i--) {
+          const mov = t.movementHistory[i];
+          if (mov.type === 'status_change' && mov.from === 'pending' && mov.to === 'in-progress') {
+            const ts = mov.timestamp;
+            fechaInicioTrabajo = ts?.toDate ? ts.toDate() : ts?.seconds ? new Date(ts.seconds * 1000) : new Date(ts);
+            break;
+          }
+        }
+      }
+      if (!fechaInicioTrabajo && t.lastStatusChange) {
+        fechaInicioTrabajo = t.lastStatusChange.toDate ? t.lastStatusChange.toDate() : new Date(t.lastStatusChange);
       }
 
-      return {
-        id: t.id,
-        usuarioId: t.assignedTo,
-        duracion: duracion,
-        dependencias: t.dependencies || []
-      };
+      let diasTranscurridos = 0;
+      if (fechaInicioTrabajo) {
+        diasTranscurridos = (new Date() - fechaInicioTrabajo) / (1000 * 60 * 60 * 24);
+      }
+
+      const duracionRestante = Math.max(0, duracionTotal - diasTranscurridos);
+
+      // Verificar inconsistencias
+      const depsPendientes = dependencias.filter(depId => tareasPendientes.some(tp => tp.id === depId));
+      if (depsPendientes.length > 0) {
+        tareasEnProgresoInvalidas.push({
+          tarea: t.title || t.nombre,
+          dependencias: depsPendientes.map(depId => {
+            const dep = tareasPendientes.find(tp => tp.id === depId);
+            return dep?.title || dep?.nombre || depId;
+          })
+        });
+      }
+
+      return { id: t.id, usuarioId: t.assignedTo, duracion: duracionRestante, dependencias };
     });
 
-    console.log('📦 Tareas ya optimizadas como restricciones:', tareasOptimizadasParaAlgoritmo.map(r => ({
-      nombre: tareasYaOptimizadas.find(t => t.id === r.id)?.title,
-      usuario: usuarios.find(u => u.id === r.usuarioId)?.displayName,
-      duracion: r.duracion
-    })));
+    const tareasOptimizadasParaAlgoritmo = tareasYaOptimizadas.map(t => {
+      const usuario = usuarios.find(u => u.id === t.assignedTo);
+      let duracion;
+      if (t.optimizedDuration?.duracionTotal) {
+        duracion = t.optimizedDuration.duracionTotal;
+      } else {
+        duracion = calcularDuracionConRiesgos(t, usuario, todosLosRiesgos).duracionTotal;
+      }
+      return { id: t.id, usuarioId: t.assignedTo, duracion, dependencias: t.dependencies || [] };
+    });
 
-    // Mostrar advertencia si hay inconsistencias
+    // Advertencia de inconsistencias (reemplaza alert con Toast)
     if (tareasEnProgresoInvalidas.length > 0) {
-      const mensajes = tareasEnProgresoInvalidas.map(item =>
-        `• "${item.tarea}" depende de: ${item.dependencias.join(', ')}`
-      ).join('\n');
-
-      console.warn('⚠️ Inconsistencia detectada: Tareas en progreso con dependencias pendientes:\n' + mensajes);
-      alert(
-        `Advertencia: ${tareasEnProgresoInvalidas.length} tarea(s) en progreso tienen dependencias sin completar:\n\n${mensajes}\n\nEstas tareas deberían estar pendientes hasta que sus dependencias estén completas.`
-      );
+      const detalles = tareasEnProgresoInvalidas.map(item =>
+        `"${item.tarea}" depende de: ${item.dependencias.join(', ')}`
+      ).join('; ');
+      setToast({
+        isOpen: true,
+        message: `Advertencia: ${tareasEnProgresoInvalidas.length} tarea(s) en progreso con dependencias pendientes: ${detalles}`,
+        type: 'warning'
+      });
     }
 
-    // Combinar tareas en progreso y ya optimizadas como restricciones
     const todasLasRestricciones = [...tareasEnProgreso, ...tareasOptimizadasParaAlgoritmo];
 
-    // Optimizar solo tareas pendientes no optimizadas
     const resultado = await optimizar({
-      proyectos,
-      usuarios,
+      proyectos, usuarios,
       tareas: tareasPendientes,
       factoresRiesgo: todosLosRiesgos,
-      tareasEnProgreso: todasLasRestricciones, // Pasar ambas como restricciones
+      tareasEnProgreso: todasLasRestricciones,
       tiempoLimite: 60
     });
 
     if (resultado) {
-      // Preparar tareas ya optimizadas para mostrar en Gantt
-      const tareasOptimizadasGantt = tareasYaOptimizadas.map(t => {
-        const usuario = usuarios.find(u => u.id === t.assignedTo);
-
-        // Usar duración optimizada guardada si existe
-        let duracionBase, tiempoRiesgo, tiempoRiesgoUsuario, tiempoRiesgoProyecto, duracion;
-        if (t.optimizedDuration) {
-          duracionBase = t.optimizedDuration.duracionBase || 0;
-          tiempoRiesgo = t.optimizedDuration.tiempoRiesgo || 0;
-          tiempoRiesgoUsuario = t.optimizedDuration.tiempoRiesgoUsuario || 0;
-          tiempoRiesgoProyecto = t.optimizedDuration.tiempoRiesgoProyecto || 0;
-          duracion = t.optimizedDuration.duracionTotal || duracionBase + tiempoRiesgo;
-        } else {
-          const result = calcularDuracionConRiesgos(t, usuario, todosLosRiesgos);
-          duracionBase = result.duracionBase;
-          tiempoRiesgo = result.tiempoRiesgo;
-          tiempoRiesgoUsuario = result.tiempoRiesgoUsuario;
-          tiempoRiesgoProyecto = result.tiempoRiesgoProyecto;
-          duracion = result.duracion;
-        }
-
-        return {
-          id: t.id,
-          nombre: t.title || t.nombre,
-          usuario: usuario?.displayName || usuario?.nombre || 'Sin asignar',
-          proyectoId: t.projectId || t.proyectoId,
-          proyectoNombre: proyectos.find(p => p.id === (t.projectId || t.proyectoId))?.name || '',
-          storyPoints: t.storyPoints,
-          diaInicio: 0, // Se calculará después
-          diaFin: duracion, // Se calculará después
-          duracion: duracion,
-          duracionBase: duracionBase,
-          duracionAntesCeil: duracionBase + tiempoRiesgo,
-          tiempoRiesgo: tiempoRiesgo,
-          tiempoRiesgoUsuario: tiempoRiesgoUsuario,
-          tiempoRiesgoProyecto: tiempoRiesgoProyecto,
-          forzado: true, // Marcar como forzadas (ya optimizadas)
-          enProgreso: false,
-          planningOrder: t.planningOrder,
-          dependencias: t.dependencies || [] // Incluir dependencias
-        };
+      // Calcular posiciones en el frontend (unica fuente de verdad)
+      const todasLasTareasGantt = calcularPosicionesParaGantt({
+        tareasOptimizador: resultado.solucion,
+        tareasEnProgreso: tareasDoingRaw,
+        tareasYaOptimizadas,
+        usuarios,
+        factoresRiesgo: todosLosRiesgos,
+        proyectos,
+        calcularRiesgos: calcularDuracionConRiesgos
       });
 
-      // Guardar tareas doing para mostrarlas en el Gantt
-      // IMPORTANTE: usar los mismos nombres de campo que espera GanttChart
-      const tareasDoingGantt = tareasDoing.map(t => {
-        const usuario = usuarios.find(u => u.id === t.assignedTo);
-        const { duracionBase, tiempoRiesgo, tiempoRiesgoUsuario, tiempoRiesgoProyecto, duracion } =
-          calcularDuracionConRiesgos(t, usuario, todosLosRiesgos);
-
-        // Calcular cuántos días lleva la tarea en progreso
-        let diasTranscurridos = 0;
-        if (t.lastStatusChange) {
-          // lastStatusChange puede ser un Timestamp de Firebase o un Date
-          const fechaInicio = t.lastStatusChange.toDate ? t.lastStatusChange.toDate() : new Date(t.lastStatusChange);
-          const ahora = new Date();
-          const diferenciaMs = ahora - fechaInicio;
-          diasTranscurridos = diferenciaMs / (1000 * 60 * 60 * 24); // Convertir ms a días (con decimales)
-        }
-
-        // Ajustar diaInicio y diaFin para que la tarea empiece en negativo si ya lleva días en progreso
-        const diaInicio = -diasTranscurridos;
-        const diaFin = diaInicio + duracion;
-
-        return {
-          id: t.id,
-          nombre: t.title || t.nombre,
-          usuario: usuario?.displayName || usuario?.nombre || 'Sin asignar',
-          proyectoId: t.projectId || t.proyectoId,
-          proyectoNombre: proyectos.find(p => p.id === (t.projectId || t.proyectoId))?.name || '',
-          storyPoints: t.storyPoints,
-          diaInicio: diaInicio,
-          diaFin: diaFin,
-          duracion: duracion,
-          duracionBase: duracionBase,
-          duracionAntesCeil: duracionBase + tiempoRiesgo, // Suma exacta antes de redondeo
-          tiempoRiesgo: tiempoRiesgo,
-          tiempoRiesgoUsuario: tiempoRiesgoUsuario,
-          tiempoRiesgoProyecto: tiempoRiesgoProyecto,
-          forzado: false,
-          enProgreso: true, // Marcar como en progreso para visual feedback
-          diasTranscurridos: diasTranscurridos, // Información adicional para el tooltip
-          dependencias: t.dependencies || [] // Incluir dependencias
-        };
-      });
-
-      // Ahora calcular las posiciones de las tareas ya optimizadas
-      // Ordenar por planningOrder dentro de cada usuario
-      const tareasOptimizadasPorUsuario = {};
-      tareasOptimizadasGantt.forEach(tarea => {
-        if (!tareasOptimizadasPorUsuario[tarea.usuario]) {
-          tareasOptimizadasPorUsuario[tarea.usuario] = [];
-        }
-        tareasOptimizadasPorUsuario[tarea.usuario].push(tarea);
-      });
-
-      // Ordenar tareas de cada usuario por planningOrder
-      Object.keys(tareasOptimizadasPorUsuario).forEach(usuario => {
-        tareasOptimizadasPorUsuario[usuario].sort((a, b) => a.planningOrder - b.planningOrder);
-      });
-
-      // Calcular posición de inicio y fin basándose en las tareas doing
-      Object.entries(tareasOptimizadasPorUsuario).forEach(([usuario, tareas]) => {
-        // Buscar la última tarea doing de este usuario
-        const tareasDoingUsuario = tareasDoingGantt.filter(t => t.usuario === usuario);
-        let maxFin = tareasDoingUsuario.length > 0
-          ? Math.max(...tareasDoingUsuario.map(t => t.diaFin))
-          : 0;
-
-        // Posicionar cada tarea optimizada secuencialmente
-        tareas.forEach(tarea => {
-          tarea.diaInicio = maxFin;
-          tarea.diaFin = maxFin + tarea.duracion;
-          maxFin = tarea.diaFin;
-        });
-      });
-
-      // Ajustar las posiciones de las tareas nuevas del resultado
-      // para que empiecen DESPUÉS de las tareas ya optimizadas
-      console.log('🔧 Ajustando posiciones de tareas nuevas...');
-      console.log('Tareas del resultado.solucion:', resultado.solucion.map(t => ({
-        id: t.id,
-        nombre: t.nombre,
-        usuario: t.usuario,
-        diaInicio: t.diaInicio,
-        diaFin: t.diaFin
-      })));
-
-      const tareasNuevasAjustadas = resultado.solucion.map(tarea => {
-        // El resultado.solucion ya viene con el campo 'usuario' como nombre (string)
-        const usuarioNombre = tarea.usuario;
-
-        // Buscar la última tarea (doing + ya optimizada) de este usuario
-        const tareasUsuario = [...tareasDoingGantt, ...tareasOptimizadasGantt]
-          .filter(t => t.usuario === usuarioNombre);
-
-        console.log(`Usuario "${usuarioNombre}": ${tareasUsuario.length} tareas existentes`);
-        if (tareasUsuario.length > 0) {
-          console.log(`  → Tareas existentes:`, tareasUsuario.map(t => ({
-            nombre: t.nombre,
-            diaInicio: t.diaInicio,
-            diaFin: t.diaFin
-          })));
-        }
-
-        // NOTA: El optimizador ya devuelve las tareas con posiciones considerando las restricciones
-        // No necesitamos ajustar el offset, las posiciones ya son correctas
-        console.log(`  ℹ️ Tarea "${tarea.nombre}" sin ajuste: diaInicio=${tarea.diaInicio}, diaFin=${tarea.diaFin}`);
-
-        return tarea; // Devolver sin modificar
-      });
-
-      // Guardar tareas doing, optimizadas, y nuevas (ajustadas) en estado
-      const todasLasTareasParaGantt = [...tareasDoingGantt, ...tareasOptimizadasGantt, ...tareasNuevasAjustadas];
-
-      // Debug: verificar dependencias
-      const tareasConDeps = todasLasTareasParaGantt.filter(t => t.dependencias && t.dependencias.length > 0);
-      console.log('📊 Tareas con dependencias para Gantt:', tareasConDeps.map(t => ({
-        id: t.id,
-        nombre: t.nombre,
-        dependencias: t.dependencias
-      })));
-
-      setTareasDoing(todasLasTareasParaGantt);
-
+      setTareasDoing(todasLasTareasGantt);
       setShowProjectModal(false);
 
-      const tareasDoingCount = tareasDoing.length;
-      const tareasOptimizadasCount = tareasYaOptimizadas.length;
-      let mensaje = `Optimización completada: ${resultado.makespan} días`;
+      let mensaje = `Optimizacion completada: ${resultado.makespan} dias`;
+      const detalles = [];
+      if (tareasDoingRaw.length > 0) detalles.push(`${tareasDoingRaw.length} en progreso`);
+      if (tareasYaOptimizadas.length > 0) detalles.push(`${tareasYaOptimizadas.length} ya optimizadas`);
+      if (detalles.length > 0) mensaje += ` (${detalles.join(', ')})`;
 
-      if (tareasDoingCount > 0 || tareasOptimizadasCount > 0) {
-        const detalles = [];
-        if (tareasDoingCount > 0) detalles.push(`${tareasDoingCount} en progreso`);
-        if (tareasOptimizadasCount > 0) detalles.push(`${tareasOptimizadasCount} ya optimizadas`);
-        mensaje += ` (${detalles.join(', ')})`;
+      setToast({ isOpen: true, message: mensaje, type: 'success' });
+    }
+  };
+
+  // Función para limpiar los detalles de optimización
+  const handleClearOptimizationDetails = async () => {
+    setClearing(true);
+
+    try {
+      const result = await clearOptimizationDetails();
+
+      if (result.success) {
+        setToast({
+          isOpen: true,
+          message: `Detalles de optimización limpiados: ${result.stats.success} tarea${result.stats.success !== 1 ? 's' : ''} actualizada${result.stats.success !== 1 ? 's' : ''}`,
+          type: 'success'
+        });
+      } else if (result.partial) {
+        setToast({
+          isOpen: true,
+          message: `Limpieza parcial: ${result.stats.success} éxitos, ${result.stats.errors} errores`,
+          type: 'warning'
+        });
+      } else {
+        setToast({
+          isOpen: true,
+          message: result.message || `Error: ${result.error}`,
+          type: result.message ? 'info' : 'error'
+        });
       }
-
+    } catch (error) {
+      console.error('Error al limpiar optimización:', error);
       setToast({
         isOpen: true,
-        message: mensaje,
-        type: 'success'
+        message: `Error inesperado: ${error.message}`,
+        type: 'error'
       });
+    } finally {
+      setClearing(false);
+      setShowClearConfirm(false);
     }
   };
 
@@ -677,24 +689,21 @@ const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {} }) =
         }
 
         tareasUsuario.forEach((tarea, index) => {
-          // Calcular redondeo a 0.5 días
           const duracionBase = tarea.duracionBase || 0;
           const tiempoRiesgo = tarea.tiempoRiesgo || 0;
-          const duracionAntesCeil = duracionBase + tiempoRiesgo;
-          const duracionRedondeada = Math.ceil(duracionAntesCeil * 2) / 2;
-          const tiempoRedondeo = duracionRedondeada - duracionAntesCeil;
+          const tiempoRedondeo = tarea.tiempoRedondeo || 0;
+          const duracionTotal = duracionBase + tiempoRiesgo + tiempoRedondeo;
 
           assignmentsData.push({
             taskId: tarea.id,
             assignedTo: usuario.id,
-            planningOrder: index, // 0, 1, 2, ... en orden de ejecución
-            // Información de duración y riesgos
-            duracionBase: duracionBase,
-            tiempoRiesgo: tiempoRiesgo,
+            planningOrder: index,
+            duracionBase,
+            tiempoRiesgo,
             tiempoRiesgoUsuario: tarea.tiempoRiesgoUsuario || 0,
             tiempoRiesgoProyecto: tarea.tiempoRiesgoProyecto || 0,
-            tiempoRedondeo: tiempoRedondeo,
-            duracionTotal: duracionRedondeada
+            tiempoRedondeo,
+            duracionTotal
           });
         });
       });
@@ -847,6 +856,25 @@ const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {} }) =
                 </button>
               </>
             )}
+            {tareasPlaneadas.length > 0 && !resultado && (
+              <button
+                className="btn btn-warning flex items-center gap-xs"
+                onClick={() => setShowClearConfirm(true)}
+                disabled={clearing}
+              >
+                {clearing ? (
+                  <>
+                    <div className="spinner"></div>
+                    Limpiando...
+                  </>
+                ) : (
+                  <>
+                    <Icon name="trash-2" size={18} />
+                    Limpiar Optimización
+                  </>
+                )}
+              </button>
+            )}
           </div>
         </div>
 
@@ -896,6 +924,7 @@ const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {} }) =
             solucion={tareasGantt}
             makespan={makespanRaw}
             proyectos={proyectos}
+            usuarios={usuarios}
             onTaskClick={(ganttTask) => {
               const tareaOriginal = tareas.find(t => t.id === ganttTask.taskId);
               if (tareaOriginal) {
@@ -1034,6 +1063,29 @@ const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {} }) =
         onCancel={() => setShowSaveConfirm(false)}
         confirmText="Guardar"
         confirmVariant="primary"
+      />
+
+      {/* Confirmación de limpieza de optimización */}
+      <ConfirmDialog
+        isOpen={showClearConfirm}
+        title="Limpiar Optimización"
+        message={
+          <div>
+            <p className="text-base text-secondary mb-sm">
+              Esto eliminará los detalles de optimización de todas las tareas (orden de planificación, duraciones calculadas, etc.).
+            </p>
+            <p className="text-sm text-tertiary mb-sm">
+              <strong>Se mantendrá:</strong> La asignación de usuarios (assignedTo)
+            </p>
+            <p className="text-sm text-tertiary">
+              <strong>Se eliminará:</strong> Orden de planificación, fechas de optimización y detalles de duración calculada
+            </p>
+          </div>
+        }
+        onConfirm={handleClearOptimizationDetails}
+        onCancel={() => setShowClearConfirm(false)}
+        confirmText="Limpiar"
+        confirmVariant="warning"
       />
     </>
   );

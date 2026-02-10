@@ -141,6 +141,10 @@
   background: rgba(251, 191, 36, 0.2);
 }
 
+.gantt-day-header.weekend {
+  background: rgba(100, 116, 139, 0.1);
+}
+
 .gantt-timeline {
   position: relative;
   min-height: 100px;
@@ -181,6 +185,12 @@
 .gantt-grid-cell.today-cell {
   background: rgba(251, 191, 36, 0.15);
   z-index: 2; /* Por encima del hover de filas */
+}
+
+/* Fines de semana - fondo gris claro */
+.gantt-grid-cell.weekend-cell {
+  background: rgba(100, 116, 139, 0.08);
+  z-index: 1;
 }
 
 /* Today Marker */
@@ -244,8 +254,52 @@
   display: flex;
   align-items: center;
   padding: 0 var(--space-sm);
-  overflow: hidden;
+  overflow: visible; /* Cambiar a visible para permitir bordes de segmentos */
   box-shadow: var(--shadow-sm);
+}
+
+/* Segmentos de la tarea */
+.gantt-task-segment {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  transition: opacity 0.2s ease;
+}
+
+.gantt-task-segment.base {
+  border-radius: var(--radius-sm);
+}
+
+.gantt-task-segment.riesgo {
+  position: absolute;
+  border-radius: var(--radius-sm);
+}
+
+.gantt-task-segment.riesgo::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(239, 68, 68, 0.35),
+    rgba(239, 68, 68, 0.35) 3px,
+    transparent 3px,
+    transparent 6px
+  );
+  pointer-events: none;
+}
+
+.gantt-task-segment.no-laborable {
+  background: repeating-linear-gradient(
+    135deg,
+    rgba(148, 163, 184, 0.3),
+    rgba(148, 163, 184, 0.3) 4px,
+    rgba(148, 163, 184, 0.15) 4px,
+    rgba(148, 163, 184, 0.15) 8px
+  ) !important;
+  border-left: 1px solid rgba(100, 116, 139, 0.4);
+  border-right: 1px solid rgba(100, 116, 139, 0.4);
 }
 
 .gantt-task-bar:hover {
@@ -276,40 +330,6 @@
   flex: 1;
   z-index: 2;
   position: relative;
-}
-
-/* Risk Overlay (diagonal roja) */
-.gantt-risk-overlay {
-  position: absolute;
-  right: 0;
-  top: 0;
-  height: 100%;
-  background: repeating-linear-gradient(
-    45deg,
-    rgba(239, 68, 68, 0.3),
-    rgba(239, 68, 68, 0.3) 5px,
-    rgba(239, 68, 68, 0.5) 5px,
-    rgba(239, 68, 68, 0.5) 10px
-  );
-  pointer-events: none;
-  z-index: 1;
-}
-
-/* Rounding Overlay (diagonal naranja) */
-.gantt-rounding-overlay {
-  position: absolute;
-  right: 0;
-  top: 0;
-  height: 100%;
-  background: repeating-linear-gradient(
-    45deg,
-    rgba(245, 158, 11, 0.3),
-    rgba(245, 158, 11, 0.3) 5px,
-    rgba(245, 158, 11, 0.5) 5px,
-    rgba(245, 158, 11, 0.5) 10px
-  );
-  pointer-events: none;
-  z-index: 2;
 }
 
 /* Progress Indicator */
@@ -447,26 +467,15 @@
   );
 }
 
-.legend-indicator.with-rounding {
-  background: #10B981;
-  position: relative;
-  overflow: hidden;
-}
-
-.legend-indicator.with-rounding::after {
-  content: '';
-  position: absolute;
-  right: 0;
-  top: 0;
-  width: 40%;
-  height: 100%;
+.legend-indicator.with-non-working {
   background: repeating-linear-gradient(
-    45deg,
-    rgba(245, 158, 11, 0.3),
-    rgba(245, 158, 11, 0.3) 3px,
-    rgba(245, 158, 11, 0.5) 3px,
-    rgba(245, 158, 11, 0.5) 6px
+    135deg,
+    rgba(148, 163, 184, 0.3),
+    rgba(148, 163, 184, 0.3) 3px,
+    rgba(148, 163, 184, 0.15) 3px,
+    rgba(148, 163, 184, 0.15) 6px
   );
+  border: 1px solid rgba(100, 116, 139, 0.4);
 }
 
 /* Responsive */

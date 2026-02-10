@@ -78,3 +78,7 @@ check-sp.cjs
 
 # Word documents
 *.docx
+
+.claude/hooks/
+
+.claude/settings.local.json
