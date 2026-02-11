@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useOptimizer } from '../../hooks/useOptimizer';
 import { subscribeToUsers } from '../../services/userService';
 import { saveOptimization, clearOptimizationDetails } from '../../services/taskService';
+import { saveProjectSnapshots } from '../../services/projectService';
 import Icon from '../common/Icon';
 import Toast from '../common/Toast';
 import ConfirmDialog from '../common/ConfirmDialog';
@@ -383,6 +384,10 @@ const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {}, isA
   const [clearing, setClearing] = useState(false); // Estado de limpieza
   const [vistaOptimista, setVistaOptimista] = useState(!isAdmin); // Non-admins: siempre optimista
   const [optimizacionRaw, setOptimizacionRaw] = useState(null); // Datos crudos para recalcular
+  const [showSnapshotModal, setShowSnapshotModal] = useState(false);
+  const [selectedSnapshotProyectos, setSelectedSnapshotProyectos] = useState([]);
+  const [savingSnapshot, setSavingSnapshot] = useState(false);
+  const [showDelayModal, setShowDelayModal] = useState(false);
 
   const { optimizar, loading, error, resultado, limpiar } = useOptimizer();
 
@@ -790,6 +795,28 @@ const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {}, isA
     }
   }, [error]);
 
+  // Calcular fechas fin proyectadas por proyecto desde las tareas del Gantt
+  const calcularFechasFinPorProyecto = (tareasParaCalculo) => {
+    const porProyecto = {};
+    tareasParaCalculo.forEach(t => {
+      if (!t.proyectoId) return;
+      if (!porProyecto[t.proyectoId] || t.diaFin > porProyecto[t.proyectoId].diaFin) {
+        porProyecto[t.proyectoId] = { diaFin: t.diaFin };
+      }
+    });
+
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+
+    Object.entries(porProyecto).forEach(([pid, data]) => {
+      const fechaFin = new Date(hoy);
+      fechaFin.setDate(hoy.getDate() + Math.ceil(data.diaFin));
+      data.fechaFin = fechaFin;
+    });
+
+    return porProyecto;
+  };
+
   // Determinar qué tareas mostrar en el Gantt (planeadas o resultado de optimización)
   // Nota: tareasDoing ya contiene todas las tareas ajustadas (doing + optimizadas + nuevas con offset)
   const tareasGantt = resultado ? tareasDoing : tareasPlaneadas;
@@ -799,6 +826,108 @@ const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {}, isA
 
   // Redondear makespan a 1 decimal para mostrar
   const makespan = Math.round(makespanRaw * 10) / 10;
+
+  // Calcular fechas fin proyectadas por proyecto
+  const fechasFinProyecto = tareasGantt.length > 0
+    ? calcularFechasFinPorProyecto(tareasGantt)
+    : {};
+
+  // Proyectos con snapshot para calcular atrasos
+  const proyectosConSnapshot = proyectos.filter(p => p.snapshot?.fechaFin);
+  const proyectosAtrasados = proyectosConSnapshot.filter(p => {
+    const fechaActual = fechasFinProyecto[p.id]?.fechaFin;
+    if (!fechaActual) return false;
+    const fechaSnapshot = p.snapshot.fechaFin.toDate ? p.snapshot.fechaFin.toDate() : new Date(p.snapshot.fechaFin);
+    return fechaActual > fechaSnapshot;
+  });
+
+  // Handler para abrir el modal de snapshot
+  const handleOpenSnapshotModal = () => {
+    const proyectosConTareas = Object.keys(fechasFinProyecto);
+    setSelectedSnapshotProyectos(proyectosConTareas);
+    setShowSnapshotModal(true);
+  };
+
+  // Handler para guardar snapshots
+  const handleSaveSnapshots = async () => {
+    if (selectedSnapshotProyectos.length === 0) return;
+    setSavingSnapshot(true);
+
+    try {
+      const snapshots = selectedSnapshotProyectos
+        .filter(pid => fechasFinProyecto[pid])
+        .map(pid => ({
+          projectId: pid,
+          fechaFin: fechasFinProyecto[pid].fechaFin,
+          diaFin: fechasFinProyecto[pid].diaFin
+        }));
+
+      const result = await saveProjectSnapshots(snapshots);
+
+      if (result.success) {
+        setToast({
+          isOpen: true,
+          message: `Snapshot guardado: ${result.stats.success} proyecto${result.stats.success !== 1 ? 's' : ''}`,
+          type: 'success'
+        });
+        setShowSnapshotModal(false);
+      } else if (result.partial) {
+        setToast({
+          isOpen: true,
+          message: `Snapshot parcial: ${result.stats.success} guardados, ${result.stats.errors} errores`,
+          type: 'warning'
+        });
+      } else {
+        setToast({
+          isOpen: true,
+          message: `Error al guardar snapshot: ${result.error}`,
+          type: 'error'
+        });
+      }
+    } catch (err) {
+      console.error('Error al guardar snapshots:', err);
+      setToast({
+        isOpen: true,
+        message: `Error inesperado: ${err.message}`,
+        type: 'error'
+      });
+    } finally {
+      setSavingSnapshot(false);
+    }
+  };
+
+  // Helper para formatear fecha corta
+  const formatFecha = (fecha) => {
+    if (!fecha) return '-';
+    const d = fecha.toDate ? fecha.toDate() : (fecha instanceof Date ? fecha : new Date(fecha));
+    return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+
+  // Calcular detalle de atraso para el modal
+  const calcularDetalleAtrasos = () => {
+    return proyectosConSnapshot.map(p => {
+      const fechaSnapshot = p.snapshot.fechaFin.toDate ? p.snapshot.fechaFin.toDate() : new Date(p.snapshot.fechaFin);
+      const fechaActual = fechasFinProyecto[p.id]?.fechaFin;
+      let diferenciaDias = 0;
+      let estado = 'sin-datos';
+
+      if (fechaActual) {
+        diferenciaDias = Math.round((fechaActual - fechaSnapshot) / (1000 * 60 * 60 * 24));
+        estado = diferenciaDias > 0 ? 'atrasado' : diferenciaDias < 0 ? 'adelantado' : 'en-tiempo';
+      }
+
+      return {
+        id: p.id,
+        nombre: p.name,
+        color: p.color || '#6B7280',
+        fechaSnapshot,
+        fechaActual,
+        diferenciaDias,
+        estado,
+        snapshotCreadoEn: p.snapshot.creadoEn
+      };
+    });
+  };
 
   return (
     <>
@@ -859,6 +988,21 @@ const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {}, isA
                     Optimista
                   </button>
                 </div>
+              </div>
+            )}
+            {proyectosConSnapshot.length > 0 && tareasGantt.length > 0 && (
+              <div>
+                <p className="text-sm text-tertiary">Atrasos</p>
+                <button
+                  className={`btn btn-sm mt-xs ${proyectosAtrasados.length > 0 ? 'btn-delay-alert' : 'btn-delay-ok'}`}
+                  onClick={() => setShowDelayModal(true)}
+                >
+                  <Icon name={proyectosAtrasados.length > 0 ? 'alert-triangle' : 'check-circle'} size={14} />
+                  {proyectosAtrasados.length > 0
+                    ? `${proyectosAtrasados.length} atrasado${proyectosAtrasados.length !== 1 ? 's' : ''}`
+                    : 'En tiempo'
+                  }
+                </button>
               </div>
             )}
           </div>
@@ -928,6 +1072,16 @@ const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {}, isA
                       Limpiar Optimización
                     </>
                   )}
+                </button>
+              )}
+              {tareasGantt.length > 0 && (
+                <button
+                  className="btn btn-secondary flex items-center gap-xs"
+                  onClick={handleOpenSnapshotModal}
+                  disabled={savingSnapshot}
+                >
+                  <Icon name="camera" size={18} />
+                  Snapshot
                 </button>
             )}
             </div>
@@ -1144,6 +1298,181 @@ const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {}, isA
         confirmText="Limpiar"
         confirmVariant="warning"
       />
+
+      {/* Modal de Snapshot */}
+      {showSnapshotModal && (
+        <div className="modal-overlay" onClick={() => setShowSnapshotModal(false)}>
+          <div className="modal-content optimizer-modal" onClick={e => e.stopPropagation()}>
+            <div className="optimizer-modal-header">
+              <h3 className="heading-3 text-primary">Guardar Snapshot</h3>
+              <button className="btn btn-icon btn-ghost" onClick={() => setShowSnapshotModal(false)}>
+                <Icon name="x" size={18} />
+              </button>
+            </div>
+
+            <div className="optimizer-modal-body">
+              <p className="text-sm text-tertiary mb-base">
+                Guarda las fechas de finalización proyectadas actuales para comparar luego si hay atrasos.
+              </p>
+
+              <div className="optimizer-modal-controls">
+                <span className="text-xs text-tertiary">
+                  {selectedSnapshotProyectos.length} de {Object.keys(fechasFinProyecto).length} seleccionados
+                </span>
+                <div className="flex gap-xs">
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => setSelectedSnapshotProyectos(Object.keys(fechasFinProyecto))}
+                  >
+                    Todos
+                  </button>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => setSelectedSnapshotProyectos([])}
+                  >
+                    Ninguno
+                  </button>
+                </div>
+              </div>
+
+              <div className="optimizer-modal-grid">
+                {proyectos
+                  .filter(p => fechasFinProyecto[p.id])
+                  .map(proyecto => {
+                    const isSelected = selectedSnapshotProyectos.includes(proyecto.id);
+                    const fechaProyectada = fechasFinProyecto[proyecto.id]?.fechaFin;
+                    const snapshotAnterior = proyecto.snapshot?.fechaFin;
+
+                    return (
+                      <div
+                        key={proyecto.id}
+                        className={`optimizer-project-card ${isSelected ? 'selected' : ''}`}
+                        onClick={() => {
+                          if (isSelected) {
+                            setSelectedSnapshotProyectos(selectedSnapshotProyectos.filter(id => id !== proyecto.id));
+                          } else {
+                            setSelectedSnapshotProyectos([...selectedSnapshotProyectos, proyecto.id]);
+                          }
+                        }}
+                      >
+                        <div className="optimizer-card-header">
+                          <div
+                            className="optimizer-card-color"
+                            style={{ backgroundColor: proyecto.color || '#6B7280' }}
+                          />
+                          <span className="text-sm font-medium text-primary">{proyecto.name}</span>
+                        </div>
+                        <div className="snapshot-card-dates">
+                          <span className="text-xs text-tertiary">
+                            Proyectada: <strong className="text-primary">{formatFecha(fechaProyectada)}</strong>
+                          </span>
+                          {snapshotAnterior && (
+                            <span className="text-xs text-tertiary">
+                              Anterior: {formatFecha(snapshotAnterior)}
+                            </span>
+                          )}
+                        </div>
+                        <div className="optimizer-card-footer">
+                          <span className="text-xs text-tertiary">
+                            {fechasFinProyecto[proyecto.id]?.diaFin?.toFixed(1)} dias
+                          </span>
+                          {isSelected && (
+                            <Icon name="check-circle" size={16} className="optimizer-check-icon" />
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+
+            <div className="optimizer-modal-footer">
+              <button className="btn btn-secondary" onClick={() => setShowSnapshotModal(false)}>
+                Cancelar
+              </button>
+              <button
+                className="btn btn-primary flex items-center gap-xs"
+                onClick={handleSaveSnapshots}
+                disabled={selectedSnapshotProyectos.length === 0 || savingSnapshot}
+              >
+                {savingSnapshot ? (
+                  <>
+                    <div className="spinner"></div>
+                    Guardando...
+                  </>
+                ) : (
+                  <>
+                    <Icon name="camera" size={18} />
+                    Guardar Snapshot
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Proyectos Atrasados */}
+      {showDelayModal && (
+        <div className="modal-overlay" onClick={() => setShowDelayModal(false)}>
+          <div className="modal-content delay-modal" onClick={e => e.stopPropagation()}>
+            <div className="optimizer-modal-header">
+              <h3 className="heading-3 text-primary">Estado de Proyectos</h3>
+              <button className="btn btn-icon btn-ghost" onClick={() => setShowDelayModal(false)}>
+                <Icon name="x" size={18} />
+              </button>
+            </div>
+
+            <div className="optimizer-modal-body">
+              <div className="delay-list">
+                {calcularDetalleAtrasos().map(detalle => (
+                  <div key={detalle.id} className={`delay-item delay-item--${detalle.estado}`}>
+                    <div className="delay-item-header">
+                      <div className="flex items-center gap-xs">
+                        <div
+                          className="optimizer-card-color"
+                          style={{ backgroundColor: detalle.color }}
+                        />
+                        <span className="text-sm font-medium text-primary">{detalle.nombre}</span>
+                      </div>
+                      <span className={`badge badge-sm delay-badge delay-badge--${detalle.estado}`}>
+                        {detalle.estado === 'atrasado' && `+${detalle.diferenciaDias} dia${detalle.diferenciaDias !== 1 ? 's' : ''}`}
+                        {detalle.estado === 'adelantado' && `${detalle.diferenciaDias} dia${Math.abs(detalle.diferenciaDias) !== 1 ? 's' : ''}`}
+                        {detalle.estado === 'en-tiempo' && 'En tiempo'}
+                        {detalle.estado === 'sin-datos' && 'Sin datos'}
+                      </span>
+                    </div>
+                    <div className="delay-item-dates">
+                      <div className="delay-date-row">
+                        <span className="text-xs text-tertiary">Snapshot:</span>
+                        <span className="text-xs font-medium">{formatFecha(detalle.fechaSnapshot)}</span>
+                      </div>
+                      <div className="delay-date-row">
+                        <span className="text-xs text-tertiary">Proyectada:</span>
+                        <span className="text-xs font-medium">
+                          {detalle.fechaActual ? formatFecha(detalle.fechaActual) : 'Sin tareas activas'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {proyectosConSnapshot.length === 0 && (
+                <div className="empty-state">
+                  <p className="text-sm text-tertiary">No hay proyectos con snapshot guardado.</p>
+                </div>
+              )}
+            </div>
+
+            <div className="optimizer-modal-footer">
+              <button className="btn btn-secondary" onClick={() => setShowDelayModal(false)}>
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };

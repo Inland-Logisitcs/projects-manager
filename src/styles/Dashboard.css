@@ -111,6 +111,119 @@
   line-height: 1.5;
 }
 
+/* Sprint delay indicator (compact, inline with capacity bar) */
+.sprint-delay-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.sprint-delay-indicator--ok {
+  background-color: var(--color-success-light);
+  color: var(--color-success-dark);
+  border: 1px solid var(--color-success);
+}
+
+.sprint-delay-indicator--ok:hover {
+  background-color: var(--color-success);
+  color: white;
+}
+
+.sprint-delay-indicator--alert {
+  background-color: var(--color-error-light);
+  color: var(--color-error-dark);
+  border: 1px solid var(--color-error);
+}
+
+.sprint-delay-indicator--alert:hover {
+  background-color: var(--color-error);
+  color: white;
+}
+
+/* Project delay modal */
+.dashboard-page .delay-modal {
+  max-width: 560px;
+  width: 100%;
+}
+
+.dashboard-page .delay-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: var(--space-xs);
+}
+
+.dashboard-page .delay-item {
+  background: white;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-base);
+  padding: var(--space-sm) var(--space-base);
+  border-left: 4px solid var(--border-light);
+}
+
+.dashboard-page .delay-item--atrasado {
+  border-left-color: #DC2626;
+  background: #FFF5F5;
+}
+
+.dashboard-page .delay-item--adelantado,
+.dashboard-page .delay-item--en-tiempo {
+  border-left-color: #16A34A;
+  background: #F0FFF4;
+}
+
+.dashboard-page .delay-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-xs);
+}
+
+.dashboard-page .delay-item-dates {
+  display: flex;
+  gap: var(--space-lg);
+}
+
+.dashboard-page .delay-date-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.dashboard-page .delay-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+}
+
+.dashboard-page .delay-badge--atrasado {
+  background: #FEE2E2;
+  color: #DC2626;
+}
+
+.dashboard-page .delay-badge--adelantado,
+.dashboard-page .delay-badge--en-tiempo {
+  background: #DCFCE7;
+  color: #16A34A;
+}
+
+.project-delay-color-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
 /* Empty State específico */
 .dashboard-empty-container {
   min-height: 500px;
@@ -199,6 +312,16 @@
 
   .capacity-percentage {
     font-size: 0.7rem;
+  }
+
+  .sprint-delay-indicator {
+    padding: 0.375rem 0.625rem;
+    font-size: 0.75rem;
+  }
+
+  .dashboard-page .delay-item-dates {
+    flex-direction: column;
+    gap: var(--space-xs);
   }
 
   .sprint-header > div:last-child {

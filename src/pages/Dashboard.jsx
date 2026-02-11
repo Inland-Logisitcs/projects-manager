@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { subscribeToSprints } from '../services/sprintService';
 import { subscribeToTasks, updateTask } from '../services/taskService';
 import { subscribeToUsers } from '../services/userService';
+import { subscribeToProjects } from '../services/projectService';
 import { getSprintCapacityInfo } from '../services/capacityService';
 import KanbanBoard from '../components/kanban/KanbanBoard';
 import Toast from '../components/common/Toast';
@@ -15,10 +16,12 @@ const Dashboard = () => {
   const [sprints, setSprints] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [users, setUsers] = useState([]);
+  const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [showCapacityModal, setShowCapacityModal] = useState(false);
   const [showStandupModal, setShowStandupModal] = useState(false);
+  const [showProjectDelayModal, setShowProjectDelayModal] = useState(false);
 
   useEffect(() => {
     const unsubscribeSprints = subscribeToSprints((fetchedSprints) => {
@@ -34,10 +37,15 @@ const Dashboard = () => {
       setUsers(fetchedUsers);
     });
 
+    const unsubscribeProjects = subscribeToProjects((fetchedProjects) => {
+      setProjects(fetchedProjects);
+    });
+
     return () => {
       unsubscribeSprints();
       unsubscribeTasks();
       unsubscribeUsers();
+      unsubscribeProjects();
     };
   }, []);
 
@@ -47,6 +55,57 @@ const Dashboard = () => {
   // Calcular información de capacidad para el sprint activo
   const sprintTasks = activeSprint ? tasks.filter(t => t.sprintId === activeSprint.id && !t.archived) : [];
   const capacityInfo = activeSprint ? getSprintCapacityInfo(activeSprint, sprintTasks, users, true) : null;
+
+  // Calcular estado de proyectos con snapshot que tienen tareas en el sprint
+  const projectSnapshotStatus = useMemo(() => {
+    if (!activeSprint) return [];
+    const now = new Date();
+    const completedColumnId = 'completed';
+
+    return projects
+      .filter(p => p.snapshot?.fechaFin)
+      .map(p => {
+        const tareasEnSprint = sprintTasks.filter(t => t.projectId === p.id).length;
+        if (tareasEnSprint === 0) return null;
+
+        const fechaSnapshot = p.snapshot.fechaFin.toDate
+          ? p.snapshot.fechaFin.toDate()
+          : new Date(p.snapshot.fechaFin);
+
+        const tareasRestantes = sprintTasks.filter(
+          t => t.projectId === p.id && t.status !== completedColumnId
+        ).length;
+
+        const diferenciaDias = Math.round((now - fechaSnapshot) / (1000 * 60 * 60 * 24));
+
+        let estado;
+        if (tareasRestantes === 0) {
+          estado = diferenciaDias > 0 ? 'adelantado' : 'en-tiempo';
+        } else {
+          estado = diferenciaDias > 0 ? 'atrasado' : 'en-tiempo';
+        }
+
+        return {
+          id: p.id,
+          name: p.name,
+          color: p.color || '#6B7280',
+          fechaSnapshot,
+          diferenciaDias,
+          tareasRestantes,
+          tareasEnSprint,
+          estado
+        };
+      })
+      .filter(Boolean);
+  }, [projects, sprintTasks, activeSprint]);
+
+  const proyectosAtrasados = projectSnapshotStatus.filter(p => p.estado === 'atrasado');
+
+  const formatFecha = (fecha) => {
+    if (!fecha) return '-';
+    const d = fecha instanceof Date ? fecha : new Date(fecha);
+    return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
+  };
 
   const handleCompleteSprint = () => {
     setShowCompleteModal(true);
@@ -113,6 +172,20 @@ const Dashboard = () => {
                   <span className="capacity-percentage text-xs text-secondary">{capacityInfo.percentage}%</span>
                 </div>
               )}
+              {projectSnapshotStatus.length > 0 && (
+                <div
+                  className={`sprint-delay-indicator ${proyectosAtrasados.length > 0 ? 'sprint-delay-indicator--alert' : 'sprint-delay-indicator--ok'}`}
+                  onClick={() => setShowProjectDelayModal(true)}
+                >
+                  <Icon name={proyectosAtrasados.length > 0 ? 'alert-triangle' : 'check-circle'} size={14} />
+                  <span>
+                    {proyectosAtrasados.length > 0
+                      ? `${proyectosAtrasados.length} atrasado${proyectosAtrasados.length !== 1 ? 's' : ''}`
+                      : 'En tiempo'
+                    }
+                  </span>
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-sm">
               <button className="btn btn-secondary flex items-center gap-xs" onClick={() => setShowStandupModal(true)}>
@@ -150,6 +223,60 @@ const Dashboard = () => {
               users={users}
               tasks={tasks}
             />
+          )}
+          {showProjectDelayModal && (
+            <div className="modal-overlay" onClick={() => setShowProjectDelayModal(false)}>
+              <div className="modal-content delay-modal" onClick={e => e.stopPropagation()}>
+                <div className="flex justify-between items-center mb-base">
+                  <h3 className="heading-3 text-primary" style={{ margin: 0 }}>Estado de Proyectos</h3>
+                  <button className="btn btn-icon btn-ghost" onClick={() => setShowProjectDelayModal(false)}>
+                    <Icon name="x" size={18} />
+                  </button>
+                </div>
+
+                <div className="delay-list">
+                  {projectSnapshotStatus.map(p => (
+                    <div key={p.id} className={`delay-item delay-item--${p.estado}`}>
+                      <div className="delay-item-header">
+                        <div className="flex items-center gap-xs">
+                          <div
+                            className="project-delay-color-dot"
+                            style={{ backgroundColor: p.color }}
+                          />
+                          <span className="text-sm font-medium text-primary">{p.name}</span>
+                        </div>
+                        <span className={`delay-badge delay-badge--${p.estado}`}>
+                          {p.estado === 'atrasado' && `+${p.diferenciaDias} dia${p.diferenciaDias !== 1 ? 's' : ''}`}
+                          {p.estado === 'adelantado' && `${p.diferenciaDias} dia${Math.abs(p.diferenciaDias) !== 1 ? 's' : ''}`}
+                          {p.estado === 'en-tiempo' && 'En tiempo'}
+                        </span>
+                      </div>
+                      <div className="delay-item-dates">
+                        <div className="delay-date-row">
+                          <span className="text-xs text-tertiary">Snapshot:</span>
+                          <span className="text-xs font-medium">{formatFecha(p.fechaSnapshot)}</span>
+                        </div>
+                        <div className="delay-date-row">
+                          <span className="text-xs text-tertiary">Tareas:</span>
+                          <span className="text-xs font-medium">
+                            {p.tareasRestantes > 0
+                              ? `${p.tareasRestantes} pendiente${p.tareasRestantes !== 1 ? 's' : ''} de ${p.tareasEnSprint}`
+                              : `${p.tareasEnSprint} completada${p.tareasEnSprint !== 1 ? 's' : ''}`
+                            }
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex justify-end mt-base">
+                  <button className="btn btn-secondary" onClick={() => setShowProjectDelayModal(false)}>
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
         </>
       ) : (

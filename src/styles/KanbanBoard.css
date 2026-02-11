@@ -22,7 +22,7 @@
 .kanban-columns {
   display: flex;
   gap: 1.5rem;
-  align-items: start;
+  align-items: stretch;
   overflow-x: auto;
   overflow-y: visible;
   padding-bottom: 1rem;
@@ -134,6 +134,7 @@
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  overflow-x: hidden;
   overflow-y: auto;
   max-height: calc(100vh - 300px);
 }
@@ -288,6 +289,69 @@
   max-height: 300px;
   overflow-y: auto;
   pointer-events: auto;
+}
+
+/* Delay indicator badge on cards */
+.card-delay-indicator {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1875rem 0.5rem;
+  border-radius: 10px;
+  cursor: help;
+  margin-left: auto;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.card-delay-indicator.delay-on-track {
+  color: var(--color-success-dark, #05a57a);
+  background-color: var(--color-success-light, #d1fae5);
+}
+
+.card-delay-indicator.delay-warning {
+  color: var(--color-warning-dark, #e6b84f);
+  background-color: var(--color-warning-light, #fff3d9);
+}
+
+.card-delay-indicator.delay-danger {
+  color: var(--color-error-dark, #d63557);
+  background-color: var(--color-error-light, #fde0e7);
+}
+
+/* Delay view toggle */
+.delay-view-toggle {
+  display: flex;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.delay-toggle-btn {
+  padding: 0.5rem 0.875rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  border: none;
+  background-color: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1;
+}
+
+.delay-toggle-btn:first-child {
+  border-right: 1px solid var(--border-color);
+}
+
+.delay-toggle-btn:hover {
+  background-color: var(--bg-secondary);
+}
+
+.delay-toggle-btn.active {
+  background-color: var(--color-primary);
+  color: white;
 }
 
 .card-time {
@@ -457,6 +521,7 @@
   text-align: center;
 }
 
+
 /* Responsive Design - Mobile First */
 @media (max-width: 768px) {
   /* Kanban Board */
@@ -598,6 +663,21 @@
   .user-select-dropdown {
     min-width: 180px;
     max-height: 250px;
+  }
+
+  /* Delay indicator más compacto en móvil */
+  .card-delay-indicator {
+    font-size: 0.625rem;
+    padding: 0.125rem 0.375rem;
+  }
+
+  .delay-view-toggle {
+    border-radius: 6px;
+  }
+
+  .delay-toggle-btn {
+    padding: 0.375rem 0.625rem;
+    font-size: 0.75rem;
   }
 
   /* Tiempo en columna más pequeño */

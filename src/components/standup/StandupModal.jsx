@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import Icon from '../common/Icon';
 import UserAvatar from '../common/UserAvatar';
+import { calculateDelay } from '../../utils/delayCalculation';
 
 const StandupModal = ({ isOpen, onClose, sprint, users, tasks }) => {
   const [step, setStep] = useState('select'); // 'select', 'shuffle', 'presenting'
@@ -29,6 +30,13 @@ const StandupModal = ({ isOpen, onClose, sprint, users, tasks }) => {
       const nameB = b.displayName || b.email;
       return nameA.localeCompare(nameB);
     });
+  }, [users]);
+
+  // Mapa de usuarios por ID para calcular delay
+  const usersMap = useMemo(() => {
+    const map = {};
+    users.forEach(u => { map[u.id] = u; });
+    return map;
   }, [users]);
 
   // Seleccionar todos los usuarios por defecto al abrir
@@ -119,13 +127,19 @@ const StandupModal = ({ isOpen, onClose, sprint, users, tasks }) => {
     return `${diffDays}d`;
   };
 
+  // Calcular delay de una tarea
+  const getDelayInfo = (task) => {
+    const user = usersMap[task.assignedTo];
+    return calculateDelay(task, user, 'optimistic');
+  };
+
   // Calcular datos del burndown chart
   const getBurndownData = () => {
     if (!sprint || !sprint.startDate || !sprint.endDate) return null;
 
     const sprintTasks = tasks.filter(t => t.sprintId === sprint.id && !t.archived);
     const totalPoints = sprintTasks.reduce((sum, t) => sum + (t.storyPoints || 0), 0);
-    const completedPoints = sprintTasks.filter(t => t.status === 'completed').reduce((sum, t) => sum + (t.storyPoints || 0), 0);
+    const completedPoints = sprintTasks.filter(t => t.status === 'completed' || t.status === 'qa').reduce((sum, t) => sum + (t.storyPoints || 0), 0);
     const remainingPoints = totalPoints - completedPoints;
 
     const startDate = new Date(sprint.startDate);
@@ -319,22 +333,30 @@ const StandupModal = ({ isOpen, onClose, sprint, users, tasks }) => {
                   </div>
                   <div className="standup-card-body">
                     {currentUserData.completed.length > 0 ? (
-                      currentUserData.completed.map(task => (
-                        <div key={task.id} className="standup-task-compact">
-                          <div className="standup-task-indicator standup-indicator-completed"></div>
-                          <div className="standup-task-content">
-                            <span className="standup-task-name">{task.title}</span>
-                            <div className="standup-task-meta">
-                              {getTimeInColumn(task) && (
-                                <span className="standup-task-time">{getTimeInColumn(task)}</span>
-                              )}
-                              {task.storyPoints && (
-                                <span className="standup-task-points">{task.storyPoints} pts</span>
-                              )}
+                      currentUserData.completed.map(task => {
+                        const delayInfo = getDelayInfo(task);
+                        return (
+                          <div key={task.id} className="standup-task-compact">
+                            <div className="standup-task-indicator standup-indicator-completed"></div>
+                            <div className="standup-task-content">
+                              <span className="standup-task-name">{task.title}</span>
+                              <div className="standup-task-meta">
+                                {delayInfo && (
+                                  <span className={`standup-delay-badge standup-delay-${delayInfo.status}`}>
+                                    {delayInfo.label}
+                                  </span>
+                                )}
+                                {getTimeInColumn(task) && (
+                                  <span className="standup-task-time">{getTimeInColumn(task)}</span>
+                                )}
+                                {task.storyPoints && (
+                                  <span className="standup-task-points">{task.storyPoints} pts</span>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))
+                        );
+                      })
                     ) : (
                       <p className="standup-empty-message">Sin tareas completadas ayer</p>
                     )}
@@ -349,22 +371,30 @@ const StandupModal = ({ isOpen, onClose, sprint, users, tasks }) => {
                   </div>
                   <div className="standup-card-body">
                     {currentUserData.inProgress.length > 0 ? (
-                      currentUserData.inProgress.map(task => (
-                        <div key={task.id} className="standup-task-compact">
-                          <div className="standup-task-indicator standup-indicator-progress"></div>
-                          <div className="standup-task-content">
-                            <span className="standup-task-name">{task.title}</span>
-                            <div className="standup-task-meta">
-                              {getTimeInColumn(task) && (
-                                <span className="standup-task-time">{getTimeInColumn(task)}</span>
-                              )}
-                              {task.storyPoints && (
-                                <span className="standup-task-points">{task.storyPoints} pts</span>
-                              )}
+                      currentUserData.inProgress.map(task => {
+                        const delayInfo = getDelayInfo(task);
+                        return (
+                          <div key={task.id} className="standup-task-compact">
+                            <div className="standup-task-indicator standup-indicator-progress"></div>
+                            <div className="standup-task-content">
+                              <span className="standup-task-name">{task.title}</span>
+                              <div className="standup-task-meta">
+                                {delayInfo && (
+                                  <span className={`standup-delay-badge standup-delay-${delayInfo.status}`}>
+                                    {delayInfo.label}
+                                  </span>
+                                )}
+                                {getTimeInColumn(task) && (
+                                  <span className="standup-task-time">{getTimeInColumn(task)}</span>
+                                )}
+                                {task.storyPoints && (
+                                  <span className="standup-task-points">{task.storyPoints} pts</span>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))
+                        );
+                      })
                     ) : (
                       <p className="standup-empty-message">Sin tareas en progreso</p>
                     )}

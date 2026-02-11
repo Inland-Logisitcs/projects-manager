@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import Icon from '../common/Icon';
@@ -6,14 +6,9 @@ import UserAvatar from '../common/UserAvatar';
 import UserSelect from '../common/UserSelect';
 import StoryPointsSelect from '../common/StoryPointsSelect';
 import { updateTask } from '../../services/taskService';
+import { calculateDelay } from '../../utils/delayCalculation';
 
-const priorityLabels = {
-  low: 'Baja',
-  medium: 'Media',
-  high: 'Alta'
-};
-
-const KanbanCard = ({ task, isDragging, onDelete }) => {
+const KanbanCard = ({ task, isDragging, onDelete, usersMap, delayViewMode }) => {
   const [showUserSelect, setShowUserSelect] = useState(false);
   const userSelectRef = useRef(null);
 
@@ -49,25 +44,11 @@ const KanbanCard = ({ task, isDragging, onDelete }) => {
   };
 
 
-  // Calcular tiempo en la columna actual
-  const getTimeInColumn = () => {
-    if (!task.lastStatusChange) return null;
-
-    const now = new Date();
-    const changeDate = task.lastStatusChange.toDate ? task.lastStatusChange.toDate() : new Date(task.lastStatusChange);
-    const diffMs = now - changeDate;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 1) return '<1m';
-    if (diffMins < 60) return `${diffMins}m`;
-    if (diffHours < 24) return `${diffHours}h`;
-    if (diffDays === 1) return '1d';
-    return `${diffDays}d`;
-  };
-
-  const timeInColumn = getTimeInColumn();
+  // Calcular delay de la tarea
+  const user = usersMap?.[task.assignedTo];
+  const delayInfo = useMemo(() => {
+    return calculateDelay(task, user, delayViewMode);
+  }, [task, user, delayViewMode]);
 
   const handleAssignUser = async (userId) => {
     const updates = { assignedTo: userId };
@@ -95,13 +76,6 @@ const KanbanCard = ({ task, isDragging, onDelete }) => {
       >
         {/* Título de la tarea */}
         <h4 className="card-title">{task.title}</h4>
-
-        {/* Sección de etiquetas */}
-        <div className="card-tags">
-          <span className={`priority-badge priority-${task.priority}`}>
-            {priorityLabels[task.priority]}
-          </span>
-        </div>
 
         {/* Sección de información adicional */}
         <div className="card-info">
@@ -152,13 +126,13 @@ const KanbanCard = ({ task, isDragging, onDelete }) => {
               size="small"
             />
           </div>
-          {timeInColumn && (
+          {delayInfo && (
             <span
-              className="card-time has-tooltip"
-              data-tooltip={`En esta columna desde: ${task.lastStatusChange?.toDate?.().toLocaleString('es-ES') || 'N/A'}`}
+              className={`card-delay-indicator delay-${delayInfo.status} has-tooltip`}
+              data-tooltip={`Esperado: ${delayInfo.expectedDuration.toFixed(1)}d | Transcurrido: ${delayInfo.elapsedWorkingDays.toFixed(1)}d`}
             >
-              <Icon name="clock" size={14} />
-              {timeInColumn}
+              <Icon name={delayInfo.status === 'on-track' ? 'check-circle' : 'alert-triangle'} size={12} />
+              {delayInfo.label}
             </span>
           )}
         </div>

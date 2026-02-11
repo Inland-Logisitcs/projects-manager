@@ -1,12 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { DndContext, DragOverlay, pointerWithin, rectIntersection } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 import KanbanColumn from './KanbanColumn';
 import KanbanCard from './KanbanCard';
 import ColumnManager from './ColumnManager';
 import TaskDetailSidebar from './TaskDetailSidebar';
+import DemoUrlModal from '../modals/DemoUrlModal';
 import Icon from '../common/Icon';
 import Toast from '../common/Toast';
+import { useAuth } from '../../contexts/AuthContext';
+import { sendQaNotification } from '../../services/slackService';
 import { subscribeToTasks, createTask as createTaskInDB, updateTask as updateTaskInDB, archiveTask as archiveTaskInDB, countTasksByStatus } from '../../services/taskService';
 import {
   subscribeToColumns,
@@ -17,12 +20,15 @@ import {
   initializeDefaultColumns
 } from '../../services/columnService';
 import { subscribeToProjects } from '../../services/projectService';
+import { subscribeToUsers } from '../../services/userService';
 import '../../styles/KanbanBoard.css';
 
 const KanbanBoard = ({ activeSprintId = null }) => {
+  const { isAdmin, userProfile } = useAuth();
   const [columns, setColumns] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [projects, setProjects] = useState([]);
+  const [users, setUsers] = useState([]);
   const [activeTask, setActiveTask] = useState(null);
   const [showAddTask, setShowAddTask] = useState(false);
   const [newTaskColumn, setNewTaskColumn] = useState(null);
@@ -30,7 +36,16 @@ const KanbanBoard = ({ activeSprintId = null }) => {
   const [optimisticUpdates, setOptimisticUpdates] = useState(new Set());
   const [showColumnManager, setShowColumnManager] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
+  const [delayViewMode, setDelayViewMode] = useState('optimistic');
   const [toast, setToast] = useState({ isOpen: false, message: '', type: 'error' });
+  const [pendingQaMove, setPendingQaMove] = useState(null);
+
+  // Build usersMap for quick lookup
+  const usersMap = useMemo(() => {
+    const map = {};
+    users.forEach(user => { map[user.id] = user; });
+    return map;
+  }, [users]);
 
   // Inicializar columnas por defecto y suscribirse a cambios
   useEffect(() => {
@@ -48,9 +63,15 @@ const KanbanBoard = ({ activeSprintId = null }) => {
       setProjects(fetchedProjects);
     });
 
+    // Suscribirse a cambios en usuarios
+    const unsubscribeUsers = subscribeToUsers((fetchedUsers) => {
+      setUsers(fetchedUsers);
+    });
+
     return () => {
       unsubscribeColumns();
       unsubscribeProjects();
+      unsubscribeUsers();
     };
   }, []);
 
@@ -178,55 +199,20 @@ const KanbanBoard = ({ activeSprintId = null }) => {
       const newStatus = over.id;
       const previousStatus = activeTask.status;
 
-      // Marcar esta tarea como optimísticamente actualizada
-      setOptimisticUpdates(prev => new Set(prev).add(active.id));
-
-      // OPTIMISTIC UPDATE: Actualizar UI inmediatamente
-      setTasks(prevTasks =>
-        prevTasks.map(task =>
-          task.id === active.id
-            ? { ...task, status: newStatus }
-            : task
-        )
-      );
-
-      // Actualizar en Firestore en segundo plano
-      const result = await updateTaskInDB(active.id, {
-        status: newStatus,
-        previousStatus: previousStatus
-      });
-
-      // Remover de las actualizaciones optimistas después de un breve delay
-      // para dar tiempo a que Firestore se sincronice
-      setTimeout(() => {
-        setOptimisticUpdates(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(active.id);
-          return newSet;
-        });
-      }, 500);
-
-      // Si falla, revertir el cambio optimista
-      if (!result.success) {
-        console.error('Error al mover tarea:', result.error);
-        setTasks(prevTasks =>
-          prevTasks.map(task =>
-            task.id === active.id
-              ? { ...task, status: previousStatus }
-              : task
-          )
-        );
-        setOptimisticUpdates(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(active.id);
-          return newSet;
-        });
-        setToast({
-          isOpen: true,
-          message: 'Error al mover la tarea. Por favor, intenta de nuevo.',
-          type: 'error'
-        });
+      // Si se soltó en la misma columna, no hacer nada
+      if (newStatus === previousStatus) {
+        setActiveTask(null);
+        return;
       }
+
+      // Si se mueve a QA y no viene de QA, pedir demo URL
+      if (newStatus === 'qa' && previousStatus !== 'qa') {
+        setPendingQaMove({ taskId: active.id, previousStatus, task: activeTask });
+        setActiveTask(null);
+        return;
+      }
+
+      await executeColumnMove(active.id, newStatus, previousStatus);
     }
     // Si se soltó sobre otra tarea (reordenar)
     else {
@@ -241,6 +227,89 @@ const KanbanBoard = ({ activeSprintId = null }) => {
     }
 
     setActiveTask(null);
+  };
+
+  // Ejecutar el movimiento de columna (optimistic update + Firestore)
+  const executeColumnMove = async (taskId, newStatus, previousStatus, extraUpdates = {}) => {
+    // Marcar esta tarea como optimísticamente actualizada
+    setOptimisticUpdates(prev => new Set(prev).add(taskId));
+
+    // OPTIMISTIC UPDATE: Actualizar UI inmediatamente
+    setTasks(prevTasks =>
+      prevTasks.map(task =>
+        task.id === taskId
+          ? { ...task, status: newStatus, ...extraUpdates }
+          : task
+      )
+    );
+
+    // Actualizar en Firestore en segundo plano
+    const result = await updateTaskInDB(taskId, {
+      status: newStatus,
+      previousStatus: previousStatus,
+      ...extraUpdates
+    });
+
+    // Remover de las actualizaciones optimistas después de un breve delay
+    setTimeout(() => {
+      setOptimisticUpdates(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(taskId);
+        return newSet;
+      });
+    }, 500);
+
+    // Si falla, revertir el cambio optimista
+    if (!result.success) {
+      console.error('Error al mover tarea:', result.error);
+      setTasks(prevTasks =>
+        prevTasks.map(task =>
+          task.id === taskId
+            ? { ...task, status: previousStatus }
+            : task
+        )
+      );
+      setOptimisticUpdates(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(taskId);
+        return newSet;
+      });
+      setToast({
+        isOpen: true,
+        message: 'Error al mover la tarea. Por favor, intenta de nuevo.',
+        type: 'error'
+      });
+    }
+
+    return result;
+  };
+
+  // Confirmar movimiento a QA con demo URL
+  const handleQaConfirm = async (demoUrl) => {
+    if (!pendingQaMove) return;
+    const { taskId, previousStatus, task } = pendingQaMove;
+    setPendingQaMove(null);
+
+    const result = await executeColumnMove(taskId, 'qa', previousStatus, { demoUrl });
+
+    if (result.success) {
+      const movedBy = userProfile?.displayName || userProfile?.email || 'Usuario';
+      sendQaNotification({
+        taskTitle: task.title,
+        demoUrl,
+        movedBy
+      });
+      setToast({
+        isOpen: true,
+        message: 'Tarea movida a QA. Notificacion enviada.',
+        type: 'success'
+      });
+    }
+  };
+
+  // Cancelar movimiento a QA
+  const handleQaCancel = () => {
+    setPendingQaMove(null);
   };
 
   const handleAddTask = (columnId) => {
@@ -424,14 +493,32 @@ const KanbanBoard = ({ activeSprintId = null }) => {
               </strong> story points
             </span>
           </div>
-          <button
-            className="btn btn-secondary flex items-center gap-xs has-tooltip"
-            onClick={() => setShowColumnManager(true)}
-            data-tooltip="Gestionar columnas"
-          >
-            <Icon name="settings" size={18} />
-            <span className="kanban-header-btn-text">Gestionar Columnas</span>
-          </button>
+          <div className="flex items-center gap-sm">
+            {isAdmin && (
+              <div className="delay-view-toggle">
+                <button
+                  className={`delay-toggle-btn ${delayViewMode === 'optimistic' ? 'active' : ''}`}
+                  onClick={() => setDelayViewMode('optimistic')}
+                >
+                  Optimista
+                </button>
+                <button
+                  className={`delay-toggle-btn ${delayViewMode === 'risk' ? 'active' : ''}`}
+                  onClick={() => setDelayViewMode('risk')}
+                >
+                  Con riesgo
+                </button>
+              </div>
+            )}
+            <button
+              className="btn btn-secondary flex items-center gap-xs has-tooltip"
+              onClick={() => setShowColumnManager(true)}
+              data-tooltip="Gestionar columnas"
+            >
+              <Icon name="settings" size={18} />
+              <span className="kanban-header-btn-text">Gestionar Columnas</span>
+            </button>
+          </div>
         </div>
 
         <DndContext
@@ -448,6 +535,8 @@ const KanbanBoard = ({ activeSprintId = null }) => {
                 onAddTask={handleAddTask}
                 onDeleteTask={archiveTask}
                 onCreateTask={handleCreateTaskInline}
+                usersMap={usersMap}
+                delayViewMode={delayViewMode}
               />
             ))}
           </div>
@@ -455,7 +544,7 @@ const KanbanBoard = ({ activeSprintId = null }) => {
           <DragOverlay>
             {activeTask && (
               <div className="drag-overlay">
-                <KanbanCard task={activeTask} isDragging />
+                <KanbanCard task={activeTask} isDragging usersMap={usersMap} delayViewMode={delayViewMode} />
               </div>
             )}
           </DragOverlay>
@@ -487,8 +576,18 @@ const KanbanBoard = ({ activeSprintId = null }) => {
             task={selectedTask}
             columns={columns}
             onClose={() => setSelectedTask(null)}
+            usersMap={usersMap}
+            delayViewMode={delayViewMode}
+            isAdmin={isAdmin}
           />
         )}
+
+        <DemoUrlModal
+          isOpen={!!pendingQaMove}
+          onConfirm={handleQaConfirm}
+          onCancel={handleQaCancel}
+        />
+
       </div>
     </>
   );

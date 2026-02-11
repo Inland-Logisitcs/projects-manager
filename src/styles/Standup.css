@@ -343,6 +343,34 @@
   flex-shrink: 0;
 }
 
+/* Delay badge */
+.standup-delay-badge {
+  font-size: var(--font-xs);
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 10px;
+  line-height: 1;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.standup-delay-on-track {
+  color: var(--color-success-dark, #05a57a);
+  background-color: var(--color-success-light, #d1fae5);
+}
+
+.standup-delay-warning {
+  color: var(--color-warning-dark, #e6b84f);
+  background-color: var(--color-warning-light, #fff3d9);
+}
+
+.standup-delay-danger {
+  color: var(--color-error-dark, #d63557);
+  background-color: var(--color-error-light, #fde0e7);
+}
+
 .standup-empty-message {
   text-align: center;
   color: var(--text-tertiary);

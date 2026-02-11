@@ -334,6 +334,73 @@
   font-weight: 400;
 }
 
+/* Delay info section */
+.delay-info-section {
+  margin-top: 1.5rem;
+  padding: 1rem 1.25rem;
+  background-color: #f9fafb;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+}
+
+.delay-status-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-bottom: 0.875rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.delay-status-label.delay-on-track {
+  color: var(--color-success-dark, #05a57a);
+}
+
+.delay-status-label.delay-warning {
+  color: var(--color-warning-dark, #e6b84f);
+}
+
+.delay-status-label.delay-danger {
+  color: var(--color-error-dark, #d63557);
+}
+
+.delay-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.delay-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8125rem;
+}
+
+.delay-detail-label {
+  color: #6b7280;
+  font-weight: 400;
+}
+
+.delay-detail-value {
+  color: #111827;
+  font-weight: 500;
+}
+
+.delay-value-on-track {
+  color: var(--color-success-dark, #05a57a);
+}
+
+.delay-value-warning {
+  color: var(--color-warning-dark, #e6b84f);
+}
+
+.delay-value-danger {
+  color: var(--color-error-dark, #d63557);
+}
+
 /* Movement Timeline */
 .movement-timeline {
   position: relative;
@@ -486,6 +553,30 @@
   background-color: #f9fafb;
   border-color: #015E7C;
   color: #015E7C;
+}
+
+/* Demo URL link */
+.demo-url-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  color: var(--color-primary, #015E7C);
+  text-decoration: none;
+  font-weight: 500;
+  transition: opacity 0.2s ease;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.demo-url-link span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.demo-url-link:hover {
+  opacity: 0.7;
+  text-decoration: underline;
 }
 
 /* Task project row */

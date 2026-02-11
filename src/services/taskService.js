@@ -54,7 +54,8 @@ export const createTask = async (taskData) => {
       movementHistory: movementHistory, // Incluir movimiento inicial si tiene estado
       attachments: [], // Inicializar array de adjuntos vacío
       comments: [], // Inicializar array de comentarios vacío
-      dependencies: [] // Inicializar array de dependencias vacío
+      dependencies: [], // Inicializar array de dependencias vacío
+      demoUrl: null // URL de demo para QA
     });
     return { success: true, id: docRef.id };
   } catch (error) {
@@ -75,11 +76,11 @@ export const updateTask = async (taskId, updates) => {
     };
 
     if (updates.status) {
-      updateData.lastStatusChange = serverTimestamp();
       updateData.previousStatus = updates.previousStatus || null;
 
-      // Solo agregar al historial si el status cambió realmente
+      // Solo actualizar timestamp e historial si el status cambió realmente
       if (updates.previousStatus && updates.previousStatus !== updates.status) {
+        updateData.lastStatusChange = serverTimestamp();
         updateData.movementHistory = arrayUnion({
           type: 'status_change',
           from: updates.previousStatus,

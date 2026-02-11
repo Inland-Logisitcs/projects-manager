@@ -9,7 +9,8 @@ import {
   query,
   orderBy,
   serverTimestamp,
-  arrayUnion
+  arrayUnion,
+  Timestamp
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
@@ -147,6 +148,50 @@ export const updateProjectsOrder = async (projectsWithNewOrder) => {
     return { success: true };
   } catch (error) {
     console.error('Error al actualizar orden de proyectos:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Guardar snapshots de fecha de finalización proyectada para proyectos.
+ * Reemplaza el snapshot anterior de cada proyecto.
+ * @param {Array<{projectId: string, fechaFin: Date, diaFin: number}>} snapshots
+ * @returns {Object} { success, stats: { success, errors } }
+ */
+export const saveProjectSnapshots = async (snapshots) => {
+  try {
+    let successCount = 0;
+    let errorCount = 0;
+
+    const updatePromises = snapshots.map(async ({ projectId, fechaFin, diaFin }) => {
+      try {
+        const projectRef = doc(db, PROJECTS_COLLECTION, projectId);
+        await updateDoc(projectRef, {
+          snapshot: {
+            fechaFin: Timestamp.fromDate(fechaFin),
+            diaFin,
+            creadoEn: serverTimestamp()
+          },
+          updatedAt: serverTimestamp()
+        });
+        successCount++;
+      } catch (err) {
+        console.error(`Error al guardar snapshot del proyecto ${projectId}:`, err);
+        errorCount++;
+      }
+    });
+
+    await Promise.all(updatePromises);
+
+    if (errorCount > 0 && successCount > 0) {
+      return { success: false, partial: true, stats: { success: successCount, errors: errorCount } };
+    }
+    if (errorCount > 0) {
+      return { success: false, error: 'Error al guardar todos los snapshots', stats: { success: successCount, errors: errorCount } };
+    }
+    return { success: true, stats: { success: successCount, errors: 0 } };
+  } catch (error) {
+    console.error('Error al guardar snapshots de proyectos:', error);
     return { success: false, error: error.message };
   }
 };

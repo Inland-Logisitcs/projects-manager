@@ -13,9 +13,10 @@ import { updateTask, archiveTask } from '../../services/taskService';
 import { subscribeToUsers } from '../../services/userService';
 import { subscribeToProjects } from '../../services/projectService';
 import { cleanupUnusedImages } from '../../utils/imageCleanup';
+import { calculateDelay } from '../../utils/delayCalculation';
 import '../../styles/TaskDetailSidebar.css';
 
-const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose }) => {
+const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose, usersMap = {}, delayViewMode = 'optimistic', isAdmin = false }) => {
   const sidebarRef = useRef(null);
   const userSelectRef = useRef(null);
   const projectSelectRef = useRef(null);
@@ -31,6 +32,8 @@ const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose }) => {
   const [projects, setProjects] = useState([]);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState(task.title || '');
+  const [isEditingDemoUrl, setIsEditingDemoUrl] = useState(false);
+  const [editedDemoUrl, setEditedDemoUrl] = useState(task.demoUrl || '');
 
   // Cargar usuarios
   useEffect(() => {
@@ -199,6 +202,45 @@ const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose }) => {
     }
   };
 
+  // Guardar demo URL editada
+  const handleSaveDemoUrl = async () => {
+    const trimmed = editedDemoUrl.trim();
+    if (trimmed && trimmed !== (task.demoUrl || '')) {
+      try {
+        new URL(trimmed);
+      } catch {
+        setToast({ message: 'URL no valida', type: 'error' });
+        setEditedDemoUrl(task.demoUrl || '');
+        setIsEditingDemoUrl(false);
+        return;
+      }
+      const result = await updateTask(task.id, { demoUrl: trimmed });
+      if (!result.success) {
+        setToast({ message: 'Error al actualizar demo URL: ' + result.error, type: 'error' });
+        setEditedDemoUrl(task.demoUrl || '');
+      }
+    } else if (!trimmed && task.demoUrl) {
+      const result = await updateTask(task.id, { demoUrl: null });
+      if (!result.success) {
+        setToast({ message: 'Error al actualizar demo URL: ' + result.error, type: 'error' });
+        setEditedDemoUrl(task.demoUrl || '');
+      }
+    } else {
+      setEditedDemoUrl(task.demoUrl || '');
+    }
+    setIsEditingDemoUrl(false);
+  };
+
+  const handleDemoUrlKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleSaveDemoUrl();
+    } else if (e.key === 'Escape') {
+      setEditedDemoUrl(task.demoUrl || '');
+      setIsEditingDemoUrl(false);
+    }
+  };
+
   // Calcular tiempo en cada estado del historial
   const historyWithDuration = useMemo(() => {
     if (!task.movementHistory || task.movementHistory.length === 0) {
@@ -249,6 +291,18 @@ const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose }) => {
     const diffMs = now - lastChange;
     return formatDuration(diffMs);
   }, [task.lastStatusChange]);
+
+  // Calcular delay para la vista actual
+  const assignedUser = usersMap[task.assignedTo];
+  const delayOptimistic = useMemo(() => {
+    return calculateDelay(task, assignedUser, 'optimistic');
+  }, [task, assignedUser]);
+
+  const delayRisk = useMemo(() => {
+    return calculateDelay(task, assignedUser, 'risk');
+  }, [task, assignedUser]);
+
+  const delayInfo = delayViewMode === 'risk' ? delayRisk : delayOptimistic;
 
   // Formatear fecha y hora
   const formatDateTime = (date) => {
@@ -451,6 +505,50 @@ const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose }) => {
               )}
             </div>
 
+            {/* Demo URL */}
+            {(task.demoUrl || isEditingDemoUrl) && (
+              <div className="task-demo-url-row flex items-center gap-sm mt-sm">
+                <Icon name="link" size={16} className="text-secondary" />
+                {isEditingDemoUrl ? (
+                  <input
+                    type="text"
+                    className="input"
+                    value={editedDemoUrl}
+                    onChange={(e) => setEditedDemoUrl(e.target.value)}
+                    onBlur={handleSaveDemoUrl}
+                    onKeyDown={handleDemoUrlKeyDown}
+                    placeholder="https://demo.ejemplo.com"
+                    autoFocus
+                    style={{ fontSize: '0.875rem', padding: '0.25rem 0.5rem' }}
+                  />
+                ) : (
+                  <a
+                    href={task.demoUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="demo-url-link"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <span className="text-sm">{task.demoUrl}</span>
+                    <Icon name="external-link" size={14} />
+                  </a>
+                )}
+                {!isEditingDemoUrl && (
+                  <button
+                    className="btn btn-icon"
+                    onClick={() => {
+                      setEditedDemoUrl(task.demoUrl || '');
+                      setIsEditingDemoUrl(true);
+                    }}
+                    title="Editar demo URL"
+                    style={{ width: 24, height: 24, minWidth: 24 }}
+                  >
+                    <Icon name="edit" size={14} />
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Dependencias */}
             {task.dependencies && task.dependencies.length > 0 && (
               <div className="dependencies-section mt-base">
@@ -573,6 +671,50 @@ const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose }) => {
                 </div>
               </div>
             </div>
+
+            {/* Delay info */}
+            {delayInfo && (
+              <div className="delay-info-section">
+                <div className={`delay-status-label delay-${delayInfo.status}`}>
+                  <Icon name={delayInfo.status === 'on-track' ? 'check-circle' : 'alert-triangle'} size={16} />
+                  {delayInfo.status === 'on-track' ? 'Al dia' : delayInfo.status === 'warning' ? 'Retraso leve' : 'Retraso significativo'}
+                </div>
+                <div className="delay-details">
+                  <div className="delay-detail-row">
+                    <span className="delay-detail-label">Tiempo transcurrido</span>
+                    <span className="delay-detail-value">{delayInfo.elapsedWorkingDays.toFixed(1)} dias lab.</span>
+                  </div>
+                  <div className="delay-detail-row">
+                    <span className="delay-detail-label">
+                      Duracion esperada {isAdmin && delayOptimistic && delayRisk ? '(optimista)' : ''}
+                    </span>
+                    <span className="delay-detail-value">{(delayOptimistic || delayInfo).expectedDuration.toFixed(1)} dias lab.</span>
+                  </div>
+                  {isAdmin && delayRisk && (
+                    <div className="delay-detail-row">
+                      <span className="delay-detail-label">Duracion esperada (con riesgo)</span>
+                      <span className="delay-detail-value">{delayRisk.expectedDuration.toFixed(1)} dias lab.</span>
+                    </div>
+                  )}
+                  <div className="delay-detail-row">
+                    <span className="delay-detail-label">
+                      Desvio {isAdmin && delayOptimistic && delayRisk ? '(optimista)' : ''}
+                    </span>
+                    <span className={`delay-detail-value delay-value-${delayOptimistic?.status || delayInfo.status}`}>
+                      {(delayOptimistic || delayInfo).delay < 0 ? '' : '+'}{(delayOptimistic || delayInfo).delay.toFixed(1)}d
+                    </span>
+                  </div>
+                  {isAdmin && delayRisk && (
+                    <div className="delay-detail-row">
+                      <span className="delay-detail-label">Desvio (con riesgo)</span>
+                      <span className={`delay-detail-value delay-value-${delayRisk.status}`}>
+                        {delayRisk.delay < 0 ? '' : '+'}{delayRisk.delay.toFixed(1)}d
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </section>
 
           {/* Historial de movimientos */}
