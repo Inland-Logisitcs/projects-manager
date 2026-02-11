@@ -784,7 +784,7 @@ const getLayoutedElements = (nodes, edges) => {
   return { nodes: layoutedNodes, edges };
 };
 
-const DependenciesFlow = ({ projects, tasks, onTaskClick }) => {
+const DependenciesFlow = ({ projects, tasks, onTaskClick, isAdmin = false }) => {
   // Generar un color consistente para un proyecto basado en su ID
   const getProjectColor = useCallback((projectId) => {
     if (!projectId) return '#6B7280'; // Color gris por defecto
@@ -1531,10 +1531,10 @@ const DependenciesFlow = ({ projects, tasks, onTaskClick }) => {
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        onEdgesDelete={onEdgesDelete}
+        onConnect={isAdmin ? onConnect : undefined}
+        onEdgesDelete={isAdmin ? onEdgesDelete : undefined}
         onNodeClick={onNodeClick}
-        isValidConnection={isValidConnection}
+        isValidConnection={isAdmin ? isValidConnection : undefined}
         nodeTypes={nodeTypes}
         connectionLineType={ConnectionLineType.Bezier}
         fitView
@@ -1542,11 +1542,11 @@ const DependenciesFlow = ({ projects, tasks, onTaskClick }) => {
         minZoom={0.1}
         maxZoom={2}
         connectOnClick={false}
-        connectionMode={ConnectionMode.Loose}
+        connectionMode={isAdmin ? ConnectionMode.Loose : ConnectionMode.Strict}
         defaultEdgeOptions={{
           type: 'default', // bezier
         }}
-        deleteKeyCode={['Backspace', 'Delete']}
+        deleteKeyCode={isAdmin ? ['Backspace', 'Delete'] : null}
       >
         <Background color="#ddd" gap={20} />
         <Controls />

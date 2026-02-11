@@ -148,9 +148,18 @@ const calcularPosicionesParaGantt = ({
   usuarios,
   factoresRiesgo,
   proyectos,
-  calcularRiesgos
+  calcularRiesgos,
+  optimista = false
 }) => {
   const resultado = [];
+
+  // En vista optimista, usar solo duracionBase (redondeada a 0.5)
+  const getDuracionEfectiva = (durBase, durTotal) => {
+    if (optimista) {
+      return Math.ceil((durBase || 0) * 2) / 2;
+    }
+    return durTotal;
+  };
   // Track posicion disponible por usuario (dia calendario donde puede empezar la siguiente tarea)
   const posicionUsuario = {};
 
@@ -211,7 +220,7 @@ const calcularPosicionesParaGantt = ({
 
     // Snap to 0.5-day grid for consistent segment rendering in the Gantt
     const diaInicio = Math.round(-diasTranscurridos * 2) / 2;
-    const diaFin = avanzarDiasLaborables(diaInicio, riesgos.duracionTotal, diasLab);
+    const diaFin = avanzarDiasLaborables(diaInicio, getDuracionEfectiva(riesgos.duracionBase, riesgos.duracionTotal), diasLab);
 
     resultado.push({
       id: t.id,
@@ -272,7 +281,7 @@ const calcularPosicionesParaGantt = ({
       }
 
       const diaInicio = Math.max(posicionUsuario[userId] || 0, 0);
-      const diaFin = avanzarDiasLaborables(diaInicio, duracionTotal, diasLab);
+      const diaFin = avanzarDiasLaborables(diaInicio, getDuracionEfectiva(duracionBase, duracionTotal), diasLab);
 
       resultado.push({
         id: t.id,
@@ -327,7 +336,7 @@ const calcularPosicionesParaGantt = ({
       });
     }
 
-    const diaFin = avanzarDiasLaborables(diaInicio, riesgos.duracionTotal, diasLab);
+    const diaFin = avanzarDiasLaborables(diaInicio, getDuracionEfectiva(riesgos.duracionBase, riesgos.duracionTotal), diasLab);
 
     const tareaGantt = {
       id: t.id || t.taskId,
@@ -360,7 +369,7 @@ const calcularPosicionesParaGantt = ({
 /**
  * Componente principal del planificador/optimizador de tareas
  */
-const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {} }) => {
+const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {}, isAdmin = false }) => {
   const [usuarios, setUsuarios] = useState([]);
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [selectedProyectos, setSelectedProyectos] = useState([]); // Proyectos seleccionados para optimizar
@@ -372,6 +381,8 @@ const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {} }) =
   const [showSaveConfirm, setShowSaveConfirm] = useState(false); // Mostrar confirmación de guardado
   const [showClearConfirm, setShowClearConfirm] = useState(false); // Mostrar confirmación de limpieza
   const [clearing, setClearing] = useState(false); // Estado de limpieza
+  const [vistaOptimista, setVistaOptimista] = useState(!isAdmin); // Non-admins: siempre optimista
+  const [optimizacionRaw, setOptimizacionRaw] = useState(null); // Datos crudos para recalcular
 
   const { optimizar, loading, error, resultado, limpiar } = useOptimizer();
 
@@ -422,11 +433,31 @@ const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {} }) =
       usuarios,
       factoresRiesgo: [],
       proyectos,
-      calcularRiesgos: calcularDuracionConRiesgos
+      calcularRiesgos: calcularDuracionConRiesgos,
+      optimista: vistaOptimista
     });
 
     setTareasPlaneadas(tareasGantt);
-  }, [tareas, usuarios, proyectos]);
+  }, [tareas, usuarios, proyectos, vistaOptimista]);
+
+  // Recalcular posiciones de la optimización activa al cambiar vista
+  useEffect(() => {
+    if (!resultado || !optimizacionRaw) return;
+
+    const tareasGantt = calcularPosicionesParaGantt({
+      tareasOptimizador: resultado.solucion,
+      tareasEnProgreso: optimizacionRaw.tareasDoingRaw,
+      tareasYaOptimizadas: optimizacionRaw.tareasYaOptimizadas,
+      usuarios,
+      factoresRiesgo: optimizacionRaw.todosLosRiesgos,
+      proyectos,
+      calcularRiesgos: calcularDuracionConRiesgos,
+      optimista: vistaOptimista
+    });
+
+    setTareasDoing(tareasGantt);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vistaOptimista]);
 
   // Validar datos antes de optimizar
   const validarDatos = () => {
@@ -579,6 +610,9 @@ const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {} }) =
     });
 
     if (resultado) {
+      // Guardar datos crudos para recalcular al cambiar vista
+      setOptimizacionRaw({ tareasDoingRaw, tareasYaOptimizadas, todosLosRiesgos });
+
       // Calcular posiciones en el frontend (unica fuente de verdad)
       const todasLasTareasGantt = calcularPosicionesParaGantt({
         tareasOptimizador: resultado.solucion,
@@ -587,7 +621,8 @@ const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {} }) =
         usuarios,
         factoresRiesgo: todosLosRiesgos,
         proyectos,
-        calcularRiesgos: calcularDuracionConRiesgos
+        calcularRiesgos: calcularDuracionConRiesgos,
+        optimista: vistaOptimista
       });
 
       setTareasDoing(todasLasTareasGantt);
@@ -807,79 +842,100 @@ const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {} }) =
                 } / {usuarios.length}
               </p>
             </div>
+            {isAdmin && (
+              <div>
+                <p className="text-sm text-tertiary">Vista</p>
+                <div className="flex gap-xs mt-xs">
+                  <button
+                    className={`btn btn-sm ${!vistaOptimista ? 'btn-primary' : 'btn-ghost'}`}
+                    onClick={() => setVistaOptimista(false)}
+                  >
+                    Con riesgos
+                  </button>
+                  <button
+                    className={`btn btn-sm ${vistaOptimista ? 'btn-primary' : 'btn-ghost'}`}
+                    onClick={() => setVistaOptimista(true)}
+                  >
+                    Optimista
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
-          <div className="flex gap-sm">
-            <button
-              className="btn btn-primary flex items-center gap-xs"
-              onClick={() => setShowProjectModal(true)}
-              disabled={loading}
-            >
-              {loading ? (
-                <>
-                  <div className="spinner"></div>
-                  Optimizando...
-                </>
-              ) : (
-                <>
-                  <Icon name="zap" size={18} />
-                  Optimizar
-                </>
-              )}
-            </button>
-            {resultado && (
-              <>
-                <button
-                  className="btn btn-success flex items-center gap-xs"
-                  onClick={() => setShowSaveConfirm(true)}
-                  disabled={saving}
-                >
-                  {saving ? (
-                    <>
-                      <div className="spinner"></div>
-                      Guardando...
-                    </>
-                  ) : (
-                    <>
-                      <Icon name="save" size={18} />
-                      Guardar Optimización
-                    </>
-                  )}
-                </button>
-                <button
-                  className="btn btn-ghost flex items-center gap-xs"
-                  onClick={() => limpiar()}
-                  disabled={saving}
-                >
-                  <Icon name="x" size={18} />
-                  Limpiar
-                </button>
-              </>
-            )}
-            {tareasPlaneadas.length > 0 && !resultado && (
+          {isAdmin && (
+            <div className="flex gap-sm">
               <button
-                className="btn btn-warning flex items-center gap-xs"
-                onClick={() => setShowClearConfirm(true)}
-                disabled={clearing}
+                className="btn btn-primary flex items-center gap-xs"
+                onClick={() => setShowProjectModal(true)}
+                disabled={loading}
               >
-                {clearing ? (
+                {loading ? (
                   <>
                     <div className="spinner"></div>
-                    Limpiando...
+                    Optimizando...
                   </>
                 ) : (
                   <>
-                    <Icon name="trash-2" size={18} />
-                    Limpiar Optimización
+                    <Icon name="zap" size={18} />
+                    Optimizar
                   </>
                 )}
               </button>
+              {resultado && (
+                <>
+                  <button
+                    className="btn btn-success flex items-center gap-xs"
+                    onClick={() => setShowSaveConfirm(true)}
+                    disabled={saving}
+                  >
+                    {saving ? (
+                      <>
+                        <div className="spinner"></div>
+                        Guardando...
+                      </>
+                    ) : (
+                      <>
+                        <Icon name="save" size={18} />
+                        Guardar Optimización
+                      </>
+                    )}
+                  </button>
+                  <button
+                    className="btn btn-ghost flex items-center gap-xs"
+                    onClick={() => { limpiar(); setOptimizacionRaw(null); }}
+                    disabled={saving}
+                  >
+                    <Icon name="x" size={18} />
+                    Limpiar
+                  </button>
+                </>
+              )}
+              {tareasPlaneadas.length > 0 && !resultado && (
+                <button
+                  className="btn btn-warning flex items-center gap-xs"
+                  onClick={() => setShowClearConfirm(true)}
+                  disabled={clearing}
+                >
+                  {clearing ? (
+                    <>
+                      <div className="spinner"></div>
+                      Limpiando...
+                    </>
+                  ) : (
+                    <>
+                      <Icon name="trash-2" size={18} />
+                      Limpiar Optimización
+                    </>
+                  )}
+                </button>
             )}
-          </div>
+            </div>
+          )}
         </div>
 
-        {/* Resultado de optimización (si existe) */}
-        {resultado && (
+        {/* Resultado de optimización (si existe, solo admins) */}
+        {isAdmin && resultado && (
           <div className="card mb-lg">
             <div className="card-body p-base">
               <div className="flex justify-between items-center">
@@ -892,7 +948,7 @@ const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {} }) =
                     <span className="text-tertiary">
                       Duración: <strong className="text-primary">{resultado.makespan} días</strong>
                     </span>
-                    {resultado.analisis?.impactoDias > 0 && (
+                    {isAdmin && resultado.analisis?.impactoDias > 0 && (
                       <>
                         <span className="text-tertiary">•</span>
                         <span className="text-tertiary">
@@ -908,7 +964,7 @@ const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {} }) =
                 </div>
                 <button
                   className="btn btn-ghost btn-sm flex items-center gap-xs"
-                  onClick={() => limpiar()}
+                  onClick={() => { limpiar(); setOptimizacionRaw(null); }}
                 >
                   <Icon name="x" size={16} />
                   Limpiar
@@ -922,6 +978,7 @@ const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {} }) =
         {tareasGantt.length > 0 ? (
           <CustomGanttChart
             solucion={tareasGantt}
+            vistaOptimista={vistaOptimista}
             makespan={makespanRaw}
             proyectos={proyectos}
             usuarios={usuarios}

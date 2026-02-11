@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import { subscribeToProjects, createProject, updateProject, deleteProject, updateProjectsOrder } from '../services/projectService';
 import { subscribeToTasks, updateTask } from '../services/taskService';
 import { subscribeToColumns } from '../services/columnService';
@@ -20,6 +21,7 @@ const TABS = [
 ];
 
 const Projects = () => {
+  const { isAdmin } = useAuth();
   const [projects, setProjects] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [columns, setColumns] = useState([]);
@@ -255,6 +257,7 @@ const Projects = () => {
             projects={projects}
             tasks={tasks}
             onTaskClick={handleTaskClick}
+            isAdmin={isAdmin}
           />
         );
 
@@ -265,6 +268,7 @@ const Projects = () => {
             tareas={tasks}
             columns={columns}
             projectRisks={projectRisks}
+            isAdmin={isAdmin}
           />
         );
 

@@ -6,7 +6,7 @@ import '../../styles/CustomGanttChart.css';
  * Gantt Chart personalizado con soporte completo para decimales
  * Diseñado específicamente para el optimizador de tareas
  */
-const CustomGanttChart = ({ solucion, makespan, proyectos, usuarios, onTaskClick }) => {
+const CustomGanttChart = ({ solucion, makespan, proyectos, usuarios, onTaskClick, vistaOptimista = false }) => {
   const [hoveredTask, setHoveredTask] = useState(null);
   const ganttRef = useRef(null);
   const [hoveredDependency, setHoveredDependency] = useState(null);
@@ -90,9 +90,9 @@ const CustomGanttChart = ({ solucion, makespan, proyectos, usuarios, onTaskClick
     const diasLaborablesUsuario = usuario?.workingDays || [1, 2, 3, 4, 5];
 
     // Presupuestos en medios dias de trabajo
-    // Redondeo se suma al riesgo (las tareas siempre se redondean a 0.5)
-    const medioDiasBase = Math.round((task.duracionBase || 0) * 2);
-    const medioDiasRiesgo = Math.round(((task.tiempoRiesgo || 0) + (task.tiempoRedondeo || 0)) * 2);
+    // En vista optimista, todo el tiempo de trabajo es "base" (sin riesgos)
+    const medioDiasBase = vistaOptimista ? Infinity : Math.round((task.duracionBase || 0) * 2);
+    const medioDiasRiesgo = vistaOptimista ? 0 : Math.round(((task.tiempoRiesgo || 0) + (task.tiempoRedondeo || 0)) * 2);
 
     let medioDiasTrabajados = 0;
 
@@ -144,7 +144,7 @@ const CustomGanttChart = ({ solucion, makespan, proyectos, usuarios, onTaskClick
     if (segmentoActual) segmentos.push(segmentoActual);
 
     return { segmentos, diaFinRecalculado: diaFin };
-  }, [esDiaLaborable, usuarios]);
+  }, [esDiaLaborable, usuarios, vistaOptimista]);
 
   // Verificar si hay tareas para mostrar
   if (!solucion || solucion.length === 0) {
@@ -419,7 +419,9 @@ const CustomGanttChart = ({ solucion, makespan, proyectos, usuarios, onTaskClick
       {/* Header */}
       <div className="gantt-header">
         <div>
-          <h3 className="heading-3 text-primary">Planificación Optimizada</h3>
+          <h3 className="heading-3 text-primary">
+            Planificación {vistaOptimista ? 'Optimista' : 'Optimizada'}
+          </h3>
           <p className="text-sm text-secondary">
             Duración total: <strong>{formatDuration(makespan || 3.5)}</strong> • {solucion.length} tarea{solucion.length !== 1 ? 's' : ''}
           </p>
@@ -651,7 +653,9 @@ const CustomGanttChart = ({ solucion, makespan, proyectos, usuarios, onTaskClick
             </div>
             <div className="gantt-tooltip-item">
               <Icon name="clock" size={14} />
-              {tiempoRiesgoTotal > 0 ? (
+              {vistaOptimista ? (
+                <span>{formatDuration(duracionBase)} <span style={{ color: '#10b981' }}>(optimista)</span></span>
+              ) : tiempoRiesgoTotal > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                   <div>
                     {formatDuration(duracionBase)} + {formatDuration(tiempoRiesgoTotal)} <span style={{ color: '#ef4444' }}>riesgo</span> = {formatDuration(duracionTotal)}
@@ -701,10 +705,12 @@ const CustomGanttChart = ({ solucion, makespan, proyectos, usuarios, onTaskClick
             <div className="legend-indicator with-non-working" />
             <span className="text-secondary">Días no laborables</span>
           </div>
-          <div className="flex items-center gap-xs">
-            <div className="legend-indicator with-risk" />
-            <span className="text-secondary">Tiempo de riesgo</span>
-          </div>
+          {!vistaOptimista && (
+            <div className="flex items-center gap-xs">
+              <div className="legend-indicator with-risk" />
+              <span className="text-secondary">Tiempo de riesgo</span>
+            </div>
+          )}
           <div className="flex items-center gap-xs">
             <span className="text-secondary">Haz clic en una tarea para ver detalles</span>
           </div>
