@@ -5,7 +5,8 @@ import '../../styles/StoryPointsSelect.css';
 const StoryPointsSelect = ({
   value,
   onChange,
-  size = 'medium' // 'small', 'medium', 'large'
+  size = 'medium', // 'small', 'medium', 'large'
+  disabled = false
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [tempValue, setTempValue] = useState('');
@@ -24,6 +25,7 @@ const StoryPointsSelect = ({
 
   const handleClick = (e) => {
     e.stopPropagation();
+    if (disabled) return;
     setIsEditing(true);
   };
 
@@ -71,9 +73,10 @@ const StoryPointsSelect = ({
 
   return (
     <div
-      className={`story-points-badge story-points-${size} ${value !== null && value !== undefined ? 'has-value' : 'empty'} has-tooltip`}
+      className={`story-points-badge story-points-${size} ${value !== null && value !== undefined ? 'has-value' : 'empty'}${!disabled ? ' has-tooltip' : ''}`}
       onClick={handleClick}
-      data-tooltip="Story Points (click para editar)"
+      style={disabled ? { cursor: 'default' } : undefined}
+      data-tooltip={!disabled ? "Story Points (click para editar)" : undefined}
     >
       <Icon name="zap" size={12} />
       <span>{value !== null && value !== undefined ? value : 'SP'}</span>

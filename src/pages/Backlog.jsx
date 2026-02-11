@@ -22,7 +22,7 @@ import '../styles/Backlog.css';
 
 const Backlog = () => {
   const navigate = useNavigate();
-  const { user, userProfile } = useAuth();
+  const { user, userProfile, isAdmin } = useAuth();
   const [tasks, setTasks] = useState([]);
   const [sprints, setSprints] = useState([]);
   const [columns, setColumns] = useState([]);
@@ -804,6 +804,7 @@ const Backlog = () => {
           selectedTaskIds={selectedTaskIds}
           onToggleTaskSelection={handleToggleTaskSelection}
           onToggleAllTasks={handleToggleAllTasks}
+          isAdmin={isAdmin}
         />
       ))}
 
@@ -918,6 +919,7 @@ const Backlog = () => {
                     users={users}
                     allTasks={tasks}
                     onOpenPlanningPoker={null}
+                    isAdmin={isAdmin}
                   />
                 ))}
               </tbody>
@@ -1000,7 +1002,7 @@ const Backlog = () => {
 };
 
 // Componente de Sprint Section
-const SprintSection = ({ sprint, tasks, users, onDragOver, onDrop, onStartSprint, onTaskClick, getProjectName, getProjectColor, onDragStart, onDragEnd, onDragOverTask, onDragLeaveTask, onDropOnTask, onUpdateTask, sprints, onMoveToSprint, selectedTaskIds, onToggleTaskSelection, onToggleAllTasks }) => {
+const SprintSection = ({ sprint, tasks, users, onDragOver, onDrop, onStartSprint, onTaskClick, getProjectName, getProjectColor, onDragStart, onDragEnd, onDragOverTask, onDragLeaveTask, onDropOnTask, onUpdateTask, sprints, onMoveToSprint, selectedTaskIds, onToggleTaskSelection, onToggleAllTasks, isAdmin = false }) => {
   const [expanded, setExpanded] = useState(true);
   const [isCreatingTask, setIsCreatingTask] = useState(false);
   const [newTaskName, setNewTaskName] = useState('');
@@ -1253,6 +1255,7 @@ const SprintSection = ({ sprint, tasks, users, onDragOver, onDrop, onStartSprint
                     users={users}
                     allTasks={tasks}
                     onOpenPlanningPoker={null}
+                    isAdmin={isAdmin}
                   />
                 ))}
               </tbody>
@@ -1467,7 +1470,7 @@ const TaskCardMobile = ({ task, onDragStart, onDragEnd, onArchive, onUpdateTask,
 };
 
 // Componente de fila de tarea
-const TaskRow = ({ task, onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop, onArchive, onUpdateTask, onTaskClick, getProjectName, getProjectColor, sprints, onMoveToSprint, currentSprintId, isSelected, onToggleSelection, sprint, users, allTasks, onOpenPlanningPoker }) => {
+const TaskRow = ({ task, onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop, onArchive, onUpdateTask, onTaskClick, getProjectName, getProjectColor, sprints, onMoveToSprint, currentSprintId, isSelected, onToggleSelection, sprint, users, allTasks, onOpenPlanningPoker, isAdmin = false }) => {
   const [showConfirm, setShowConfirm] = useState(false);
   const [showUserSelect, setShowUserSelect] = useState(false);
   const [showProjectSelect, setShowProjectSelect] = useState(false);
@@ -1672,6 +1675,7 @@ const TaskRow = ({ task, onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop
                 await onUpdateTask(task.id, { storyPoints });
               }}
               size="small"
+              disabled={!isAdmin}
             />
           </div>
         </td>

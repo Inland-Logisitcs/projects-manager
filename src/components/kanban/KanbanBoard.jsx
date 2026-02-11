@@ -537,6 +537,7 @@ const KanbanBoard = ({ activeSprintId = null }) => {
                 onCreateTask={handleCreateTaskInline}
                 usersMap={usersMap}
                 delayViewMode={delayViewMode}
+                isAdmin={isAdmin}
               />
             ))}
           </div>
@@ -544,7 +545,7 @@ const KanbanBoard = ({ activeSprintId = null }) => {
           <DragOverlay>
             {activeTask && (
               <div className="drag-overlay">
-                <KanbanCard task={activeTask} isDragging usersMap={usersMap} delayViewMode={delayViewMode} />
+                <KanbanCard task={activeTask} isDragging usersMap={usersMap} delayViewMode={delayViewMode} isAdmin={isAdmin} />
               </div>
             )}
           </DragOverlay>

@@ -445,6 +445,7 @@ const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose, usersMap = {
                   }
                 }}
                 size="small"
+                disabled={!isAdmin}
               />
               {showUserSelect && (
                 <div className="user-select-dropdown-sidebar">

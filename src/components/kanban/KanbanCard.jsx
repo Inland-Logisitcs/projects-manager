@@ -8,7 +8,7 @@ import StoryPointsSelect from '../common/StoryPointsSelect';
 import { updateTask } from '../../services/taskService';
 import { calculateDelay } from '../../utils/delayCalculation';
 
-const KanbanCard = ({ task, isDragging, onDelete, usersMap, delayViewMode }) => {
+const KanbanCard = ({ task, isDragging, onDelete, usersMap, delayViewMode, isAdmin = false }) => {
   const [showUserSelect, setShowUserSelect] = useState(false);
   const userSelectRef = useRef(null);
 
@@ -124,6 +124,7 @@ const KanbanCard = ({ task, isDragging, onDelete, usersMap, delayViewMode }) => 
                 await updateTask(task.id, { storyPoints });
               }}
               size="small"
+              disabled={!isAdmin}
             />
           </div>
           {delayInfo && (
