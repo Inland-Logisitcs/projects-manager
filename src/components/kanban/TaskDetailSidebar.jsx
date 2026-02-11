@@ -9,11 +9,14 @@ import ProjectSelect from '../common/ProjectSelect';
 import TaskComments from './TaskComments';
 import Toast from '../common/Toast';
 import ConfirmDialog from '../common/ConfirmDialog';
+import StoryPointsRequestModal from '../modals/StoryPointsRequestModal';
 import { updateTask, archiveTask } from '../../services/taskService';
+import { createRequest } from '../../services/requestService';
 import { subscribeToUsers } from '../../services/userService';
 import { subscribeToProjects } from '../../services/projectService';
 import { cleanupUnusedImages } from '../../utils/imageCleanup';
 import { calculateDelay } from '../../utils/delayCalculation';
+import { useAuth } from '../../contexts/AuthContext';
 import '../../styles/TaskDetailSidebar.css';
 
 const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose, usersMap = {}, delayViewMode = 'optimistic', isAdmin = false }) => {
@@ -34,6 +37,8 @@ const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose, usersMap = {
   const [editedTitle, setEditedTitle] = useState(task.title || '');
   const [isEditingDemoUrl, setIsEditingDemoUrl] = useState(false);
   const [editedDemoUrl, setEditedDemoUrl] = useState(task.demoUrl || '');
+  const [showSpRequestModal, setShowSpRequestModal] = useState(false);
+  const { user, userProfile } = useAuth();
 
   // Cargar usuarios
   useEffect(() => {
@@ -446,6 +451,7 @@ const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose, usersMap = {
                 }}
                 size="small"
                 disabled={!isAdmin}
+                onRequestChange={!isAdmin ? () => setShowSpRequestModal(true) : undefined}
               />
               {showUserSelect && (
                 <div className="user-select-dropdown-sidebar">
@@ -674,7 +680,7 @@ const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose, usersMap = {
             </div>
 
             {/* Delay info */}
-            {delayInfo && (
+            {delayInfo ? (
               <div className="delay-info-section">
                 <div className={`delay-status-label delay-${delayInfo.status}`}>
                   <Icon name={delayInfo.status === 'on-track' ? 'check-circle' : 'alert-triangle'} size={16} />
@@ -687,11 +693,12 @@ const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose, usersMap = {
                   </div>
                   <div className="delay-detail-row">
                     <span className="delay-detail-label">
-                      Duracion esperada {isAdmin && delayOptimistic && delayRisk ? '(optimista)' : ''}
+                      Duracion esperada {isAdmin && task.optimizedDuration && delayOptimistic && delayRisk ? ' (optimista)' : ''}
+                      {!task.optimizedDuration && task.storyPoints ? ' (por SP)' : ''}
                     </span>
                     <span className="delay-detail-value">{(delayOptimistic || delayInfo).expectedDuration.toFixed(1)} dias lab.</span>
                   </div>
-                  {isAdmin && delayRisk && (
+                  {isAdmin && delayRisk && task.optimizedDuration && (
                     <div className="delay-detail-row">
                       <span className="delay-detail-label">Duracion esperada (con riesgo)</span>
                       <span className="delay-detail-value">{delayRisk.expectedDuration.toFixed(1)} dias lab.</span>
@@ -699,13 +706,13 @@ const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose, usersMap = {
                   )}
                   <div className="delay-detail-row">
                     <span className="delay-detail-label">
-                      Desvio {isAdmin && delayOptimistic && delayRisk ? '(optimista)' : ''}
+                      Desvio {isAdmin && delayOptimistic && delayRisk && task.optimizedDuration ? '(optimista)' : ''}
                     </span>
                     <span className={`delay-detail-value delay-value-${delayOptimistic?.status || delayInfo.status}`}>
                       {(delayOptimistic || delayInfo).delay < 0 ? '' : '+'}{(delayOptimistic || delayInfo).delay.toFixed(1)}d
                     </span>
                   </div>
-                  {isAdmin && delayRisk && (
+                  {isAdmin && delayRisk && task.optimizedDuration && (
                     <div className="delay-detail-row">
                       <span className="delay-detail-label">Desvio (con riesgo)</span>
                       <span className={`delay-detail-value delay-value-${delayRisk.status}`}>
@@ -714,6 +721,16 @@ const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose, usersMap = {
                     </div>
                   )}
                 </div>
+              </div>
+            ) : task.status !== 'pending' && (
+              <div className="delay-info-section">
+                <div className="delay-status-label" style={{ color: 'var(--text-tertiary)' }}>
+                  <Icon name="info" size={16} />
+                  Sin estimacion
+                </div>
+                <p className="text-xs text-tertiary">
+                  {!task.storyPoints ? 'Asigna Story Points para estimar duracion' : 'Asigna un usuario para estimar duracion'}
+                </p>
               </div>
             )}
           </section>
@@ -734,10 +751,37 @@ const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose, usersMap = {
                   {(showAllHistory ? historyWithDuration : historyWithDuration.slice(0, 5)).map((entry, index) => (
                     <div key={index} className="timeline-entry">
                       <div className="timeline-marker" style={{
-                        backgroundColor: entry.type === 'assignment_change' ? '#f59e0b' : '#015E7C'
+                        backgroundColor: entry.type === 'assignment_change' ? '#f59e0b'
+                          : entry.type === 'sp_change_approved' ? '#10b981'
+                          : entry.type === 'sp_change_rejected' ? '#ef4444'
+                          : '#015E7C'
                       }}></div>
                       <div className="timeline-content">
-                        {entry.type === 'assignment_change' ? (
+                        {entry.type === 'sp_change_approved' ? (
+                          <>
+                            <span className="timeline-movement">
+                              <Icon name="zap" size={12} />
+                              SP: <strong>{entry.from ?? 'Sin asignar'}</strong>
+                              <Icon name="arrow-right" size={12} />
+                              <strong>{entry.to}</strong>
+                            </span>
+                            {entry.reason && (
+                              <span className="text-xs text-tertiary">{entry.reason}</span>
+                            )}
+                          </>
+                        ) : entry.type === 'sp_change_rejected' ? (
+                          <>
+                            <span className="timeline-movement">
+                              <Icon name="zap" size={12} />
+                              SP: <strong>{entry.requestedFrom ?? 'Sin asignar'}</strong>
+                              <Icon name="arrow-right" size={12} />
+                              <strong>{entry.requestedTo}</strong> (rechazado)
+                            </span>
+                            {entry.reason && (
+                              <span className="text-xs text-tertiary">{entry.reason}</span>
+                            )}
+                          </>
+                        ) : entry.type === 'assignment_change' ? (
                           <span className="timeline-movement">
                             <Icon name="user" size={12} />
                             <strong>{getUserName(entry.from)}</strong>
@@ -813,6 +857,31 @@ const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose, usersMap = {
             />
           </section>
         </div>
+
+        {/* Modal de solicitud de cambio de SP */}
+        <StoryPointsRequestModal
+          isOpen={showSpRequestModal}
+          taskTitle={task.title}
+          currentStoryPoints={task.storyPoints}
+          onCancel={() => setShowSpRequestModal(false)}
+          onConfirm={async ({ requestedStoryPoints, reason }) => {
+            const result = await createRequest({
+              taskId: task.id,
+              taskTitle: task.title,
+              requestedBy: user.uid,
+              requestedByName: userProfile?.displayName || user.email,
+              currentStoryPoints: task.storyPoints,
+              requestedStoryPoints,
+              reason
+            });
+            if (result.success) {
+              setToast({ message: 'Solicitud enviada correctamente', type: 'success' });
+            } else {
+              setToast({ message: 'Error al enviar solicitud: ' + result.error, type: 'error' });
+            }
+            setShowSpRequestModal(false);
+          }}
+        />
 
         {/* Diálogo de confirmación de archivado */}
         <ConfirmDialog

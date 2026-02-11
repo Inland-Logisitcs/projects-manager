@@ -7,6 +7,7 @@ import Projects from './pages/Projects';
 import ArchivedTasks from './pages/ArchivedTasks';
 import Users from './pages/Users';
 import PlanningPoker from './pages/PlanningPoker';
+import Solicitudes from './pages/Solicitudes';
 import MainLayout from './components/layout/MainLayout';
 import ProtectedRoute from './components/routing/ProtectedRoute';
 import AdminRoute from './components/routing/AdminRoute';
@@ -31,6 +32,14 @@ function App() {
             <Route path="/planning-poker" element={<PlanningPoker />} />
             <Route path="/projects" element={<Projects />} />
             <Route path="/archived" element={<ArchivedTasks />} />
+            <Route
+              path="/solicitudes"
+              element={
+                <AdminRoute>
+                  <Solicitudes />
+                </AdminRoute>
+              }
+            />
             <Route
               path="/users"
               element={

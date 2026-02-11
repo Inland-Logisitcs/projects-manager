@@ -6,7 +6,8 @@ const StoryPointsSelect = ({
   value,
   onChange,
   size = 'medium', // 'small', 'medium', 'large'
-  disabled = false
+  disabled = false,
+  onRequestChange = null
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [tempValue, setTempValue] = useState('');
@@ -25,6 +26,10 @@ const StoryPointsSelect = ({
 
   const handleClick = (e) => {
     e.stopPropagation();
+    if (disabled && onRequestChange) {
+      onRequestChange();
+      return;
+    }
     if (disabled) return;
     setIsEditing(true);
   };
@@ -71,12 +76,19 @@ const StoryPointsSelect = ({
     );
   }
 
+  const canRequest = disabled && onRequestChange;
+  const tooltipText = !disabled
+    ? "Story Points (click para editar)"
+    : canRequest
+      ? "Solicitar cambio de Story Points"
+      : undefined;
+
   return (
     <div
-      className={`story-points-badge story-points-${size} ${value !== null && value !== undefined ? 'has-value' : 'empty'}${!disabled ? ' has-tooltip' : ''}`}
+      className={`story-points-badge story-points-${size} ${value !== null && value !== undefined ? 'has-value' : 'empty'}${tooltipText ? ' has-tooltip' : ''}`}
       onClick={handleClick}
-      style={disabled ? { cursor: 'default' } : undefined}
-      data-tooltip={!disabled ? "Story Points (click para editar)" : undefined}
+      style={disabled && !canRequest ? { cursor: 'default' } : undefined}
+      data-tooltip={tooltipText}
     >
       <Icon name="zap" size={12} />
       <span>{value !== null && value !== undefined ? value : 'SP'}</span>

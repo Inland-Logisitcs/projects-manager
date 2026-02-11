@@ -129,8 +129,8 @@ const getExpectedDuration = (task, user, viewMode) => {
   }
 
   // Fallback: storyPoints / dailyCapacity
-  const storyPoints = task.storyPoints || 0;
-  const capacity = user?.dailyCapacity || 1;
+  const storyPoints = Number(task.storyPoints) || 0;
+  const capacity = Number(user?.dailyCapacity) || 1;
   if (storyPoints === 0) return 0;
   return storyPoints / capacity;
 };

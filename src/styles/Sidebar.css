@@ -135,6 +135,38 @@
   padding: 0.875rem 0;
 }
 
+/* Badge de notificación */
+.sidebar-badge {
+  background-color: var(--color-error, #ef4444);
+  color: white;
+  font-size: 0.65rem;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  margin-left: auto;
+}
+
+.sidebar-badge-collapsed {
+  position: absolute;
+  top: -4px;
+  right: -6px;
+  min-width: 16px;
+  height: 16px;
+  font-size: 0.6rem;
+  padding: 0 4px;
+  margin-left: 0;
+}
+
+.sidebar-icon {
+  position: relative;
+}
+
 /* Scrollbar personalizado para sidebar */
 .sidebar-nav::-webkit-scrollbar {
   width: 4px;

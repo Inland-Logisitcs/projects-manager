@@ -16,7 +16,9 @@ import TaskDetailSidebar from '../components/kanban/TaskDetailSidebar';
 import Toast from '../components/common/Toast';
 import CapacityDetailModal from '../components/modals/CapacityDetailModal';
 import TaskSelectionModal from '../components/modals/TaskSelectionModal';
+import StoryPointsRequestModal from '../components/modals/StoryPointsRequestModal';
 import { createPlanningPokerSession, getAnyActiveSession, joinSession } from '../services/planningPokerService';
+import { createRequest } from '../services/requestService';
 import { useAuth } from '../contexts/AuthContext';
 import '../styles/Backlog.css';
 
@@ -39,6 +41,7 @@ const Backlog = () => {
   const [selectedTaskIds, setSelectedTaskIds] = useState([]);
   const [lastSelectedTaskId, setLastSelectedTaskId] = useState(null);
   const [showTaskSelection, setShowTaskSelection] = useState(false);
+  const [spRequestTask, setSpRequestTask] = useState(null);
   const newTaskInputRef = useRef(null);
   const autoScrollIntervalRef = useRef(null);
 
@@ -805,6 +808,7 @@ const Backlog = () => {
           onToggleTaskSelection={handleToggleTaskSelection}
           onToggleAllTasks={handleToggleAllTasks}
           isAdmin={isAdmin}
+          onRequestSpChange={!isAdmin ? setSpRequestTask : undefined}
         />
       ))}
 
@@ -920,6 +924,7 @@ const Backlog = () => {
                     allTasks={tasks}
                     onOpenPlanningPoker={null}
                     isAdmin={isAdmin}
+                    onRequestSpChange={!isAdmin ? setSpRequestTask : undefined}
                   />
                 ))}
               </tbody>
@@ -997,12 +1002,36 @@ const Backlog = () => {
           onConfirm={handleConfirmTaskSelection}
         />
       )}
+
+      <StoryPointsRequestModal
+        isOpen={!!spRequestTask}
+        taskTitle={spRequestTask?.title}
+        currentStoryPoints={spRequestTask?.storyPoints}
+        onCancel={() => setSpRequestTask(null)}
+        onConfirm={async ({ requestedStoryPoints, reason }) => {
+          const result = await createRequest({
+            taskId: spRequestTask.id,
+            taskTitle: spRequestTask.title,
+            requestedBy: userProfile?.id || user?.uid || '',
+            requestedByName: userProfile?.displayName || userProfile?.email || '',
+            currentStoryPoints: spRequestTask.storyPoints || null,
+            requestedStoryPoints,
+            reason
+          });
+          setSpRequestTask(null);
+          if (result.success) {
+            setToast({ message: 'Solicitud de cambio de SP enviada', type: 'success' });
+          } else {
+            setToast({ message: 'Error al enviar solicitud', type: 'error' });
+          }
+        }}
+      />
     </div>
   );
 };
 
 // Componente de Sprint Section
-const SprintSection = ({ sprint, tasks, users, onDragOver, onDrop, onStartSprint, onTaskClick, getProjectName, getProjectColor, onDragStart, onDragEnd, onDragOverTask, onDragLeaveTask, onDropOnTask, onUpdateTask, sprints, onMoveToSprint, selectedTaskIds, onToggleTaskSelection, onToggleAllTasks, isAdmin = false }) => {
+const SprintSection = ({ sprint, tasks, users, onDragOver, onDrop, onStartSprint, onTaskClick, getProjectName, getProjectColor, onDragStart, onDragEnd, onDragOverTask, onDragLeaveTask, onDropOnTask, onUpdateTask, sprints, onMoveToSprint, selectedTaskIds, onToggleTaskSelection, onToggleAllTasks, isAdmin = false, onRequestSpChange }) => {
   const [expanded, setExpanded] = useState(true);
   const [isCreatingTask, setIsCreatingTask] = useState(false);
   const [newTaskName, setNewTaskName] = useState('');
@@ -1256,6 +1285,7 @@ const SprintSection = ({ sprint, tasks, users, onDragOver, onDrop, onStartSprint
                     allTasks={tasks}
                     onOpenPlanningPoker={null}
                     isAdmin={isAdmin}
+                    onRequestSpChange={onRequestSpChange}
                   />
                 ))}
               </tbody>
@@ -1297,6 +1327,7 @@ const SprintSection = ({ sprint, tasks, users, onDragOver, onDrop, onStartSprint
         users={users}
         tasks={tasks}
       />
+
     </div>
   );
 };
@@ -1470,7 +1501,7 @@ const TaskCardMobile = ({ task, onDragStart, onDragEnd, onArchive, onUpdateTask,
 };
 
 // Componente de fila de tarea
-const TaskRow = ({ task, onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop, onArchive, onUpdateTask, onTaskClick, getProjectName, getProjectColor, sprints, onMoveToSprint, currentSprintId, isSelected, onToggleSelection, sprint, users, allTasks, onOpenPlanningPoker, isAdmin = false }) => {
+const TaskRow = ({ task, onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop, onArchive, onUpdateTask, onTaskClick, getProjectName, getProjectColor, sprints, onMoveToSprint, currentSprintId, isSelected, onToggleSelection, sprint, users, allTasks, onOpenPlanningPoker, isAdmin = false, onRequestSpChange }) => {
   const [showConfirm, setShowConfirm] = useState(false);
   const [showUserSelect, setShowUserSelect] = useState(false);
   const [showProjectSelect, setShowProjectSelect] = useState(false);
@@ -1676,6 +1707,7 @@ const TaskRow = ({ task, onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop
               }}
               size="small"
               disabled={!isAdmin}
+              onRequestChange={!isAdmin ? () => onRequestSpChange?.(task) : undefined}
             />
           </div>
         </td>

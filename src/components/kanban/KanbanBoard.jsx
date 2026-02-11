@@ -6,9 +6,11 @@ import KanbanCard from './KanbanCard';
 import ColumnManager from './ColumnManager';
 import TaskDetailSidebar from './TaskDetailSidebar';
 import DemoUrlModal from '../modals/DemoUrlModal';
+import StoryPointsRequestModal from '../modals/StoryPointsRequestModal';
 import Icon from '../common/Icon';
 import Toast from '../common/Toast';
 import { useAuth } from '../../contexts/AuthContext';
+import { createRequest } from '../../services/requestService';
 import { sendQaNotification } from '../../services/slackService';
 import { subscribeToTasks, createTask as createTaskInDB, updateTask as updateTaskInDB, archiveTask as archiveTaskInDB, countTasksByStatus } from '../../services/taskService';
 import {
@@ -39,6 +41,7 @@ const KanbanBoard = ({ activeSprintId = null }) => {
   const [delayViewMode, setDelayViewMode] = useState('optimistic');
   const [toast, setToast] = useState({ isOpen: false, message: '', type: 'error' });
   const [pendingQaMove, setPendingQaMove] = useState(null);
+  const [spRequestTask, setSpRequestTask] = useState(null);
 
   // Build usersMap for quick lookup
   const usersMap = useMemo(() => {
@@ -554,6 +557,7 @@ const KanbanBoard = ({ activeSprintId = null }) => {
                 usersMap={usersMap}
                 delayViewMode={delayViewMode}
                 isAdmin={isAdmin}
+                onRequestSpChange={!isAdmin ? setSpRequestTask : undefined}
               />
             ))}
           </div>
@@ -603,6 +607,30 @@ const KanbanBoard = ({ activeSprintId = null }) => {
           isOpen={!!pendingQaMove}
           onConfirm={handleQaConfirm}
           onCancel={handleQaCancel}
+        />
+
+        <StoryPointsRequestModal
+          isOpen={!!spRequestTask}
+          taskTitle={spRequestTask?.title}
+          currentStoryPoints={spRequestTask?.storyPoints}
+          onCancel={() => setSpRequestTask(null)}
+          onConfirm={async ({ requestedStoryPoints, reason }) => {
+            const result = await createRequest({
+              taskId: spRequestTask.id,
+              taskTitle: spRequestTask.title,
+              requestedBy: userProfile?.id || '',
+              requestedByName: userProfile?.displayName || userProfile?.email || '',
+              currentStoryPoints: spRequestTask.storyPoints || null,
+              requestedStoryPoints,
+              reason
+            });
+            setSpRequestTask(null);
+            if (result.success) {
+              setToast({ isOpen: true, message: 'Solicitud de cambio de SP enviada', type: 'success' });
+            } else {
+              setToast({ isOpen: true, message: 'Error al enviar solicitud', type: 'error' });
+            }
+          }}
         />
 
       </div>

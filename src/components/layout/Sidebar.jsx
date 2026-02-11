@@ -1,12 +1,23 @@
+import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { subscribeToPendingRequestCount } from '../../services/requestService';
 import logo from '../../assets/images/logo.svg';
 import Icon from '../common/Icon';
 import '../../styles/Sidebar.css';
 
 const Sidebar = ({ collapsed, mobileOpen, onToggle, onMobileClose }) => {
   const location = useLocation();
-  const { isAdmin } = useAuth();
+  const { user, isAdmin } = useAuth();
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    if (!user || !isAdmin) return;
+    const unsubscribe = subscribeToPendingRequestCount(
+      (count) => setPendingCount(count)
+    );
+    return () => unsubscribe();
+  }, [user, isAdmin]);
 
   const baseMenuItems = [
     {
@@ -35,10 +46,18 @@ const Sidebar = ({ collapsed, mobileOpen, onToggle, onMobileClose }) => {
     }
   ];
 
-  // Agregar el menú de usuarios solo si es admin
+  // Agregar menús de admin
   const menuItems = isAdmin
     ? [
         ...baseMenuItems,
+        {
+          id: 'solicitudes',
+          path: '/solicitudes',
+          icon: 'inbox',
+          label: 'Solicitudes',
+          badge: pendingCount,
+          adminOnly: true
+        },
         {
           id: 'users',
           path: '/users',
@@ -96,8 +115,18 @@ const Sidebar = ({ collapsed, mobileOpen, onToggle, onMobileClose }) => {
           >
             <span className="sidebar-icon">
               <Icon name={item.icon} size={22} />
+              {collapsed && item.badge > 0 && (
+                <span className="sidebar-badge sidebar-badge-collapsed">{item.badge}</span>
+              )}
             </span>
-            {!collapsed && <span className="sidebar-label">{item.label}</span>}
+            {!collapsed && (
+              <>
+                <span className="sidebar-label">{item.label}</span>
+                {item.badge > 0 && (
+                  <span className="sidebar-badge">{item.badge > 99 ? '99+' : item.badge}</span>
+                )}
+              </>
+            )}
           </Link>
         ))}
       </nav>
