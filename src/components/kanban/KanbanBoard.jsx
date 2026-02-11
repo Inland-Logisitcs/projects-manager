@@ -113,8 +113,24 @@ const KanbanBoard = ({ activeSprintId = null }) => {
   }, [tasks]);
 
   // Función para ordenar tareas por prioridad
-  const sortTasksByPriority = (tasksToSort) => {
+  const sortTasksByPriority = (tasksToSort, columnId) => {
     return tasksToSort.sort((a, b) => {
+      // En la columna pendiente, priorizar el orden de planificación
+      if (columnId === 'pending') {
+        const hasOrderA = a.planningOrder != null;
+        const hasOrderB = b.planningOrder != null;
+
+        if (hasOrderA || hasOrderB) {
+          // Tareas con planningOrder van primero
+          if (hasOrderA && !hasOrderB) return -1;
+          if (!hasOrderA && hasOrderB) return 1;
+          // Ambas tienen planningOrder: ordenar por ese valor
+          if (a.planningOrder !== b.planningOrder) {
+            return a.planningOrder - b.planningOrder;
+          }
+        }
+      }
+
       // Obtener proyectos para comparar priority
       const projectA = projects.find(p => p.id === a.projectId);
       const projectB = projects.find(p => p.id === b.projectId);
@@ -531,7 +547,7 @@ const KanbanBoard = ({ activeSprintId = null }) => {
               <KanbanColumn
                 key={column.id}
                 column={column}
-                tasks={sortTasksByPriority(tasks.filter(task => task.status === column.id))}
+                tasks={sortTasksByPriority(tasks.filter(task => task.status === column.id), column.id)}
                 onAddTask={handleAddTask}
                 onDeleteTask={archiveTask}
                 onCreateTask={handleCreateTaskInline}

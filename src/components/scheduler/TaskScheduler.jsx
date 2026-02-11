@@ -417,10 +417,13 @@ const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {}, isA
     }
 
     // Filtrar tareas que tienen assignedTo y planningOrder definido
+    // Excluir tareas en QA, completadas o archivadas (ya no necesitan planificación)
     const tareasConPlanificacion = tareas.filter(t =>
       t.assignedTo &&
       typeof t.planningOrder === 'number' &&
-      !t.archived
+      !t.archived &&
+      t.status !== 'qa' &&
+      t.status !== 'completed'
     );
 
     if (tareasConPlanificacion.length === 0) {
