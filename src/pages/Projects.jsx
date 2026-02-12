@@ -174,7 +174,7 @@ const Projects = () => {
 
   if (loading) {
     return (
-      <div className="projects-page">
+      <div className="page-container page-container-narrow projects-page">
         <div className="empty-state">
           <div className="spinner"></div>
           <p>Cargando proyectos...</p>
@@ -287,9 +287,9 @@ const Projects = () => {
         />
       )}
 
-      <div className="projects-page">
+      <div className="page-container page-container-narrow projects-page">
         <div className="projects-header mb-md">
-          <div className="flex justify-between items-center mb-base">
+          <div className="page-header">
             <div className="flex items-center gap-base">
               <h1 className="heading-1 text-primary">Proyectos</h1>
               <span className="project-count">

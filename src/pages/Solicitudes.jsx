@@ -82,7 +82,7 @@ const Solicitudes = () => {
 
   if (loading) {
     return (
-      <div className="p-lg">
+      <div className="page-container page-container-narrow">
         <div className="empty-state">
           <div className="spinner"></div>
           <p>Cargando solicitudes...</p>
@@ -98,7 +98,7 @@ const Solicitudes = () => {
     { key: 'requestedStoryPoints', label: 'SP Solicitado', width: '10%', align: 'center' },
     { key: 'reason', label: 'Razon', width: '22%' },
     { key: 'createdAt', label: 'Fecha', width: '12%' },
-    { key: 'actions', label: 'Acciones', width: '8%', align: 'right', filterable: false }
+    { key: 'actions', label: 'Acciones', width: '8%', align: 'right', filterable: false, sticky: 'right' }
   ];
 
   return (
@@ -126,16 +126,18 @@ const Solicitudes = () => {
         onCancel={() => setConfirmDialog({ isOpen: false, type: null, request: null })}
       />
 
-      <div className="p-lg">
-        <div className="mb-md">
-          <h1 className="heading-1 text-primary flex items-center gap-sm mb-xs">
-            <Icon name="inbox" size={32} />
-            Solicitudes
-          </h1>
-          <p className="text-base text-secondary">
-            Solicitudes pendientes
-            {' '} — <strong className="text-primary">{requests.length}</strong> pendiente{requests.length !== 1 ? 's' : ''}
-          </p>
+      <div className="page-container page-container-narrow">
+        <div className="page-header">
+          <div>
+            <h1 className="heading-1 text-primary flex items-center gap-sm mb-xs">
+              <Icon name="inbox" size={24} />
+              Solicitudes
+            </h1>
+            <p className="text-base text-secondary">
+              Solicitudes pendientes
+              {' '} — <strong className="text-primary">{requests.length}</strong> pendiente{requests.length !== 1 ? 's' : ''}
+            </p>
+          </div>
         </div>
 
         <Table
@@ -200,3 +202,4 @@ const Solicitudes = () => {
 };
 
 export default Solicitudes;
+

@@ -1,9 +1,4 @@
 /* ArchivedTasks - Estilos específicos */
-.archived-tasks-page {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 2rem;
-}
 
 .task-title {
   font-weight: 500;
@@ -94,10 +89,6 @@
 
 /* Responsive */
 @media (max-width: 768px) {
-  .archived-tasks-page {
-    padding: 1rem;
-  }
-
   .task-title,
   .task-description {
     max-width: 150px;

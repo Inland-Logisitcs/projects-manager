@@ -17,21 +17,21 @@
   font-size: 0.875rem;
 }
 
-/* Encabezado */
+/* Encabezado - moderno y limpio */
 .generic-table thead {
-  background: var(--primary-color, #015E7C);
-  color: #ffffff;
+  background: var(--gray-50, #f8fafc);
+  border-bottom: 2px solid var(--gray-200, #e5e7eb);
 }
 
 .generic-table th {
-  padding: 1rem;
+  padding: 0.75rem 1rem;
   text-align: left;
-  font-weight: 700;
-  font-size: 0.813rem;
+  font-weight: 600;
+  font-size: 0.75rem;
   text-transform: uppercase;
-  letter-spacing: 0.8px;
+  letter-spacing: 0.05em;
   white-space: nowrap;
-  color: #ffffff !important;
+  color: var(--gray-500, #6b7280) !important;
 }
 
 /* Cuerpo */
@@ -71,6 +71,14 @@
 
 .generic-table.table-striped tbody tr:nth-child(even):hover {
   background-color: #f1f5f9;
+}
+
+/* Celda con texto truncado */
+.table-cell-truncate {
+  max-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Celda vacía */
@@ -137,6 +145,53 @@
 
 .table-cell-right {
   text-align: right;
+}
+
+/* Columnas sticky a la derecha (acciones) */
+.table-sticky-right {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+}
+
+.generic-table thead .table-sticky-right {
+  background: var(--gray-50, #f8fafc);
+  z-index: 2;
+}
+
+.generic-table tbody tr .table-sticky-right {
+  background: white;
+}
+
+.generic-table.table-hoverable tbody tr:hover .table-sticky-right {
+  background-color: #f8fafc;
+}
+
+.generic-table.table-striped tbody tr:nth-child(even) .table-sticky-right {
+  background-color: #f9fafb;
+}
+
+.generic-table.table-striped tbody tr:nth-child(even):hover .table-sticky-right {
+  background-color: #f1f5f9;
+}
+
+.generic-table tbody tr.table-row-clickable:hover .table-sticky-right {
+  background-color: #f1f5f9;
+}
+
+.table-filter-row .table-sticky-right {
+  background: #f1f5f9;
+}
+
+.table-sticky-right::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -8px;
+  width: 8px;
+  background: linear-gradient(to right, transparent, rgba(0, 0, 0, 0.04));
+  pointer-events: none;
 }
 
 /* Responsive */

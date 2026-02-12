@@ -4,6 +4,7 @@ import { subscribeToTasks, updateTask } from '../services/taskService';
 import { subscribeToUsers } from '../services/userService';
 import { subscribeToProjects } from '../services/projectService';
 import { getSprintCapacityInfo } from '../services/capacityService';
+import { useAuth } from '../contexts/AuthContext';
 import KanbanBoard from '../components/kanban/KanbanBoard';
 import Toast from '../components/common/Toast';
 import Icon from '../components/common/Icon';
@@ -13,6 +14,7 @@ import '../styles/Dashboard.css';
 import '../styles/Standup.css';
 
 const Dashboard = () => {
+  const { isAdmin } = useAuth();
   const [sprints, setSprints] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [users, setUsers] = useState([]);
@@ -22,6 +24,8 @@ const Dashboard = () => {
   const [showCapacityModal, setShowCapacityModal] = useState(false);
   const [showStandupModal, setShowStandupModal] = useState(false);
   const [showProjectDelayModal, setShowProjectDelayModal] = useState(false);
+  const [delayViewMode, setDelayViewMode] = useState('optimistic');
+  const [showColumnManager, setShowColumnManager] = useState(false);
 
   useEffect(() => {
     const unsubscribeSprints = subscribeToSprints((fetchedSprints) => {
@@ -55,6 +59,12 @@ const Dashboard = () => {
   // Calcular información de capacidad para el sprint activo
   const sprintTasks = activeSprint ? tasks.filter(t => t.sprintId === activeSprint.id && !t.archived) : [];
   const capacityInfo = activeSprint ? getSprintCapacityInfo(activeSprint, sprintTasks, users, true) : null;
+
+  // Calcular stats de tareas del sprint
+  const totalTasks = sprintTasks.length;
+  const completedTasks = sprintTasks.filter(t => t.status === 'completed').length;
+  const completedSP = sprintTasks.filter(t => t.status === 'completed').reduce((sum, t) => sum + (t.storyPoints || 0), 0);
+  const totalSP = sprintTasks.reduce((sum, t) => sum + (t.storyPoints || 0), 0);
 
   // Calcular estado de proyectos con snapshot que tienen tareas en el sprint
   const projectSnapshotStatus = useMemo(() => {
@@ -120,7 +130,7 @@ const Dashboard = () => {
 
   if (loading) {
     return (
-      <div className="dashboard-page">
+      <div className="page-container dashboard-page">
         <div className="empty-state">
           <div className="spinner"></div>
           <p>Cargando tablero...</p>
@@ -130,75 +140,114 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="dashboard-page">
+    <div className="page-container dashboard-page">
       {activeSprint ? (
         <>
-          <div className="sprint-header flex justify-between items-center pb-lg mb-md">
-            <div className="sprint-info">
-              <h2 className="heading-2 text-primary flex items-center gap-sm">
-                <Icon name="zap" size={20} />
-                {activeSprint.name}
-              </h2>
-              {activeSprint.startDate && activeSprint.endDate && (
-                <div className="sprint-dates flex items-center gap-xs text-sm text-secondary">
-                  <Icon name="calendar" size={16} />
-                  <span className="font-medium">
-                    <span className="date-full">{new Date(activeSprint.startDate).toLocaleDateString('es', { day: 'numeric', month: 'short' })} - {new Date(activeSprint.endDate).toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-                    <span className="date-compact">{new Date(activeSprint.startDate).toLocaleDateString('es', { day: 'numeric', month: 'numeric' })} - {new Date(activeSprint.endDate).toLocaleDateString('es', { day: 'numeric', month: 'numeric' })}</span>
-                  </span>
-                </div>
-              )}
-              {capacityInfo && capacityInfo.capacity > 0 && (
-                <div
-                  className="sprint-capacity flex items-center gap-xs text-sm has-tooltip"
-                  style={{ cursor: 'pointer' }}
-                  onClick={() => setShowCapacityModal(true)}
-                  data-tooltip={`Capacidad restante: ${capacityInfo.capacity} pts | Pendiente: ${capacityInfo.assignedPoints} pts | Completado: ${capacityInfo.completedPoints} pts | Click para ver detalles`}
-                >
-                  <Icon name="users" size={16} />
-                  <span className="capacity-text font-semibold" style={{ color: getCapacityColor() }}>
-                    {capacityInfo.assignedPoints}/{capacityInfo.capacity} pts
-                  </span>
-                  <div className="capacity-bar" style={{ width: '60px', height: '6px', backgroundColor: '#E5E7EB', borderRadius: '3px', overflow: 'hidden' }}>
-                    <div
-                      style={{
-                        width: `${Math.min(capacityInfo.percentage, 100)}%`,
-                        height: '100%',
-                        backgroundColor: getCapacityColor(),
-                        transition: 'width 0.3s ease'
-                      }}
-                    />
+          <div className="dashboard-header">
+            <div className="dashboard-header-title">
+              <div className="flex items-center gap-base">
+                <h2 className="heading-2 text-primary" style={{ margin: 0 }}>
+                  {activeSprint.name}
+                </h2>
+                {activeSprint.startDate && activeSprint.endDate && (
+                  <div className="sprint-dates flex items-center gap-xs text-sm text-secondary">
+                    <Icon name="calendar" size={14} />
+                    <span className="font-medium">
+                      <span className="date-full">{new Date(activeSprint.startDate).toLocaleDateString('es', { day: 'numeric', month: 'short' })} - {new Date(activeSprint.endDate).toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                      <span className="date-compact">{new Date(activeSprint.startDate).toLocaleDateString('es', { day: 'numeric', month: 'numeric' })} - {new Date(activeSprint.endDate).toLocaleDateString('es', { day: 'numeric', month: 'numeric' })}</span>
+                    </span>
                   </div>
-                  <span className="capacity-percentage text-xs text-secondary">{capacityInfo.percentage}%</span>
-                </div>
-              )}
-              {projectSnapshotStatus.length > 0 && (
-                <div
-                  className={`sprint-delay-indicator ${proyectosAtrasados.length > 0 ? 'sprint-delay-indicator--alert' : 'sprint-delay-indicator--ok'}`}
-                  onClick={() => setShowProjectDelayModal(true)}
+                )}
+              </div>
+              <div className="sprint-header-actions">
+                {isAdmin && (
+                  <div className="delay-view-toggle">
+                    <button
+                      className={`delay-toggle-btn ${delayViewMode === 'optimistic' ? 'active' : ''}`}
+                      onClick={() => setDelayViewMode('optimistic')}
+                    >
+                      Optimista
+                    </button>
+                    <button
+                      className={`delay-toggle-btn ${delayViewMode === 'risk' ? 'active' : ''}`}
+                      onClick={() => setDelayViewMode('risk')}
+                    >
+                      Con riesgo
+                    </button>
+                  </div>
+                )}
+                <button
+                  className="btn btn-icon btn-secondary has-tooltip"
+                  onClick={() => setShowColumnManager(true)}
+                  data-tooltip="Gestionar columnas"
                 >
-                  <Icon name={proyectosAtrasados.length > 0 ? 'alert-triangle' : 'check-circle'} size={14} />
-                  <span>
-                    {proyectosAtrasados.length > 0
-                      ? `${proyectosAtrasados.length} atrasado${proyectosAtrasados.length !== 1 ? 's' : ''}`
-                      : 'En tiempo'
-                    }
-                  </span>
-                </div>
-              )}
+                  <Icon name="settings" size={18} />
+                </button>
+                <div className="sprint-actions-divider"></div>
+                <button className="btn btn-secondary btn-sm flex items-center gap-xs" onClick={() => setShowStandupModal(true)}>
+                  <Icon name="users" size={16} />
+                  <span className="sprint-btn-label">Daily Standup</span>
+                </button>
+                <button className="btn btn-primary btn-sm flex items-center gap-xs" onClick={handleCompleteSprint}>
+                  <Icon name="check-circle" size={16} />
+                  <span className="sprint-btn-label">Completar Sprint</span>
+                </button>
+              </div>
             </div>
-            <div className="flex items-center gap-sm">
-              <button className="btn btn-secondary flex items-center gap-xs" onClick={() => setShowStandupModal(true)}>
-                <Icon name="users" size={18} />
-                Daily Standup
-              </button>
-              <button className="btn btn-primary flex items-center gap-xs" onClick={handleCompleteSprint}>
-                <Icon name="check-circle" size={18} />
-                Completar Sprint
-              </button>
+            <div className="dashboard-toolbar">
+              <span className="text-sm text-secondary">
+                <strong>{totalTasks}</strong> tareas
+                <span className="dashboard-dot"></span>
+                <strong>{completedTasks}</strong> completadas
+                <span className="dashboard-dot"></span>
+                <strong>{completedSP}/{totalSP}</strong> SP
+              </span>
+              <div className="flex items-center gap-sm flex-wrap">
+                {capacityInfo && capacityInfo.capacity > 0 && (
+                  <div
+                    className="sprint-meta-pill has-tooltip"
+                    onClick={() => setShowCapacityModal(true)}
+                    data-tooltip={`Capacidad restante: ${capacityInfo.capacity} pts | Pendiente: ${capacityInfo.assignedPoints} pts | Completado: ${capacityInfo.completedPoints} pts | Click para ver detalles`}
+                  >
+                    <Icon name="users" size={14} />
+                    <span className="font-semibold" style={{ color: getCapacityColor() }}>
+                      {capacityInfo.assignedPoints}/{capacityInfo.capacity} pts
+                    </span>
+                    <div className="capacity-bar-inline">
+                      <div
+                        className="capacity-bar-fill"
+                        style={{
+                          width: `${Math.min(capacityInfo.percentage, 100)}%`,
+                          backgroundColor: getCapacityColor()
+                        }}
+                      />
+                    </div>
+                    <span className="text-xs text-tertiary">{capacityInfo.percentage}%</span>
+                  </div>
+                )}
+                {projectSnapshotStatus.length > 0 && (
+                  <div
+                    className={`sprint-delay-indicator ${proyectosAtrasados.length > 0 ? 'sprint-delay-indicator--alert' : 'sprint-delay-indicator--ok'}`}
+                    onClick={() => setShowProjectDelayModal(true)}
+                  >
+                    <Icon name={proyectosAtrasados.length > 0 ? 'alert-triangle' : 'check-circle'} size={14} />
+                    <span>
+                      {proyectosAtrasados.length > 0
+                        ? `${proyectosAtrasados.length} atrasado${proyectosAtrasados.length !== 1 ? 's' : ''}`
+                        : 'En tiempo'
+                      }
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-          <KanbanBoard activeSprintId={activeSprint.id} />
+          <KanbanBoard
+            activeSprintId={activeSprint.id}
+            delayViewMode={delayViewMode}
+            showColumnManager={showColumnManager}
+            onCloseColumnManager={() => setShowColumnManager(false)}
+          />
           {showCompleteModal && (
             <CompleteSprintModal
               sprint={activeSprint}

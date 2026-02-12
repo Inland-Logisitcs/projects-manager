@@ -7,12 +7,6 @@ import ConfirmDialog from '../components/common/ConfirmDialog';
 import Toast from '../components/common/Toast';
 import '../styles/ArchivedTasks.css';
 
-const priorityLabels = {
-  low: 'Baja',
-  medium: 'Media',
-  high: 'Alta'
-};
-
 const statusLabels = {
   pending: 'Pendiente',
   'in-progress': 'En Progreso',
@@ -113,25 +107,9 @@ const ArchivedTasks = () => {
     });
   };
 
-  const getDescriptionExcerpt = (htmlDescription, maxLength = 40) => {
-    if (!htmlDescription) return '';
-
-    // Crear un elemento temporal para extraer el texto del HTML
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = htmlDescription;
-    const textContent = tempDiv.textContent || tempDiv.innerText || '';
-
-    // Truncar el texto si es más largo que maxLength
-    if (textContent.length > maxLength) {
-      return textContent.substring(0, maxLength).trim() + '...';
-    }
-
-    return textContent.trim();
-  };
-
   if (loading) {
     return (
-      <div className="archived-tasks-page">
+      <div className="page-container page-container-narrow archived-tasks-page">
         <div className="empty-state">
           <div className="spinner"></div>
           <p>Cargando tareas archivadas...</p>
@@ -179,15 +157,17 @@ const ArchivedTasks = () => {
         onCancel={() => setConfirmDialog({ isOpen: false, type: null, taskId: null })}
       />
 
-      <div className="archived-tasks-page">
-        <div className="mb-md">
-          <h1 className="heading-1 text-primary flex items-center gap-sm mb-xs">
-            <Icon name="archive" size={32} />
-            Tareas Archivadas
-          </h1>
-          <p className="text-base text-secondary">
-            Total: <strong className="text-primary">{archivedTasks.length}</strong> tareas archivadas
-          </p>
+      <div className="page-container page-container-narrow archived-tasks-page">
+        <div className="page-header">
+          <div>
+            <h1 className="heading-1 text-primary flex items-center gap-sm mb-xs">
+              <Icon name="archive" size={24} />
+              Tareas Archivadas
+            </h1>
+            <p className="text-base text-secondary">
+              Total: <strong className="text-primary">{archivedTasks.length}</strong> tareas archivadas
+            </p>
+          </div>
         </div>
 
       <Table
@@ -197,23 +177,9 @@ const ArchivedTasks = () => {
             {
               key: 'title',
               label: 'Título',
-              width: '25%'
-            },
-            {
-              key: 'description',
-              label: 'Descripción',
-              width: '25%'
-            },
-            {
-              key: 'priority',
-              label: 'Prioridad',
-              width: '12%',
-              align: 'center',
-              filterOptions: [
-                { value: 'low', label: 'Baja' },
-                { value: 'medium', label: 'Media' },
-                { value: 'high', label: 'Alta' }
-              ]
+              width: '30%',
+              cellClassName: 'table-cell-truncate',
+              showTooltip: true
             },
             {
               key: 'status',
@@ -237,7 +203,8 @@ const ArchivedTasks = () => {
               label: 'Acciones',
               width: '10%',
               align: 'right',
-              filterable: false
+              filterable: false,
+              sticky: 'right'
             }
           ]}
           data={archivedTasks}
@@ -245,21 +212,6 @@ const ArchivedTasks = () => {
             switch (column.key) {
               case 'title':
                 return <span className="task-title">{task.title}</span>;
-
-              case 'description':
-                const excerpt = getDescriptionExcerpt(task.description);
-                return (
-                  <span className="task-description" title={excerpt || 'Sin descripción'}>
-                    {excerpt || <em>Sin descripción</em>}
-                  </span>
-                );
-
-              case 'priority':
-                return (
-                  <span className={`priority-badge priority-${task.priority}`}>
-                    {priorityLabels[task.priority]}
-                  </span>
-                );
 
               case 'status':
                 return (

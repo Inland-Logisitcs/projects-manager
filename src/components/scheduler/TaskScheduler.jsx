@@ -952,52 +952,36 @@ const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {}, isA
       )}
 
       <div className="task-scheduler">
-        {/* Header simple con acciones */}
-        <div className="flex justify-between items-center mb-lg">
-          <div className="flex items-center gap-lg">
-            <div>
-              <p className="text-sm text-tertiary">Tareas</p>
-              <p className="text-2xl font-bold text-primary">
-                {resultado ? resultado.solucion?.length || 0 : tareasPlaneadas.length}
-              </p>
+        {/* Toolbar */}
+        <div className="scheduler-toolbar">
+          <div className="scheduler-metrics">
+            <div className="scheduler-metric">
+              <Icon name="check-square" size={14} />
+              <strong>{resultado ? resultado.solucion?.length || 0 : tareasPlaneadas.length}</strong>
+              <span>tareas</span>
             </div>
-            <div>
-              <p className="text-sm text-tertiary">Duración</p>
-              <p className="text-2xl font-bold text-primary">{makespan} días</p>
+            <div className="scheduler-metric-sep" />
+            <div className="scheduler-metric">
+              <Icon name="clock" size={14} />
+              <strong>{makespan}</strong>
+              <span>días</span>
             </div>
-            <div>
-              <p className="text-sm text-tertiary">Usuarios</p>
-              <p className="text-2xl font-bold text-primary">
+            <div className="scheduler-metric-sep" />
+            <div className="scheduler-metric">
+              <Icon name="users" size={14} />
+              <strong>
                 {resultado
                   ? new Set([...tareasDoing, ...resultado.solucion].map(t => t.usuario)).size
                   : new Set(tareasPlaneadas.map(t => t.usuario)).size
                 } / {usuarios.length}
-              </p>
+              </strong>
+              <span>usuarios</span>
             </div>
-            {isAdmin && (
-              <div>
-                <p className="text-sm text-tertiary">Vista</p>
-                <div className="flex gap-xs mt-xs">
-                  <button
-                    className={`btn btn-sm ${!vistaOptimista ? 'btn-primary' : 'btn-ghost'}`}
-                    onClick={() => setVistaOptimista(false)}
-                  >
-                    Con riesgos
-                  </button>
-                  <button
-                    className={`btn btn-sm ${vistaOptimista ? 'btn-primary' : 'btn-ghost'}`}
-                    onClick={() => setVistaOptimista(true)}
-                  >
-                    Optimista
-                  </button>
-                </div>
-              </div>
-            )}
             {proyectosConSnapshot.length > 0 && tareasGantt.length > 0 && (
-              <div>
-                <p className="text-sm text-tertiary">Atrasos</p>
+              <>
+                <div className="scheduler-metric-sep" />
                 <button
-                  className={`btn btn-sm mt-xs ${proyectosAtrasados.length > 0 ? 'btn-delay-alert' : 'btn-delay-ok'}`}
+                  className={`scheduler-delay-chip ${proyectosAtrasados.length > 0 ? 'delay--alert' : 'delay--ok'}`}
                   onClick={() => setShowDelayModal(true)}
                 >
                   <Icon name={proyectosAtrasados.length > 0 ? 'alert-triangle' : 'check-circle'} size={14} />
@@ -1006,128 +990,132 @@ const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {}, isA
                     : 'En tiempo'
                   }
                 </button>
-              </div>
+              </>
             )}
           </div>
 
-          {isAdmin && (
-            <div className="flex gap-sm">
-              <button
-                className="btn btn-primary flex items-center gap-xs"
-                onClick={() => setShowProjectModal(true)}
-                disabled={loading}
-              >
-                {loading ? (
-                  <>
-                    <div className="spinner"></div>
-                    Optimizando...
-                  </>
-                ) : (
-                  <>
-                    <Icon name="zap" size={18} />
-                    Optimizar
-                  </>
-                )}
-              </button>
-              {resultado && (
-                <>
-                  <button
-                    className="btn btn-success flex items-center gap-xs"
-                    onClick={() => setShowSaveConfirm(true)}
-                    disabled={saving}
-                  >
-                    {saving ? (
-                      <>
-                        <div className="spinner"></div>
-                        Guardando...
-                      </>
-                    ) : (
-                      <>
-                        <Icon name="save" size={18} />
-                        Guardar Optimización
-                      </>
-                    )}
-                  </button>
-                  <button
-                    className="btn btn-ghost flex items-center gap-xs"
-                    onClick={() => { limpiar(); setOptimizacionRaw(null); }}
-                    disabled={saving}
-                  >
-                    <Icon name="x" size={18} />
-                    Limpiar
-                  </button>
-                </>
-              )}
-              {tareasPlaneadas.length > 0 && !resultado && (
+          <div className="scheduler-controls">
+            {isAdmin && (
+              <div className="scheduler-view-toggle">
                 <button
-                  className="btn btn-warning flex items-center gap-xs"
-                  onClick={() => setShowClearConfirm(true)}
-                  disabled={clearing}
+                  className={!vistaOptimista ? 'active' : ''}
+                  onClick={() => setVistaOptimista(false)}
                 >
-                  {clearing ? (
+                  Con riesgos
+                </button>
+                <button
+                  className={vistaOptimista ? 'active' : ''}
+                  onClick={() => setVistaOptimista(true)}
+                >
+                  Optimista
+                </button>
+              </div>
+            )}
+
+            {isAdmin && (
+              <div className="scheduler-actions">
+                <button
+                  className="scheduler-action-btn scheduler-action-btn--primary"
+                  onClick={() => setShowProjectModal(true)}
+                  disabled={loading}
+                >
+                  {loading ? (
                     <>
                       <div className="spinner"></div>
-                      Limpiando...
+                      Optimizando...
                     </>
                   ) : (
                     <>
-                      <Icon name="trash-2" size={18} />
-                      Limpiar Optimización
+                      <Icon name="zap" size={15} />
+                      Optimizar
                     </>
                   )}
                 </button>
-              )}
-              {tareasGantt.length > 0 && (
-                <button
-                  className="btn btn-secondary flex items-center gap-xs"
-                  onClick={handleOpenSnapshotModal}
-                  disabled={savingSnapshot}
-                >
-                  <Icon name="camera" size={18} />
-                  Snapshot
-                </button>
-            )}
-            </div>
-          )}
-        </div>
-
-        {/* Resultado de optimización (si existe, solo admins) */}
-        {isAdmin && resultado && (
-          <div className="card mb-lg">
-            <div className="card-body p-base">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-lg">
-                  <div className="flex items-center gap-xs">
-                    <Icon name="check-circle" size={20} className="text-success" />
-                    <span className="text-sm font-medium text-primary">Optimización completada</span>
-                  </div>
-                  <div className="flex items-center gap-md text-sm">
-                    <span className="text-tertiary">
-                      Duración: <strong className="text-primary">{resultado.makespan} días</strong>
-                    </span>
-                    {isAdmin && resultado.analisis?.impactoDias > 0 && (
+                {resultado && (
+                  <>
+                    <button
+                      className="scheduler-action-btn scheduler-action-btn--success"
+                      onClick={() => setShowSaveConfirm(true)}
+                      disabled={saving}
+                    >
+                      {saving ? (
+                        <>
+                          <div className="spinner"></div>
+                          Guardando...
+                        </>
+                      ) : (
+                        <>
+                          <Icon name="save" size={15} />
+                          Guardar
+                        </>
+                      )}
+                    </button>
+                    <button
+                      className="scheduler-action-btn"
+                      onClick={() => { limpiar(); setOptimizacionRaw(null); }}
+                      disabled={saving}
+                    >
+                      <Icon name="x" size={15} />
+                      Descartar
+                    </button>
+                  </>
+                )}
+                {tareasPlaneadas.length > 0 && !resultado && (
+                  <button
+                    className="scheduler-action-btn scheduler-action-btn--warning"
+                    onClick={() => setShowClearConfirm(true)}
+                    disabled={clearing}
+                  >
+                    {clearing ? (
                       <>
-                        <span className="text-tertiary">•</span>
-                        <span className="text-tertiary">
-                          Riesgos: <strong className="text-warning">+{resultado.analisis.impactoDias} días</strong>
-                        </span>
+                        <div className="spinner"></div>
+                        Limpiando...
+                      </>
+                    ) : (
+                      <>
+                        <Icon name="trash-2" size={15} />
+                        Limpiar
                       </>
                     )}
-                    <span className="text-tertiary">•</span>
-                    <span className="text-tertiary">
-                      Tareas: <strong className="text-primary">{resultado.solucion?.length || 0}</strong>
-                    </span>
-                  </div>
-                </div>
-                <button
-                  className="btn btn-ghost btn-sm flex items-center gap-xs"
-                  onClick={() => { limpiar(); setOptimizacionRaw(null); }}
-                >
-                  <Icon name="x" size={16} />
-                  Limpiar
-                </button>
+                  </button>
+                )}
+                {tareasGantt.length > 0 && (
+                  <button
+                    className="scheduler-action-btn"
+                    onClick={handleOpenSnapshotModal}
+                    disabled={savingSnapshot}
+                  >
+                    <Icon name="camera" size={15} />
+                    Snapshot
+                  </button>
+                )}
               </div>
+            )}
+          </div>
+        </div>
+
+        {/* Banner de resultado de optimización */}
+        {isAdmin && resultado && (
+          <div className="scheduler-result-banner">
+            <div className="scheduler-result-info">
+              <Icon name="check-circle" size={16} />
+              <span>Optimización completada</span>
+              <span className="scheduler-result-sep" />
+              <span><strong>{resultado.makespan} días</strong></span>
+              {resultado.analisis?.impactoDias > 0 && (
+                <>
+                  <span className="scheduler-result-sep" />
+                  <span className="scheduler-result-risk">+{resultado.analisis.impactoDias}d riesgos</span>
+                </>
+              )}
             </div>
+            <button
+              className="scheduler-action-btn"
+              onClick={() => { limpiar(); setOptimizacionRaw(null); }}
+            >
+              <Icon name="x" size={14} />
+              Descartar
+            </button>
           </div>
         )}
 

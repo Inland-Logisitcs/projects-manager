@@ -716,7 +716,7 @@ const Backlog = () => {
 
   if (loading) {
     return (
-      <div className="backlog-page">
+      <div className="page-container page-container-narrow backlog-page">
         <div className="empty-state">
           <div className="spinner"></div>
           <p>Cargando backlog...</p>
@@ -753,14 +753,14 @@ const Backlog = () => {
   };
 
   return (
-    <div className="backlog-page">
+    <div className="page-container page-container-narrow backlog-page">
       {/* Barra de acciones masivas */}
       {renderBulkActionsBar()}
 
       {/* Header */}
-      <div className="backlog-header mb-md pb-base">
+      <div className="page-header backlog-header">
         <div className="backlog-header-title">
-          <h2 className="heading-1 text-primary m-0">Backlog</h2>
+          <h1 className="heading-1 text-primary m-0">Backlog</h1>
         </div>
         <div className="backlog-header-actions">
           <button

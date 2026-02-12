@@ -155,7 +155,8 @@ const Users = () => {
       label: 'Acciones',
       width: '9%',
       align: 'right',
-      filterable: false
+      filterable: false,
+      sticky: 'right'
     }
   ];
 
@@ -231,23 +232,21 @@ const Users = () => {
   };
 
   return (
-    <div className="users-container">
-      <div className="users-header mb-md">
-        <div className="flex items-start justify-between gap-lg">
-          <div>
-            <h1 className="heading-1 text-primary mb-xs">Gestión de Usuarios</h1>
-            <p className="text-base text-secondary">
-              Total de usuarios: <strong className="text-primary">{users.length}</strong>
-            </p>
-          </div>
-          <button
-            className="btn btn-primary flex items-center gap-sm"
-            onClick={handleOpenCreateModal}
-          >
-            <Icon name="user-plus" size={18} />
-            Crear Usuario
-          </button>
+    <div className="page-container page-container-narrow users-container">
+      <div className="page-header">
+        <div>
+          <h1 className="heading-1 text-primary mb-xs">Gestion de Usuarios</h1>
+          <p className="text-base text-secondary">
+            Total de usuarios: <strong className="text-primary">{users.length}</strong>
+          </p>
         </div>
+        <button
+          className="btn btn-primary flex items-center gap-sm"
+          onClick={handleOpenCreateModal}
+        >
+          <Icon name="user-plus" size={18} />
+          Crear Usuario
+        </button>
       </div>
 
       <Table

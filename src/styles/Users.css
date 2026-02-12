@@ -1,9 +1,4 @@
 /* Users - Estilos específicos */
-.users-container {
-  padding: 2rem;
-  max-width: 1400px;
-  margin: 0 auto;
-}
 
 .user-email {
   font-weight: 500;
@@ -65,8 +60,3 @@
 
 
 /* Responsive */
-@media (max-width: 768px) {
-  .users-container {
-    padding: 1rem;
-  }
-}

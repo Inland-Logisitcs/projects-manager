@@ -192,7 +192,7 @@ const Table = ({
                     minWidth: column.minWidth,
                     textAlign: getColumnAlign(column)
                   }}
-                  className={column.headerClassName}
+                  className={`${column.headerClassName || ''} ${column.sticky === 'right' ? 'table-sticky-right' : ''}`}
                 >
                   {column.label}
                 </th>
@@ -201,7 +201,7 @@ const Table = ({
             {showFilterRow && showFilters && (
               <tr className="table-filter-row">
                 {columns.map((column) => (
-                  <th key={`filter-${column.key}`} className="table-filter-cell">
+                  <th key={`filter-${column.key}`} className={`table-filter-cell ${column.sticky === 'right' ? 'table-sticky-right' : ''}`}>
                     {column.filterable !== false && (
                       column.filterOptions ? (
                         <select
@@ -249,7 +249,8 @@ const Table = ({
                     <td
                       key={`${row.id || rowIndex}-${column.key}`}
                       style={{ textAlign: getColumnAlign(column) }}
-                      className={column.cellClassName}
+                      className={`${column.cellClassName || ''} ${column.sticky === 'right' ? 'table-sticky-right' : ''}`}
+                      title={column.showTooltip ? String(row[column.key] ?? '') : undefined}
                     >
                       {renderTableCell(row, column)}
                     </td>

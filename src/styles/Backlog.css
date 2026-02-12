@@ -1,10 +1,4 @@
 /* Backlog - Estilos específicos */
-.backlog-page {
-  width: 100%;
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 2rem;
-}
 
 /* Capacity Details Table */
 .capacity-details-table {
@@ -41,12 +35,7 @@
 }
 
 .backlog-header {
-  display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--space-md);
-  padding-bottom: var(--space-base);
-  gap: var(--space-base);
 }
 
 .backlog-header-title {
@@ -413,10 +402,6 @@ th {
 
 /* Responsive */
 @media (max-width: 1024px) {
-  .backlog-page {
-    padding: var(--space-base);
-  }
-
   .backlog-header {
     gap: var(--space-base);
   }
@@ -476,10 +461,6 @@ th {
 }
 
 @media (max-width: 768px) {
-  .backlog-page {
-    padding: var(--space-base);
-  }
-
   .form-row {
     grid-template-columns: 1fr;
   }
@@ -605,10 +586,6 @@ th {
 }
 
 @media (max-width: 640px) {
-  .backlog-page {
-    padding: var(--space-sm);
-  }
-
   .backlog-header {
     margin-bottom: var(--space-sm);
     padding-left: var(--space-xs);

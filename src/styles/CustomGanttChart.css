@@ -13,8 +13,13 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-bottom: var(--space-base);
-  border-bottom: 1px solid var(--border-light);
+  gap: var(--space-lg);
+  padding-bottom: var(--space-sm);
+}
+
+.gantt-header h3 {
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .gantt-legend-compact {

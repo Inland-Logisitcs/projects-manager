@@ -418,19 +418,13 @@ const CustomGanttChart = ({ solucion, makespan, proyectos, usuarios, onTaskClick
     <div className="custom-gantt-container">
       {/* Header */}
       <div className="gantt-header">
-        <div>
-          <h3 className="heading-3 text-primary">
-            Planificación {vistaOptimista ? 'Optimista' : 'Optimizada'}
-          </h3>
-          <p className="text-sm text-secondary">
-            Duración total: <strong>{formatDuration(makespan || 3.5)}</strong> • {solucion.length} tarea{solucion.length !== 1 ? 's' : ''}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-base">
-          {/* Leyenda de proyectos */}
-          <div className="gantt-legend-compact">
-            {proyectos.slice(0, 4).map(proyecto => (
+        <h3 className="heading-3 text-primary">
+          Planificación {vistaOptimista ? 'Optimista' : 'con Riesgos'}
+        </h3>
+        <div className="gantt-legend-compact">
+          {proyectos
+            .filter(p => solucion?.some(t => t.proyectoId === p.id))
+            .map(proyecto => (
               <div key={proyecto.id} className="legend-item">
                 <div
                   className="legend-color"
@@ -439,10 +433,6 @@ const CustomGanttChart = ({ solucion, makespan, proyectos, usuarios, onTaskClick
                 <span className="text-xs text-secondary">{proyecto.name || proyecto.nombre}</span>
               </div>
             ))}
-            {proyectos.length > 4 && (
-              <span className="text-xs text-tertiary">+{proyectos.length - 4} más</span>
-            )}
-          </div>
         </div>
       </div>
 

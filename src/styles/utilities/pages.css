@@ -1,0 +1,39 @@
+/* ========================================
+   PAGES - Contenedores y headers de pagina
+   ======================================== */
+
+/* Contenedor base de pagina */
+.page-container {
+  width: 100%;
+  padding: var(--space-lg);
+}
+
+/* Contenedor con ancho maximo (para paginas con tablas/listas) */
+.page-container-narrow {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Header estandar de pagina */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--space-md);
+  padding-bottom: var(--space-base);
+  border-bottom: 1px solid var(--border-light);
+  gap: var(--space-base);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .page-container {
+    padding: var(--space-base);
+  }
+}
+
+@media (max-width: 640px) {
+  .page-container {
+    padding: var(--space-sm);
+  }
+}

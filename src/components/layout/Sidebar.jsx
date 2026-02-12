@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { subscribeToPendingRequestCount } from '../../services/requestService';
-import logo from '../../assets/images/logo.svg';
 import Icon from '../common/Icon';
 import '../../styles/Sidebar.css';
 
 const Sidebar = ({ collapsed, mobileOpen, onToggle, onMobileClose }) => {
   const location = useLocation();
-  const { user, isAdmin } = useAuth();
+  const navigate = useNavigate();
+  const { user, userProfile, isAdmin, logout } = useAuth();
   const [pendingCount, setPendingCount] = useState(0);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!user || !isAdmin) return;
@@ -19,117 +20,122 @@ const Sidebar = ({ collapsed, mobileOpen, onToggle, onMobileClose }) => {
     return () => unsubscribe();
   }, [user, isAdmin]);
 
-  const baseMenuItems = [
-    {
-      id: 'dashboard',
-      path: '/dashboard',
-      icon: 'kanban',
-      label: 'Tablero'
-    },
-    {
-      id: 'backlog',
-      path: '/backlog',
-      icon: 'list',
-      label: 'Backlog'
-    },
-    {
-      id: 'projects',
-      path: '/projects',
-      icon: 'folder',
-      label: 'Proyectos'
-    },
-    {
-      id: 'archived',
-      path: '/archived',
-      icon: 'archive',
-      label: 'Archivados'
-    }
+  const mainMenuItems = [
+    { id: 'dashboard', path: '/dashboard', icon: 'kanban', label: 'Tablero' },
+    { id: 'projects', path: '/projects', icon: 'folder', label: 'Proyectos' },
+    { id: 'backlog', path: '/backlog', icon: 'list', label: 'Backlog' },
+    { id: 'archived', path: '/archived', icon: 'archive', label: 'Archivados' }
   ];
 
-  // Agregar menús de admin
-  const menuItems = isAdmin
+  const adminMenuItems = isAdmin
     ? [
-        ...baseMenuItems,
-        {
-          id: 'solicitudes',
-          path: '/solicitudes',
-          icon: 'inbox',
-          label: 'Solicitudes',
-          badge: pendingCount,
-          adminOnly: true
-        },
-        {
-          id: 'users',
-          path: '/users',
-          icon: 'users',
-          label: 'Usuarios',
-          adminOnly: true
-        }
+        { id: 'solicitudes', path: '/solicitudes', icon: 'inbox', label: 'Solicitudes', badge: pendingCount },
+        { id: 'users', path: '/users', icon: 'users', label: 'Usuarios' }
       ]
-    : baseMenuItems;
+    : [];
 
-  const isActive = (path) => {
-    return location.pathname === path;
-  };
+  const isActive = (path) => location.pathname === path;
 
   const handleLinkClick = () => {
-    // Close mobile menu when a link is clicked
-    if (onMobileClose) {
-      onMobileClose();
-    }
+    if (onMobileClose) onMobileClose();
   };
+
+  const handleLogout = async () => {
+    const result = await logout();
+    if (result.success) navigate('/login');
+  };
+
+  const displayName = userProfile?.displayName || userProfile?.nombre || user?.email?.split('@')[0] || '';
+  const initials = displayName
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2) || 'U';
+
+  const renderNavItem = (item) => (
+    <Link
+      key={item.id}
+      to={item.path}
+      className={`sidebar-item flex items-center gap-sm ${isActive(item.path) ? 'active' : ''}`}
+      title={collapsed ? item.label : ''}
+      onClick={handleLinkClick}
+    >
+      <span className="sidebar-icon">
+        <Icon name={item.icon} size={20} />
+        {collapsed && item.badge > 0 && (
+          <span className="sidebar-badge sidebar-badge-collapsed">{item.badge}</span>
+        )}
+      </span>
+      {!collapsed && (
+        <>
+          <span className="sidebar-label">{item.label}</span>
+          {item.badge > 0 && (
+            <span className="sidebar-badge">{item.badge > 99 ? '99+' : item.badge}</span>
+          )}
+        </>
+      )}
+    </Link>
+  );
 
   return (
     <aside className={`sidebar ${collapsed ? 'collapsed' : ''} ${mobileOpen ? 'mobile-open' : ''}`}>
-      <div className="sidebar-header flex items-center justify-between p-base">
-        <div className="sidebar-logo flex items-center gap-sm">
-          <img src={logo} alt="Sync Projects" className="sidebar-logo-img" />
-          {!collapsed && <span className="font-bold text-lg text-primary">Sync Projects</span>}
+      {/* Main navigation */}
+      <nav className="sidebar-nav flex-1">
+        <div className="sidebar-top flex items-center justify-between">
+          {!collapsed && <div className="sidebar-section-label">Menu</div>}
+          <button
+            className="sidebar-toggle"
+            onClick={() => {
+              if (window.innerWidth <= 768) {
+                onMobileClose();
+              } else {
+                onToggle();
+              }
+            }}
+            aria-label="Toggle sidebar"
+          >
+            <Icon name={collapsed ? 'menu' : 'chevron-left'} size={16} />
+          </button>
         </div>
+        {mainMenuItems.map(renderNavItem)}
 
-        {/* Toggle/Close button - collapse on desktop, close on mobile */}
+        {adminMenuItems.length > 0 && (
+          <>
+            <div className="sidebar-divider" />
+            {!collapsed && <div className="sidebar-section-label">Admin</div>}
+            {adminMenuItems.map(renderNavItem)}
+          </>
+        )}
+
+      </nav>
+
+      {/* User menu */}
+      <div className="sidebar-user-wrapper">
+        {userMenuOpen && (
+          <div className="sidebar-user-menu">
+            <button className="sidebar-user-menu-item" onClick={handleLogout}>
+              <Icon name="log-out" size={16} />
+              <span>Cerrar sesion</span>
+            </button>
+          </div>
+        )}
         <button
-          className="sidebar-toggle flex items-center justify-center"
-          onClick={() => {
-            // On mobile, close the menu. On desktop, toggle collapse
-            if (window.innerWidth <= 768) {
-              onMobileClose();
-            } else {
-              onToggle();
-            }
-          }}
-          aria-label={window.innerWidth <= 768 ? "Close menu" : "Toggle sidebar"}
+          className="sidebar-user-btn"
+          onClick={() => setUserMenuOpen(!userMenuOpen)}
         >
-          <Icon name="x" size={24} />
+          <div className="sidebar-user-avatar">{initials}</div>
+          {!collapsed && (
+            <div className="sidebar-user-info">
+              <div className="sidebar-user-name">{displayName}</div>
+              <div className="sidebar-user-email">{user?.email}</div>
+            </div>
+          )}
         </button>
       </div>
-
-      <nav className="sidebar-nav flex-1 py-base">
-        {menuItems.map(item => (
-          <Link
-            key={item.id}
-            to={item.path}
-            className={`sidebar-item flex items-center gap-sm ${isActive(item.path) ? 'active' : ''}`}
-            title={collapsed ? item.label : ''}
-            onClick={handleLinkClick}
-          >
-            <span className="sidebar-icon">
-              <Icon name={item.icon} size={22} />
-              {collapsed && item.badge > 0 && (
-                <span className="sidebar-badge sidebar-badge-collapsed">{item.badge}</span>
-              )}
-            </span>
-            {!collapsed && (
-              <>
-                <span className="sidebar-label">{item.label}</span>
-                {item.badge > 0 && (
-                  <span className="sidebar-badge">{item.badge > 99 ? '99+' : item.badge}</span>
-                )}
-              </>
-            )}
-          </Link>
-        ))}
-      </nav>
+      {userMenuOpen && (
+        <div className="sidebar-user-menu-backdrop" onClick={() => setUserMenuOpen(false)} />
+      )}
     </aside>
   );
 };

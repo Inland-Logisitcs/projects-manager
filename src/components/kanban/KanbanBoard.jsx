@@ -25,7 +25,7 @@ import { subscribeToProjects } from '../../services/projectService';
 import { subscribeToUsers } from '../../services/userService';
 import '../../styles/KanbanBoard.css';
 
-const KanbanBoard = ({ activeSprintId = null }) => {
+const KanbanBoard = ({ activeSprintId = null, delayViewMode = 'optimistic', showColumnManager = false, onCloseColumnManager }) => {
   const { isAdmin, userProfile } = useAuth();
   const [columns, setColumns] = useState([]);
   const [tasks, setTasks] = useState([]);
@@ -36,9 +36,7 @@ const KanbanBoard = ({ activeSprintId = null }) => {
   const [newTaskColumn, setNewTaskColumn] = useState(null);
   const [loading, setLoading] = useState(true);
   const [optimisticUpdates, setOptimisticUpdates] = useState(new Set());
-  const [showColumnManager, setShowColumnManager] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
-  const [delayViewMode, setDelayViewMode] = useState('optimistic');
   const [toast, setToast] = useState({ isOpen: false, message: '', type: 'error' });
   const [pendingQaMove, setPendingQaMove] = useState(null);
   const [spRequestTask, setSpRequestTask] = useState(null);
@@ -497,49 +495,6 @@ const KanbanBoard = ({ activeSprintId = null }) => {
       )}
 
       <div className="kanban-board">
-        <div className="kanban-header">
-          <div className="kanban-stats">
-            <span className="stat">
-              <strong>{tasks.length}</strong> tareas totales
-            </span>
-            <span className="stat">
-              <strong>{tasks.filter(t => t.status === 'completed').length}</strong> completadas
-            </span>
-            <span className="stat">
-              <strong>
-                {tasks.filter(t => t.status === 'completed').reduce((sum, task) => sum + (task.storyPoints || 0), 0)}/
-                {tasks.reduce((sum, task) => sum + (task.storyPoints || 0), 0)}
-              </strong> story points
-            </span>
-          </div>
-          <div className="flex items-center gap-sm">
-            {isAdmin && (
-              <div className="delay-view-toggle">
-                <button
-                  className={`delay-toggle-btn ${delayViewMode === 'optimistic' ? 'active' : ''}`}
-                  onClick={() => setDelayViewMode('optimistic')}
-                >
-                  Optimista
-                </button>
-                <button
-                  className={`delay-toggle-btn ${delayViewMode === 'risk' ? 'active' : ''}`}
-                  onClick={() => setDelayViewMode('risk')}
-                >
-                  Con riesgo
-                </button>
-              </div>
-            )}
-            <button
-              className="btn btn-secondary flex items-center gap-xs has-tooltip"
-              onClick={() => setShowColumnManager(true)}
-              data-tooltip="Gestionar columnas"
-            >
-              <Icon name="settings" size={18} />
-              <span className="kanban-header-btn-text">Gestionar Columnas</span>
-            </button>
-          </div>
-        </div>
-
         <DndContext
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
@@ -585,7 +540,7 @@ const KanbanBoard = ({ activeSprintId = null }) => {
         {showColumnManager && (
           <ColumnManager
             columns={columns}
-            onClose={() => setShowColumnManager(false)}
+            onClose={onCloseColumnManager}
             onSave={handleSaveColumn}
             onDelete={handleDeleteColumn}
             onReorder={handleReorderColumns}
