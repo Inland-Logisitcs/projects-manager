@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useOptimizer } from '../../hooks/useOptimizer';
 import { subscribeToUsers } from '../../services/userService';
 import { saveOptimization, clearOptimizationDetails } from '../../services/taskService';
@@ -182,19 +182,20 @@ const calcularPosicionesParaGantt = ({
     const usuario = getUsuario(t.assignedTo);
     if (!usuario) return;
 
-    // Usar optimizedDuration guardada si existe, sino recalcular
+    // Siempre recalcular duracionBase con SP actuales; usar riesgos guardados si existen
     let riesgos;
+    const freshRiesgos = calcularRiesgos(t, usuario, factoresRiesgo);
     if (t.optimizedDuration) {
-      riesgos = {
-        duracionBase: t.optimizedDuration.duracionBase || 0,
-        tiempoRiesgo: t.optimizedDuration.tiempoRiesgo || 0,
-        tiempoRiesgoUsuario: t.optimizedDuration.tiempoRiesgoUsuario || 0,
-        tiempoRiesgoProyecto: t.optimizedDuration.tiempoRiesgoProyecto || 0,
-        tiempoRedondeo: t.optimizedDuration.tiempoRedondeo || 0,
-        duracionTotal: t.optimizedDuration.duracionTotal || 0
-      };
+      const duracionBase = freshRiesgos.duracionBase;
+      const tiempoRiesgo = t.optimizedDuration.tiempoRiesgo || 0;
+      const tiempoRiesgoUsuario = t.optimizedDuration.tiempoRiesgoUsuario || 0;
+      const tiempoRiesgoProyecto = t.optimizedDuration.tiempoRiesgoProyecto || 0;
+      const duracionSinRedondeo = duracionBase + tiempoRiesgo;
+      const duracionTotal = Math.ceil(duracionSinRedondeo * 2) / 2;
+      const tiempoRedondeo = duracionTotal - duracionSinRedondeo;
+      riesgos = { duracionBase, tiempoRiesgo, tiempoRiesgoUsuario, tiempoRiesgoProyecto, tiempoRedondeo, duracionTotal };
     } else {
-      riesgos = calcularRiesgos(t, usuario, factoresRiesgo);
+      riesgos = freshRiesgos;
     }
     const diasLab = getDiasLab(t.assignedTo);
 
@@ -262,23 +263,25 @@ const calcularPosicionesParaGantt = ({
     const diasLab = getDiasLab(userId);
 
     tareas.forEach(t => {
+      // Siempre recalcular duracionBase con SP actuales; usar riesgos guardados si existen
+      const freshRiesgos = calcularRiesgos(t, usuario, factoresRiesgo);
       let duracionBase, tiempoRiesgo, tiempoRiesgoUsuario, tiempoRiesgoProyecto, tiempoRedondeo, duracionTotal;
 
       if (t.optimizedDuration) {
-        duracionBase = t.optimizedDuration.duracionBase || 0;
+        duracionBase = freshRiesgos.duracionBase;
         tiempoRiesgo = t.optimizedDuration.tiempoRiesgo || 0;
         tiempoRiesgoUsuario = t.optimizedDuration.tiempoRiesgoUsuario || 0;
         tiempoRiesgoProyecto = t.optimizedDuration.tiempoRiesgoProyecto || 0;
-        tiempoRedondeo = t.optimizedDuration.tiempoRedondeo || 0;
-        duracionTotal = t.optimizedDuration.duracionTotal || duracionBase + tiempoRiesgo + tiempoRedondeo;
+        const duracionSinRedondeo = duracionBase + tiempoRiesgo;
+        duracionTotal = Math.ceil(duracionSinRedondeo * 2) / 2;
+        tiempoRedondeo = duracionTotal - duracionSinRedondeo;
       } else {
-        const riesgos = calcularRiesgos(t, usuario, factoresRiesgo);
-        duracionBase = riesgos.duracionBase;
-        tiempoRiesgo = riesgos.tiempoRiesgo;
-        tiempoRiesgoUsuario = riesgos.tiempoRiesgoUsuario;
-        tiempoRiesgoProyecto = riesgos.tiempoRiesgoProyecto;
-        tiempoRedondeo = riesgos.tiempoRedondeo;
-        duracionTotal = riesgos.duracionTotal;
+        duracionBase = freshRiesgos.duracionBase;
+        tiempoRiesgo = freshRiesgos.tiempoRiesgo;
+        tiempoRiesgoUsuario = freshRiesgos.tiempoRiesgoUsuario;
+        tiempoRiesgoProyecto = freshRiesgos.tiempoRiesgoProyecto;
+        tiempoRedondeo = freshRiesgos.tiempoRedondeo;
+        duracionTotal = freshRiesgos.duracionTotal;
       }
 
       const diaInicio = Math.max(posicionUsuario[userId] || 0, 0);
@@ -586,11 +589,13 @@ const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {}, isA
 
     const tareasOptimizadasParaAlgoritmo = tareasYaOptimizadas.map(t => {
       const usuario = usuarios.find(u => u.id === t.assignedTo);
+      const riesgos = calcularDuracionConRiesgos(t, usuario, todosLosRiesgos);
       let duracion;
-      if (t.optimizedDuration?.duracionTotal) {
-        duracion = t.optimizedDuration.duracionTotal;
+      if (t.optimizedDuration) {
+        const tiempoRiesgo = t.optimizedDuration.tiempoRiesgo || 0;
+        duracion = Math.ceil((riesgos.duracionBase + tiempoRiesgo) * 2) / 2;
       } else {
-        duracion = calcularDuracionConRiesgos(t, usuario, todosLosRiesgos).duracionTotal;
+        duracion = riesgos.duracionTotal;
       }
       return { id: t.id, usuarioId: t.assignedTo, duracion, dependencias: t.dependencies || [] };
     });
@@ -830,17 +835,56 @@ const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {}, isA
   // Redondear makespan a 1 decimal para mostrar
   const makespan = Math.round(makespanRaw * 10) / 10;
 
-  // Calcular fechas fin proyectadas por proyecto
+  // Calcular fechas fin proyectadas por proyecto (para la vista activa)
   const fechasFinProyecto = tareasGantt.length > 0
     ? calcularFechasFinPorProyecto(tareasGantt)
     : {};
 
+  // Calcular fechas fin para AMBOS modos (para snapshot y comparacion)
+  const fechasFinOptimista = useMemo(() => {
+    if (vistaOptimista) return fechasFinProyecto;
+    const baseData = resultado ? optimizacionRaw : null;
+    if (!baseData && !tareas.length) return {};
+    const tareasOpt = calcularPosicionesParaGantt({
+      tareasOptimizador: resultado ? resultado.solucion : [],
+      tareasEnProgreso: resultado ? baseData.tareasDoingRaw : tareas.filter(t => t.status === 'in-progress'),
+      tareasYaOptimizadas: resultado ? baseData.tareasYaOptimizadas : tareas.filter(t => t.status === 'pending' && t.assignedTo && t.planningOrder != null),
+      usuarios,
+      factoresRiesgo: resultado ? baseData.todosLosRiesgos : [],
+      proyectos,
+      calcularRiesgos: calcularDuracionConRiesgos,
+      optimista: true
+    });
+    return tareasOpt.length > 0 ? calcularFechasFinPorProyecto(tareasOpt) : {};
+  }, [tareasGantt, vistaOptimista]);
+
+  const fechasFinRiesgo = useMemo(() => {
+    if (!vistaOptimista) return fechasFinProyecto;
+    const baseData = resultado ? optimizacionRaw : null;
+    if (!baseData && !tareas.length) return {};
+    const tareasRisk = calcularPosicionesParaGantt({
+      tareasOptimizador: resultado ? resultado.solucion : [],
+      tareasEnProgreso: resultado ? baseData.tareasDoingRaw : tareas.filter(t => t.status === 'in-progress'),
+      tareasYaOptimizadas: resultado ? baseData.tareasYaOptimizadas : tareas.filter(t => t.status === 'pending' && t.assignedTo && t.planningOrder != null),
+      usuarios,
+      factoresRiesgo: resultado ? baseData.todosLosRiesgos : [],
+      proyectos,
+      calcularRiesgos: calcularDuracionConRiesgos,
+      optimista: false
+    });
+    return tareasRisk.length > 0 ? calcularFechasFinPorProyecto(tareasRisk) : {};
+  }, [tareasGantt, vistaOptimista]);
+
   // Proyectos con snapshot para calcular atrasos
-  const proyectosConSnapshot = proyectos.filter(p => p.snapshot?.fechaFin);
+  const proyectosConSnapshot = proyectos.filter(p => p.snapshot?.fechaFinOptimista || p.snapshot?.fechaFin);
   const proyectosAtrasados = proyectosConSnapshot.filter(p => {
     const fechaActual = fechasFinProyecto[p.id]?.fechaFin;
     if (!fechaActual) return false;
-    const fechaSnapshot = p.snapshot.fechaFin.toDate ? p.snapshot.fechaFin.toDate() : new Date(p.snapshot.fechaFin);
+    // Usar la referencia correspondiente al modo de vista activo
+    const snapshotField = vistaOptimista
+      ? (p.snapshot.fechaFinOptimista || p.snapshot.fechaFin)
+      : (p.snapshot.fechaFinRiesgo || p.snapshot.fechaFin);
+    const fechaSnapshot = snapshotField?.toDate ? snapshotField.toDate() : new Date(snapshotField);
     return fechaActual > fechaSnapshot;
   });
 
@@ -862,7 +906,11 @@ const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {}, isA
         .map(pid => ({
           projectId: pid,
           fechaFin: fechasFinProyecto[pid].fechaFin,
-          diaFin: fechasFinProyecto[pid].diaFin
+          diaFin: fechasFinProyecto[pid].diaFin,
+          fechaFinOptimista: fechasFinOptimista[pid]?.fechaFin || fechasFinProyecto[pid].fechaFin,
+          diaFinOptimista: fechasFinOptimista[pid]?.diaFin || fechasFinProyecto[pid].diaFin,
+          fechaFinRiesgo: fechasFinRiesgo[pid]?.fechaFin || fechasFinProyecto[pid].fechaFin,
+          diaFinRiesgo: fechasFinRiesgo[pid]?.diaFin || fechasFinProyecto[pid].diaFin
         }));
 
       const result = await saveProjectSnapshots(snapshots);
@@ -909,7 +957,11 @@ const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {}, isA
   // Calcular detalle de atraso para el modal
   const calcularDetalleAtrasos = () => {
     return proyectosConSnapshot.map(p => {
-      const fechaSnapshot = p.snapshot.fechaFin.toDate ? p.snapshot.fechaFin.toDate() : new Date(p.snapshot.fechaFin);
+      // Usar la referencia correspondiente al modo de vista activo
+      const snapshotField = vistaOptimista
+        ? (p.snapshot.fechaFinOptimista || p.snapshot.fechaFin)
+        : (p.snapshot.fechaFinRiesgo || p.snapshot.fechaFin);
+      const fechaSnapshot = snapshotField?.toDate ? snapshotField.toDate() : new Date(snapshotField);
       const fechaActual = fechasFinProyecto[p.id]?.fechaFin;
       let diferenciaDias = 0;
       let estado = 'sin-datos';
@@ -1332,7 +1384,10 @@ const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {}, isA
                   .map(proyecto => {
                     const isSelected = selectedSnapshotProyectos.includes(proyecto.id);
                     const fechaProyectada = fechasFinProyecto[proyecto.id]?.fechaFin;
-                    const snapshotAnterior = proyecto.snapshot?.fechaFin;
+                    const fechaOpt = fechasFinOptimista[proyecto.id]?.fechaFin;
+                    const fechaRisk = fechasFinRiesgo[proyecto.id]?.fechaFin;
+                    const snapshotAnteriorOpt = proyecto.snapshot?.fechaFinOptimista || proyecto.snapshot?.fechaFin;
+                    const snapshotAnteriorRisk = proyecto.snapshot?.fechaFinRiesgo || proyecto.snapshot?.fechaFin;
 
                     return (
                       <div
@@ -1355,17 +1410,17 @@ const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {}, isA
                         </div>
                         <div className="snapshot-card-dates">
                           <span className="text-xs text-tertiary">
-                            Proyectada: <strong className="text-primary">{formatFecha(fechaProyectada)}</strong>
+                            Optimista: <strong className="text-primary">{formatFecha(fechaOpt)}</strong>
+                            {snapshotAnteriorOpt && <span> (ant: {formatFecha(snapshotAnteriorOpt)})</span>}
                           </span>
-                          {snapshotAnterior && (
-                            <span className="text-xs text-tertiary">
-                              Anterior: {formatFecha(snapshotAnterior)}
-                            </span>
-                          )}
+                          <span className="text-xs text-tertiary">
+                            Con riesgo: <strong className="text-primary">{formatFecha(fechaRisk)}</strong>
+                            {snapshotAnteriorRisk && <span> (ant: {formatFecha(snapshotAnteriorRisk)})</span>}
+                          </span>
                         </div>
                         <div className="optimizer-card-footer">
                           <span className="text-xs text-tertiary">
-                            {fechasFinProyecto[proyecto.id]?.diaFin?.toFixed(1)} dias
+                            {fechasFinOptimista[proyecto.id]?.diaFin?.toFixed(1)}d / {fechasFinRiesgo[proyecto.id]?.diaFin?.toFixed(1)}d
                           </span>
                           {isSelected && (
                             <Icon name="check-circle" size={16} className="optimizer-check-icon" />

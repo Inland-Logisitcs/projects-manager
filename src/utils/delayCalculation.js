@@ -121,18 +121,21 @@ const countElapsedWorkingDays = (startDate, endDate, workingDays) => {
  * - Otherwise: storyPoints / dailyCapacity
  */
 const getExpectedDuration = (task, user, viewMode) => {
-  if (task.optimizedDuration) {
-    if (viewMode === 'risk') {
-      return task.optimizedDuration.duracionTotal || 0;
-    }
-    return task.optimizedDuration.duracionBase || 0;
-  }
-
-  // Fallback: storyPoints / dailyCapacity
   const storyPoints = Number(task.storyPoints) || 0;
   const capacity = Number(user?.dailyCapacity) || 1;
   if (storyPoints === 0) return 0;
-  return storyPoints / capacity;
+
+  // Always calculate base duration from current story points
+  const duracionBase = storyPoints / capacity;
+
+  if (task.optimizedDuration && viewMode === 'risk') {
+    // Recalculate total using current base + stored risk factors
+    const tiempoRiesgo = task.optimizedDuration.tiempoRiesgo || 0;
+    const tiempoRedondeo = task.optimizedDuration.tiempoRedondeo || 0;
+    return Math.ceil((duracionBase + tiempoRiesgo + tiempoRedondeo) * 2) / 2;
+  }
+
+  return duracionBase;
 };
 
 /**

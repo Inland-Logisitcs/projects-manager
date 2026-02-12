@@ -163,13 +163,17 @@ export const saveProjectSnapshots = async (snapshots) => {
     let successCount = 0;
     let errorCount = 0;
 
-    const updatePromises = snapshots.map(async ({ projectId, fechaFin, diaFin }) => {
+    const updatePromises = snapshots.map(async ({ projectId, fechaFin, diaFin, fechaFinOptimista, diaFinOptimista, fechaFinRiesgo, diaFinRiesgo }) => {
       try {
         const projectRef = doc(db, PROJECTS_COLLECTION, projectId);
         await updateDoc(projectRef, {
           snapshot: {
             fechaFin: Timestamp.fromDate(fechaFin),
             diaFin,
+            fechaFinOptimista: Timestamp.fromDate(fechaFinOptimista || fechaFin),
+            diaFinOptimista: diaFinOptimista || diaFin,
+            fechaFinRiesgo: Timestamp.fromDate(fechaFinRiesgo || fechaFin),
+            diaFinRiesgo: diaFinRiesgo || diaFin,
             creadoEn: serverTimestamp()
           },
           updatedAt: serverTimestamp()
