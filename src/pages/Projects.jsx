@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { subscribeToProjects, createProject, updateProject, deleteProject, updateProjectsOrder } from '../services/projectService';
 import { subscribeToTasks, updateTask } from '../services/taskService';
@@ -203,50 +204,60 @@ const Projects = () => {
                 </div>
               </div>
             ) : (
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={handleDragEnd}
-              >
-                <SortableContext
-                  items={projects.map(p => p.id)}
-                  strategy={verticalListSortingStrategy}
+              <>
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
                 >
-                  <div className="projects-list">
-                    {projects.map((project, index) => (
-                      <SortableProjectCard
-                        key={project.id}
-                        project={project}
-                        index={index}
-                        onUpdate={handleUpdateProject}
-                        onDelete={handleDeleteProject}
-                        users={users}
-                        tasks={tasks}
-                        projectRisks={projectRisks[project.id] || []}
-                        onRisksChange={async (risks) => {
-                          // Actualizar estado local
-                          setProjectRisks({ ...projectRisks, [project.id]: risks });
-                          // Guardar en Firebase
-                          const result = await updateProject(project.id, { risks });
-                          if (!result.success) {
-                            setToast({
-                              isOpen: true,
-                              message: `Error al guardar riesgos: ${result.error}`,
-                              type: 'error'
-                            });
-                          } else {
-                            setToast({
-                              isOpen: true,
-                              message: 'Riesgos guardados correctamente',
-                              type: 'success'
-                            });
-                          }
-                        }}
-                      />
-                    ))}
-                  </div>
-                </SortableContext>
-              </DndContext>
+                  <SortableContext
+                    items={projects.map(p => p.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <div className="projects-list">
+                      {projects.map((project, index) => (
+                        <SortableProjectCard
+                          key={project.id}
+                          project={project}
+                          index={index}
+                          onUpdate={handleUpdateProject}
+                          onDelete={handleDeleteProject}
+                          users={users}
+                          tasks={tasks}
+                          projectRisks={projectRisks[project.id] || []}
+                          onRisksChange={async (risks) => {
+                            // Actualizar estado local
+                            setProjectRisks({ ...projectRisks, [project.id]: risks });
+                            // Guardar en Firebase
+                            const result = await updateProject(project.id, { risks });
+                            if (!result.success) {
+                              setToast({
+                                isOpen: true,
+                                message: `Error al guardar riesgos: ${result.error}`,
+                                type: 'error'
+                              });
+                            } else {
+                              setToast({
+                                isOpen: true,
+                                message: 'Riesgos guardados correctamente',
+                                type: 'success'
+                              });
+                            }
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
+
+                <UnassignedTasksSection
+                  tasks={tasks}
+                  columns={columns}
+                  projects={projects}
+                  onTaskClick={handleTaskClick}
+                  onTaskUpdate={handleTaskUpdate}
+                />
+              </>
             )}
           </>
         );
@@ -342,21 +353,18 @@ const Projects = () => {
   );
 };
 
-const STATUS_LABELS = {
-  planning: 'Planificacion',
-  'in-progress': 'En progreso',
-  completed: 'Completado',
-  'on-hold': 'En pausa'
-};
+export const PROJECT_STATUSES = [
+  { id: 'planning', label: 'Planificacion', color: 'badge-warning', icon: 'edit-3' },
+  { id: 'ready-to-implement', label: 'Listo para implementar', color: 'badge-info', icon: 'check-circle' },
+  { id: 'idle', label: 'En pausa', color: 'badge-secondary', icon: 'pause-circle' },
+  { id: 'in-progress', label: 'En progreso', color: 'badge-primary', icon: 'loader' },
+  { id: 'completed', label: 'Completado', color: 'badge-success', icon: 'check' }
+];
 
-const STATUS_COLORS = {
-  planning: 'badge-warning',
-  'in-progress': 'badge-primary',
-  completed: 'badge-success',
-  'on-hold': 'badge-secondary'
-};
+export const STATUS_LABELS = Object.fromEntries(PROJECT_STATUSES.map(s => [s.id, s.label]));
+export const STATUS_COLORS = Object.fromEntries(PROJECT_STATUSES.map(s => [s.id, s.color]));
 
-const SortableProjectCard = ({ project, index, onDelete, users, tasks, projectRisks, onRisksChange }) => {
+const SortableProjectCard = ({ project, index, onUpdate, onDelete, users, tasks, projectRisks, onRisksChange }) => {
   const {
     attributes,
     listeners,
@@ -377,6 +385,7 @@ const SortableProjectCard = ({ project, index, onDelete, users, tasks, projectRi
       <ProjectCard
         project={project}
         index={index}
+        onUpdate={onUpdate}
         onDelete={onDelete}
         users={users}
         tasks={tasks}
@@ -388,8 +397,10 @@ const SortableProjectCard = ({ project, index, onDelete, users, tasks, projectRi
   );
 };
 
-const ProjectCard = ({ project, index, onDelete, users, tasks, projectRisks, onRisksChange, dragHandleProps }) => {
+const ProjectCard = ({ project, index, onUpdate, onDelete, users, tasks, projectRisks, onRisksChange, dragHandleProps }) => {
+  const navigate = useNavigate();
   const [showRiskModal, setShowRiskModal] = useState(false);
+  const [showStatusMenu, setShowStatusMenu] = useState(false);
 
   const formatDate = (dateStr) => {
     if (!dateStr) return '-';
@@ -404,7 +415,7 @@ const ProjectCard = ({ project, index, onDelete, users, tasks, projectRisks, onR
 
   return (
     <>
-      <div className="card project-card">
+      <div className="card project-card project-card-clickable" onClick={() => navigate(`/projects/${project.id}`)}>
         <div className="card-body">
           <div className="flex justify-between items-start gap-base">
             <div className="flex items-center gap-base flex-1">
@@ -412,6 +423,7 @@ const ProjectCard = ({ project, index, onDelete, users, tasks, projectRisks, onR
                 {...dragHandleProps}
                 className="drag-handle"
                 title="Arrastra para reordenar"
+                onClick={e => e.stopPropagation()}
               >
                 <Icon name="menu" size={20} />
               </div>
@@ -419,10 +431,41 @@ const ProjectCard = ({ project, index, onDelete, users, tasks, projectRisks, onR
               <div className="flex-1">
                 <div className="flex items-center gap-sm mb-xs">
                   <span className="priority-badge">#{index + 1}</span>
-                  <h3 className="heading-3 text-primary">{project.name}</h3>
-                  <span className={`badge ${STATUS_COLORS[project.status] || 'badge-secondary'}`}>
-                    {STATUS_LABELS[project.status] || project.status}
-                  </span>
+                  <h3
+                    className="heading-3 text-primary project-name-link"
+                  >
+                    {project.name}
+                  </h3>
+                  <div className="project-status-wrapper" onClick={e => e.stopPropagation()}>
+                    <button
+                      className={`badge ${STATUS_COLORS[project.status] || 'badge-secondary'} project-status-btn`}
+                      onClick={() => setShowStatusMenu(!showStatusMenu)}
+                      title="Cambiar estado"
+                    >
+                      {STATUS_LABELS[project.status] || project.status}
+                      <Icon name="chevron-down" size={12} />
+                    </button>
+                    {showStatusMenu && (
+                      <div className="project-status-menu" onMouseLeave={() => setShowStatusMenu(false)}>
+                        {PROJECT_STATUSES.map(status => (
+                          <button
+                            key={status.id}
+                            className={`project-status-option ${project.status === status.id ? 'active' : ''}`}
+                            onClick={() => {
+                              if (project.status !== status.id) {
+                                onUpdate(project.id, { status: status.id });
+                              }
+                              setShowStatusMenu(false);
+                            }}
+                          >
+                            <Icon name={status.icon} size={14} />
+                            <span>{status.label}</span>
+                            {project.status === status.id && <Icon name="check" size={14} />}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   {risksCount > 0 && (
                     <span className="badge badge-warning flex items-center gap-xs">
                       <Icon name="alert-triangle" size={12} />
@@ -439,11 +482,15 @@ const ProjectCard = ({ project, index, onDelete, users, tasks, projectRisks, onR
                     {formatDate(project.startDate)} - {formatDate(project.endDate)}
                   </span>
                   <span className="badge badge-secondary">{project.type}</span>
+                  <span className="flex items-center gap-xs">
+                    <Icon name="check-square" size={14} />
+                    {projectTasks.length} {projectTasks.length === 1 ? 'tarea' : 'tareas'}
+                  </span>
                 </div>
               </div>
             </div>
 
-            <div className="flex gap-xs">
+            <div className="flex gap-xs" onClick={e => e.stopPropagation()}>
               <button
                 className="btn btn-icon btn-ghost"
                 onClick={() => setShowRiskModal(true)}
@@ -482,6 +529,87 @@ const ProjectCard = ({ project, index, onDelete, users, tasks, projectRisks, onR
         />
       )}
     </>
+  );
+};
+
+const UnassignedTasksSection = ({ tasks, columns, projects, onTaskClick, onTaskUpdate }) => {
+  const [expanded, setExpanded] = useState(false);
+  const [assigningTaskId, setAssigningTaskId] = useState(null);
+
+  const unassignedTasks = tasks.filter(t => !t.projectId && !t.proyectoId);
+
+  if (unassignedTasks.length === 0) return null;
+
+  const getColumnName = (statusId) => {
+    const col = columns.find(c => c.id === statusId);
+    return col?.name || statusId;
+  };
+
+  const handleAssignProject = async (taskId, projectId) => {
+    await onTaskUpdate(taskId, { projectId });
+    setAssigningTaskId(null);
+  };
+
+  return (
+    <div className="unassigned-tasks-section mt-base">
+      <button
+        className="unassigned-tasks-header"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <div className="flex items-center gap-sm">
+          <Icon name="inbox" size={18} />
+          <span className="text-base font-medium">Tareas sin proyecto</span>
+          <span className="badge badge-secondary">{unassignedTasks.length}</span>
+        </div>
+        <Icon name={expanded ? 'chevron-up' : 'chevron-down'} size={18} />
+      </button>
+
+      {expanded && (
+        <div className="unassigned-tasks-list">
+          {unassignedTasks.map(task => (
+            <div key={task.id} className="unassigned-task-row">
+              <div
+                className="flex items-center gap-sm flex-1 unassigned-task-info"
+                onClick={() => onTaskClick(task)}
+              >
+                <span className="text-sm text-primary">{task.title}</span>
+                <span className="badge badge-secondary text-xs">{getColumnName(task.status)}</span>
+                {task.storyPoints > 0 && (
+                  <span className="text-xs text-tertiary">{task.storyPoints} SP</span>
+                )}
+              </div>
+              <div className="unassigned-task-assign">
+                {assigningTaskId === task.id ? (
+                  <select
+                    className="select select-sm"
+                    autoFocus
+                    value=""
+                    onChange={(e) => {
+                      if (e.target.value) handleAssignProject(task.id, e.target.value);
+                    }}
+                    onBlur={() => setAssigningTaskId(null)}
+                  >
+                    <option value="">Seleccionar proyecto...</option>
+                    {projects.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <button
+                    className="btn btn-sm btn-ghost text-xs"
+                    onClick={() => setAssigningTaskId(task.id)}
+                    title="Asignar a proyecto"
+                  >
+                    <Icon name="folder-plus" size={14} />
+                    <span>Asignar</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 };
 

@@ -4,6 +4,7 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Backlog from './pages/Backlog';
 import Projects from './pages/Projects';
+import ProjectDetail from './pages/ProjectDetail';
 import ArchivedTasks from './pages/ArchivedTasks';
 import Users from './pages/Users';
 import PlanningPoker from './pages/PlanningPoker';
@@ -31,6 +32,7 @@ function App() {
             <Route path="/backlog" element={<Backlog />} />
             <Route path="/planning-poker" element={<PlanningPoker />} />
             <Route path="/projects" element={<Projects />} />
+            <Route path="/projects/:projectId" element={<ProjectDetail />} />
             <Route path="/archived" element={<ArchivedTasks />} />
             <Route
               path="/solicitudes"

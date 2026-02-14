@@ -236,6 +236,10 @@
   transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
 
+.project-card.project-card-clickable {
+  cursor: pointer;
+}
+
 .project-card:hover {
   box-shadow: var(--shadow-md);
 }
@@ -279,6 +283,15 @@
   flex-shrink: 0;
 }
 
+.project-name-link {
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.project-name-link:hover {
+  color: var(--color-accent) !important;
+}
+
 .project-progress {
   display: flex;
   align-items: center;
@@ -300,10 +313,131 @@
   transition: width 0.3s ease;
 }
 
+/* Project Status Selector */
+.project-status-wrapper {
+  position: relative;
+}
+
+.project-status-btn {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  transition: opacity 0.15s ease;
+}
+
+.project-status-btn:hover {
+  opacity: 0.85;
+}
+
+.project-status-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 50;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-base);
+  box-shadow: var(--shadow-lg);
+  min-width: 220px;
+  padding: var(--space-xs);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.project-status-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-base);
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--font-sm);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: background-color 0.15s ease;
+  width: 100%;
+  text-align: left;
+}
+
+.project-status-option:hover {
+  background-color: var(--bg-secondary);
+}
+
+.project-status-option.active {
+  background-color: var(--bg-tertiary);
+  font-weight: 600;
+}
+
+.project-status-option span {
+  flex: 1;
+}
+
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1rem;
+}
+
+/* Unassigned Tasks Section */
+.unassigned-tasks-section {
+  border: 1px dashed var(--border-medium);
+  border-radius: var(--radius-base);
+  overflow: hidden;
+}
+
+.unassigned-tasks-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: var(--space-base);
+  background: var(--bg-secondary);
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: background-color 0.15s ease;
+}
+
+.unassigned-tasks-header:hover {
+  background: var(--bg-tertiary);
+}
+
+.unassigned-tasks-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.unassigned-task-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-sm) var(--space-base);
+  border-top: 1px solid var(--border-light);
+  gap: var(--space-sm);
+}
+
+.unassigned-task-row:hover {
+  background: var(--bg-secondary);
+}
+
+.unassigned-task-info {
+  cursor: pointer;
+  min-width: 0;
+}
+
+.unassigned-task-info:hover .text-primary {
+  color: var(--color-accent);
+}
+
+.unassigned-task-assign .select-sm {
+  font-size: var(--font-xs);
+  padding: var(--space-xs) var(--space-sm);
+  height: auto;
+  min-width: 180px;
 }
 
 /* Modal Large for Risk Management */
