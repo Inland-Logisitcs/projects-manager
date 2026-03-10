@@ -277,9 +277,7 @@ th {
 
 .task-title {
   max-width: 500px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.4;
 }
 
 .task-row td[style*="cursor: pointer"]:hover .task-title {

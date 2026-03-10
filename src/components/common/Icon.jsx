@@ -50,6 +50,7 @@ import ShuffleIcon from '@mui/icons-material/Shuffle';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import RotateLeftIcon from '@mui/icons-material/RotateLeft';
 import RotateRightIcon from '@mui/icons-material/RotateRight';
 import ZoomOutMapIcon from '@mui/icons-material/ZoomOutMap';
@@ -110,6 +111,7 @@ const Icon = ({ name, size = 20, className = '' }) => {
     'arrow-left': ArrowBackIcon,
     'refresh-cw': RefreshIcon,
     'eye': VisibilityIcon,
+    'eye-off': VisibilityOffIcon,
     'rotate-ccw': RotateLeftIcon,
     'rotate-cw': RotateRightIcon,
     'maximize': ZoomOutMapIcon,

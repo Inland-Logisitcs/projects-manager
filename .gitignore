@@ -82,3 +82,6 @@ check-sp.cjs
 .claude/hooks/
 
 .claude/settings.local.json
+
+# MCP server
+mcp-server/service-account.json
