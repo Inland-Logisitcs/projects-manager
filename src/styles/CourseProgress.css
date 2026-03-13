@@ -1,0 +1,140 @@
+/* Course Progress Admin Page */
+
+.cp-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-base);
+}
+
+.cp-stat-card {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-base);
+  padding: var(--space-base);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.cp-stat-value {
+  font-size: var(--font-2xl);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.cp-stat-label {
+  font-size: var(--font-xs);
+  color: var(--text-tertiary);
+}
+
+/* Table */
+.cp-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.cp-table th {
+  text-align: left;
+  padding: var(--space-sm) var(--space-base);
+  font-size: var(--font-xs);
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.cp-table td {
+  padding: var(--space-sm) var(--space-base);
+  border-bottom: 1px solid var(--border-light);
+  vertical-align: middle;
+}
+
+.cp-user-row {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.cp-user-row:hover {
+  background: var(--bg-secondary);
+}
+
+/* Avatar */
+.cp-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: var(--text-inverse);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-sm);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+/* Progress bar */
+.cp-progress-bar-container {
+  width: 100px;
+  height: 6px;
+  background: var(--bg-tertiary);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 2px;
+}
+
+.cp-progress-bar {
+  height: 100%;
+  background: var(--color-primary);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+/* Detail row */
+.cp-detail-row td {
+  padding: 0;
+  background: var(--bg-secondary);
+}
+
+.cp-lessons-detail {
+  padding: var(--space-base) var(--space-lg);
+}
+
+.cp-lessons-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.cp-lessons-table th {
+  text-align: left;
+  padding: var(--space-xs) var(--space-sm);
+  font-size: var(--font-xs);
+  font-weight: 600;
+  color: var(--text-tertiary);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.cp-lessons-table td {
+  padding: var(--space-xs) var(--space-sm);
+  border-bottom: 1px solid var(--border-light);
+}
+
+/* Icons */
+.cp-icon-success {
+  color: var(--color-success);
+}
+
+.cp-icon-warning {
+  color: var(--color-warning);
+}
+
+.cp-icon-muted {
+  color: var(--text-tertiary);
+}
+
+.cp-text-warning {
+  color: var(--color-warning-dark);
+  font-weight: 600;
+}

@@ -9,6 +9,9 @@ import ArchivedTasks from './pages/ArchivedTasks';
 import Users from './pages/Users';
 import PlanningPoker from './pages/PlanningPoker';
 import Solicitudes from './pages/Solicitudes';
+import Courses from './pages/Courses';
+import CourseDetail from './pages/CourseDetail';
+import CourseProgress from './pages/CourseProgress';
 import MainLayout from './components/layout/MainLayout';
 import ProtectedRoute from './components/routing/ProtectedRoute';
 import AdminRoute from './components/routing/AdminRoute';
@@ -34,6 +37,16 @@ function App() {
             <Route path="/projects" element={<Projects />} />
             <Route path="/projects/:projectId" element={<ProjectDetail />} />
             <Route path="/archived" element={<ArchivedTasks />} />
+            <Route path="/courses" element={<Courses />} />
+            <Route path="/courses/:courseId" element={<CourseDetail />} />
+            <Route
+              path="/course-progress"
+              element={
+                <AdminRoute>
+                  <CourseProgress />
+                </AdminRoute>
+              }
+            />
             <Route
               path="/solicitudes"
               element={

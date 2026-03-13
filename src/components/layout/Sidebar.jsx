@@ -24,11 +24,13 @@ const Sidebar = ({ collapsed, mobileOpen, onToggle, onMobileClose }) => {
     { id: 'dashboard', path: '/dashboard', icon: 'kanban', label: 'Tablero' },
     { id: 'projects', path: '/projects', icon: 'folder', label: 'Proyectos' },
     { id: 'backlog', path: '/backlog', icon: 'list', label: 'Backlog' },
-    { id: 'archived', path: '/archived', icon: 'archive', label: 'Archivados' }
+    { id: 'archived', path: '/archived', icon: 'archive', label: 'Archivados' },
+    { id: 'courses', path: '/courses', icon: 'book-open', label: 'Cursos' }
   ];
 
   const adminMenuItems = isAdmin
     ? [
+        { id: 'course-progress', path: '/course-progress', icon: 'bar-chart-2', label: 'Progreso Cursos' },
         { id: 'solicitudes', path: '/solicitudes', icon: 'inbox', label: 'Solicitudes', badge: pendingCount },
         { id: 'users', path: '/users', icon: 'users', label: 'Usuarios' }
       ]
