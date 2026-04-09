@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Backlog from './pages/Backlog';
@@ -12,9 +12,19 @@ import Solicitudes from './pages/Solicitudes';
 import Courses from './pages/Courses';
 import CourseDetail from './pages/CourseDetail';
 import CourseProgress from './pages/CourseProgress';
+import UserStats from './pages/UserStats';
+import UserStatsDetail from './pages/UserStatsDetail';
+import Holidays from './pages/Holidays';
 import MainLayout from './components/layout/MainLayout';
 import ProtectedRoute from './components/routing/ProtectedRoute';
 import AdminRoute from './components/routing/AdminRoute';
+
+// Redirige a /user-stats/:uid del usuario actual
+const MyStatsRedirect = () => {
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
+  return <Navigate to={`/user-stats/${user.uid}`} replace />;
+};
 
 function App() {
   return (
@@ -62,6 +72,30 @@ function App() {
                   <Users />
                 </AdminRoute>
               }
+            />
+            <Route
+              path="/user-stats"
+              element={
+                <AdminRoute>
+                  <UserStats />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/holidays"
+              element={
+                <AdminRoute>
+                  <Holidays />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/user-stats/:userId"
+              element={<UserStatsDetail />}
+            />
+            <Route
+              path="/my-stats"
+              element={<MyStatsRedirect />}
             />
           </Route>
 

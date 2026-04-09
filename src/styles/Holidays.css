@@ -1,0 +1,124 @@
+/* Holidays - Estilos especificos */
+
+.holidays-container {
+  max-width: 800px;
+}
+
+/* Add form */
+.holidays-add-form {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-base);
+}
+
+.holidays-form-field {
+  margin-bottom: 0;
+}
+
+.holidays-form-name {
+  flex: 1;
+}
+
+.holidays-add-btn {
+  white-space: nowrap;
+  height: 40px;
+}
+
+/* Year section */
+.holidays-year-section {
+  margin-bottom: var(--space-lg);
+}
+
+.holidays-year-section:last-child {
+  margin-bottom: 0;
+}
+
+/* List */
+.holidays-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.holidays-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-base);
+  padding: var(--space-sm) var(--space-base);
+  border-bottom: 1px solid var(--border-light);
+  transition: background-color 0.15s;
+}
+
+.holidays-item:last-child {
+  border-bottom: none;
+}
+
+.holidays-item:hover {
+  background-color: var(--bg-secondary);
+}
+
+.holidays-item-past {
+  opacity: 0.5;
+}
+
+/* Date badge */
+.holidays-item-date {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  background: var(--color-primary);
+  color: white;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.holidays-day {
+  font-size: var(--font-lg);
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.holidays-month {
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+
+/* Info */
+.holidays-item-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* Delete button */
+.holidays-delete-btn {
+  opacity: 0;
+  transition: opacity 0.15s;
+  color: var(--text-tertiary);
+}
+
+.holidays-item:hover .holidays-delete-btn {
+  opacity: 1;
+}
+
+.holidays-delete-btn:hover {
+  color: var(--color-error);
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .holidays-add-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .holidays-add-btn {
+    align-self: flex-end;
+  }
+}

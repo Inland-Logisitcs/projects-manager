@@ -25,18 +25,29 @@ const Sidebar = ({ collapsed, mobileOpen, onToggle, onMobileClose }) => {
     { id: 'projects', path: '/projects', icon: 'folder', label: 'Proyectos' },
     { id: 'backlog', path: '/backlog', icon: 'list', label: 'Backlog' },
     { id: 'archived', path: '/archived', icon: 'archive', label: 'Archivados' },
-    { id: 'courses', path: '/courses', icon: 'book-open', label: 'Cursos' }
+    { id: 'courses', path: '/courses', icon: 'book-open', label: 'Cursos' },
+    { id: 'my-stats', path: '/my-stats', icon: 'chart', label: 'Mis Estadisticas' }
   ];
 
   const adminMenuItems = isAdmin
     ? [
         { id: 'course-progress', path: '/course-progress', icon: 'bar-chart-2', label: 'Progreso Cursos' },
         { id: 'solicitudes', path: '/solicitudes', icon: 'inbox', label: 'Solicitudes', badge: pendingCount },
-        { id: 'users', path: '/users', icon: 'users', label: 'Usuarios' }
+        { id: 'users', path: '/users', icon: 'users', label: 'Usuarios' },
+        { id: 'user-stats', path: '/user-stats', icon: 'chart', label: 'Estadisticas' },
+        { id: 'holidays', path: '/holidays', icon: 'calendar', label: 'Feriados' }
       ]
     : [];
 
-  const isActive = (path) => location.pathname === path;
+  const isActive = (path) => {
+    if (path === '/my-stats') {
+      return location.pathname === '/my-stats' || (!isAdmin && location.pathname.startsWith('/user-stats/'));
+    }
+    if (path === '/user-stats') {
+      return location.pathname === '/user-stats' || (isAdmin && location.pathname.startsWith('/user-stats/'));
+    }
+    return location.pathname === path;
+  };
 
   const handleLinkClick = () => {
     if (onMobileClose) onMobileClose();
