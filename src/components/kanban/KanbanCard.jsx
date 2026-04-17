@@ -7,8 +7,11 @@ import UserSelect from '../common/UserSelect';
 import StoryPointsSelect from '../common/StoryPointsSelect';
 import { updateTask } from '../../services/taskService';
 import { calculateDelay } from '../../utils/delayCalculation';
+import { useAuth } from '../../contexts/AuthContext';
 
-const KanbanCard = ({ task, isDragging, onDelete, usersMap, delayViewMode, isAdmin = false, onRequestSpChange }) => {
+const KanbanCard = ({ task, isDragging, onDelete, usersMap, delayViewMode, isAdmin: isAdminProp, onRequestSpChange }) => {
+  const { isAdmin: isAdminFromAuth } = useAuth();
+  const isAdmin = isAdminProp ?? isAdminFromAuth;
   const [showUserSelect, setShowUserSelect] = useState(false);
   const userSelectRef = useRef(null);
 

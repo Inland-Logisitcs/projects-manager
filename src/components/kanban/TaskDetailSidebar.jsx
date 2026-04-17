@@ -19,7 +19,7 @@ import { calculateDelay } from '../../utils/delayCalculation';
 import { useAuth } from '../../contexts/AuthContext';
 import '../../styles/TaskDetailSidebar.css';
 
-const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose, usersMap = {}, delayViewMode = 'optimistic', isAdmin = false }) => {
+const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose, usersMap = {}, delayViewMode = 'optimistic', isAdmin: isAdminProp }) => {
   const sidebarRef = useRef(null);
   const userSelectRef = useRef(null);
   const projectSelectRef = useRef(null);
@@ -38,7 +38,8 @@ const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose, usersMap = {
   const [isEditingDemoUrl, setIsEditingDemoUrl] = useState(false);
   const [editedDemoUrl, setEditedDemoUrl] = useState(task.demoUrl || '');
   const [showSpRequestModal, setShowSpRequestModal] = useState(false);
-  const { user, userProfile } = useAuth();
+  const { user, userProfile, isAdmin: isAdminFromAuth } = useAuth();
+  const isAdmin = isAdminProp ?? isAdminFromAuth;
 
   // Cargar usuarios
   useEffect(() => {
