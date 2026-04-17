@@ -27,6 +27,8 @@ const ProjectDetail = () => {
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [editingDescription, setEditingDescription] = useState(false);
   const [descriptionDraft, setDescriptionDraft] = useState('');
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterAssignee, setFilterAssignee] = useState('all');
   const [showCreateTask, setShowCreateTask] = useState(false);
@@ -137,6 +139,18 @@ const ProjectDetail = () => {
     setEditingDescription(false);
   };
 
+  const handleSaveName = async () => {
+    const trimmed = nameDraft.trim();
+    if (!trimmed || trimmed === project.name) {
+      setEditingName(false);
+      return;
+    }
+    const result = await handleUpdateProject({ name: trimmed });
+    if (result.success) {
+      setEditingName(false);
+    }
+  };
+
   const handleCreateTask = async (taskData) => {
     const result = await createTask({
       ...taskData,
@@ -199,7 +213,41 @@ const ProjectDetail = () => {
         {/* Header */}
         <div className="project-detail-header mb-md">
           <div className="flex items-center gap-sm flex-wrap">
-            <h1 className="heading-1 text-primary">{project.name}</h1>
+            {editingName ? (
+              <div className="flex items-center gap-xs">
+                <input
+                  type="text"
+                  className="input project-name-input"
+                  value={nameDraft}
+                  onChange={e => setNameDraft(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') handleSaveName();
+                    if (e.key === 'Escape') setEditingName(false);
+                  }}
+                  autoFocus
+                />
+                <button className="btn btn-primary btn-sm" onClick={handleSaveName}>
+                  Guardar
+                </button>
+                <button className="btn btn-secondary btn-sm" onClick={() => setEditingName(false)}>
+                  Cancelar
+                </button>
+              </div>
+            ) : (
+              <>
+                <h1 className="heading-1 text-primary">{project.name}</h1>
+                <button
+                  className="btn btn-icon btn-ghost btn-sm"
+                  onClick={() => {
+                    setNameDraft(project.name || '');
+                    setEditingName(true);
+                  }}
+                  title="Editar nombre"
+                >
+                  <Icon name="edit" size={14} />
+                </button>
+              </>
+            )}
             <div className="project-status-wrapper">
               <button
                 className={`badge ${STATUS_COLORS[project.status] || 'badge-secondary'} project-status-btn`}

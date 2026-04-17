@@ -14,6 +14,12 @@
   color: var(--color-accent);
 }
 
+.project-name-input {
+  font-size: var(--font-2xl);
+  font-weight: 700;
+  min-width: 320px;
+}
+
 /* Stats Cards */
 .project-detail-stats {
   display: grid;
