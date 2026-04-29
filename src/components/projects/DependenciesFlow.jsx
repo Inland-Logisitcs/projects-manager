@@ -37,9 +37,6 @@ const NODE_DIMENSIONS = {
 
 // Create dagre graph and apply layout only to groups, then layout tasks within each group
 const getLayoutedElements = (nodes, edges) => {
-  console.log('=== DAGRE LAYOUT DEBUG ===');
-  console.log('Input nodes:', nodes.map(n => ({ id: n.id, type: n.type, parentId: n.parentId })));
-  console.log('Input edges:', edges.map(e => ({ id: e.id, source: e.source, target: e.target })));
 
   // Separate nodes by type
   const rootNode = nodes.find(n => n.type === 'root');
@@ -312,10 +309,6 @@ const getLayoutedElements = (nodes, edges) => {
     const node = groupNodes.find(n => n.id === groupId);
     const level = groupDependencyLevels.get(groupId) || 0;
 
-    console.log(`Group Node ${groupId}:`);
-    console.log('  - Dependency level:', level);
-    console.log('  - Dimensions:', { width: pos.width, height: pos.height });
-    console.log('  - Final position:', { x: pos.x, y: pos.y });
 
     layoutedGroupNodes.push({
       ...node,
@@ -345,11 +338,6 @@ const getLayoutedElements = (nodes, edges) => {
         y: groupsCenterY - (NODE_DIMENSIONS.root.height / 2),
       };
 
-      console.log('Root Node:');
-      console.log('  - Level 0 groups count:', level0Groups.length);
-      console.log('  - Min Y:', minY, 'Max Y:', maxY);
-      console.log('  - Groups center Y:', groupsCenterY);
-      console.log('  - Final position:', finalPosition);
 
       layoutedRootNode = {
         ...rootNode,
@@ -566,7 +554,6 @@ const getLayoutedElements = (nodes, edges) => {
       height: (maxY - minY) + padding + bottomPadding,
     };
 
-    console.log(`Group ${parentId} calculated size:`, groupSizes[parentId]);
   });
 
   // Update group nodes with calculated sizes and reposition them maintaining alignment
@@ -723,8 +710,6 @@ const getLayoutedElements = (nodes, edges) => {
     const groupSize = groupSizes[groupNode.id];
 
     if (pos && groupSize) {
-      console.log(`Updated group ${groupNode.id} with size:`, groupSize, 'at position:', pos);
-      console.log(`Group ${groupNode.id} color:`, groupNode.style.backgroundColor, groupNode.style.border);
       return {
         ...groupNode,
         position: {
@@ -764,7 +749,6 @@ const getLayoutedElements = (nodes, edges) => {
         },
       };
 
-      console.log('Root repositioned based on level 0 groups. Center Y:', groupsCenterY);
     }
   }
 
@@ -777,9 +761,7 @@ const getLayoutedElements = (nodes, edges) => {
     ...layoutedConnectorNodes, // Connector nodes at end of each project
   ];
 
-  console.log('Output nodes with positions:', layoutedNodes.map(n => ({ id: n.id, position: n.position, parentId: n.parentId })));
 
-  console.log('=== END DAGRE DEBUG ===');
 
   return { nodes: layoutedNodes, edges };
 };
@@ -1386,7 +1368,6 @@ const DependenciesFlow = ({ projects, tasks, onTaskClick, isAdmin = false }) => 
       const sourceProjectId = source.replace('connector-', '');
       const targetProjectId = target.replace('project-', '');
 
-      console.log('Creating project dependency:', sourceProjectId, '→', targetProjectId);
 
       // Add dependency in Firebase
       const result = await addProjectDependency(targetProjectId, sourceProjectId);
@@ -1422,7 +1403,6 @@ const DependenciesFlow = ({ projects, tasks, onTaskClick, isAdmin = false }) => 
 
     // Only allow connections between tasks
     if (!source.startsWith('task-') || !target.startsWith('task-')) {
-      console.log('Solo se pueden crear dependencias entre tareas o entre proyectos');
       return;
     }
 

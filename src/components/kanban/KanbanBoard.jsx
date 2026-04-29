@@ -250,6 +250,8 @@ const KanbanBoard = ({ activeSprintId = null, delayViewMode = 'optimistic', show
         const taskProject = projects.find(p => p.id === activeTask.projectId);
         if (taskProject?.repositories?.length > 0) {
           setPendingBranchTask({ task: activeTask, project: taskProject });
+        } else if (taskProject) {
+          setToast({ isOpen: true, message: `El proyecto "${taskProject.name}" no tiene repositorios configurados. Agregalos en el detalle del proyecto.`, type: 'info' });
         }
       }
     }

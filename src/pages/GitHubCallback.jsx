@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { httpsCallable } from 'firebase/functions';
-import { functions } from '../config/firebase';
+import { doc, updateDoc } from 'firebase/firestore';
+import { functions, db, auth } from '../config/firebase';
 import Icon from '../components/common/Icon';
 
 const GitHubCallback = () => {
@@ -33,7 +34,12 @@ const GitHubCallback = () => {
         const result = await githubOAuth({ code });
 
         if (result.data?.token) {
-          localStorage.setItem('github_token', result.data.token);
+          const tok = result.data.token;
+          localStorage.setItem('github_token', tok);
+          const uid = auth.currentUser?.uid;
+          if (uid) {
+            updateDoc(doc(db, 'users', uid), { githubToken: tok }).catch(() => {});
+          }
         }
 
         setStatus('success');

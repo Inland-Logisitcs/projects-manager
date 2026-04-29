@@ -118,6 +118,8 @@ const CustomGanttChart = ({ solucion, makespan, proyectos, usuarios, onTaskClick
       segmentoActual = { inicio: diaInicio, fin: Math.min(diaActual, diaFin), tipo };
     }
 
+    if (!isFinite(diaFin)) return { segmentos: [], diaFinRecalculado: diaInicio };
+
     while (diaActual < diaFin) {
       const esLaborable = esDiaLaborable(diaActual, diasLaborablesUsuario);
       let tipo;

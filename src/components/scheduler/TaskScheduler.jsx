@@ -27,7 +27,7 @@ const avanzarDiasLaborables = (diaInicio, diasTrabajo, diasLaborables) => {
   const diasLabSet = new Set(diasLaborables);
   const unidadesTrabajo = Math.ceil(diasTrabajo * 2); // Convertir a medios días
 
-  if (unidadesTrabajo <= 0) return diaInicio;
+  if (!isFinite(unidadesTrabajo) || unidadesTrabajo <= 0) return diaInicio;
 
   const hoy = new Date();
   hoy.setHours(0, 0, 0, 0);
@@ -48,8 +48,10 @@ const avanzarDiasLaborables = (diaInicio, diasTrabajo, diasLaborables) => {
   fechaActual.setDate(hoy.getDate() + diasCompletosInicio);
 
   let medioDiasTrabajados = 0;
+  let safetyCounter = 0;
 
   while (medioDiasTrabajados < unidadesTrabajo) {
+    if (++safetyCounter > 20000) { console.warn('avanzarDiasLaborables: limite de iteraciones alcanzado', { diaInicio, diasTrabajo, diasLaborables }); break; }
     const diaSemanaJS = fechaActual.getDay();
     const diaSemana = diaSemanaJS === 0 ? 7 : diaSemanaJS;
 
@@ -84,8 +86,9 @@ const avanzarDiasLaborables = (diaInicio, diasTrabajo, diasLaborables) => {
  * @returns {Object} { duracionBase, tiempoRiesgo, tiempoRiesgoUsuario, tiempoRiesgoProyecto, tiempoRedondeo, duracionTotal }
  */
 const calcularDuracionConRiesgos = (tarea, usuario, factoresRiesgo) => {
-  const capacidad = usuario?.dailyCapacity || usuario?.capacidadDiaria || 1;
-  const storyPoints = tarea.storyPoints || 0;
+  const rawCapacidad = usuario?.dailyCapacity ?? usuario?.capacidadDiaria;
+  const capacidad = (typeof rawCapacidad === 'number' && rawCapacidad > 0) ? rawCapacidad : 1;
+  const storyPoints = Number(tarea.storyPoints) || 0;
   const duracionBase = storyPoints / capacidad;
 
   let porcentajeUsuario = 0;
