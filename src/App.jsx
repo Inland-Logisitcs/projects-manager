@@ -15,6 +15,7 @@ import CourseProgress from './pages/CourseProgress';
 import UserStats from './pages/UserStats';
 import UserStatsDetail from './pages/UserStatsDetail';
 import Holidays from './pages/Holidays';
+import GitHubCallback from './pages/GitHubCallback';
 import MainLayout from './components/layout/MainLayout';
 import ProtectedRoute from './components/routing/ProtectedRoute';
 import AdminRoute from './components/routing/AdminRoute';
@@ -97,6 +98,7 @@ function App() {
               path="/my-stats"
               element={<MyStatsRedirect />}
             />
+            <Route path="/github-callback" element={<GitHubCallback />} />
           </Route>
 
           <Route path="/" element={<Navigate to="/dashboard" replace />} />

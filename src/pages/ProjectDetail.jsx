@@ -32,6 +32,8 @@ const ProjectDetail = () => {
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterAssignee, setFilterAssignee] = useState('all');
   const [showCreateTask, setShowCreateTask] = useState(false);
+  const [newRepoInput, setNewRepoInput] = useState('');
+  const [repoError, setRepoError] = useState('');
 
   useEffect(() => {
     const unsubProjects = subscribeToProjects((fetchedProjects) => {
@@ -149,6 +151,28 @@ const ProjectDetail = () => {
     if (result.success) {
       setEditingName(false);
     }
+  };
+
+  const handleAddRepo = async () => {
+    const trimmed = newRepoInput.trim();
+    const parts = trimmed.split('/');
+    if (parts.length !== 2 || !parts[0] || !parts[1]) {
+      setRepoError('Formato invalido. Usa: propietario/repositorio');
+      return;
+    }
+    const currentRepos = project.repositories || [];
+    if (currentRepos.includes(trimmed)) {
+      setRepoError('Este repositorio ya esta configurado');
+      return;
+    }
+    setRepoError('');
+    const result = await handleUpdateProject({ repositories: [...currentRepos, trimmed] });
+    if (result.success) setNewRepoInput('');
+  };
+
+  const handleRemoveRepo = async (repo) => {
+    const currentRepos = project.repositories || [];
+    await handleUpdateProject({ repositories: currentRepos.filter(r => r !== repo) });
   };
 
   const handleCreateTask = async (taskData) => {
@@ -364,6 +388,59 @@ const ProjectDetail = () => {
                 {project.description || 'Sin descripcion'}
               </p>
             )}
+          </div>
+        </div>
+
+        {/* Repositories Section */}
+        <div className="card mb-md">
+          <div className="card-body">
+            <div className="flex justify-between items-center mb-sm">
+              <h3 className="text-sm font-semibold text-secondary flex items-center gap-xs">
+                <Icon name="git-branch" size={16} />
+                Repositorios de GitHub
+              </h3>
+            </div>
+            <div className="flex flex-col gap-xs mb-sm">
+              {(project.repositories || []).length === 0 ? (
+                <p className="text-sm text-tertiary">Sin repositorios configurados</p>
+              ) : (
+                (project.repositories || []).map(repo => (
+                  <div key={repo} className="flex items-center justify-between gap-sm p-xs border-b-light">
+                    <span className="text-sm text-primary flex items-center gap-xs">
+                      <Icon name="code" size={14} />
+                      {repo}
+                    </span>
+                    <button
+                      className="btn btn-icon btn-ghost btn-sm"
+                      onClick={() => handleRemoveRepo(repo)}
+                      title="Eliminar repositorio"
+                    >
+                      <Icon name="x" size={14} />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="flex gap-xs">
+              <input
+                type="text"
+                className="input"
+                placeholder="propietario/repositorio"
+                value={newRepoInput}
+                onChange={e => { setNewRepoInput(e.target.value); setRepoError(''); }}
+                onKeyDown={e => e.key === 'Enter' && handleAddRepo()}
+                style={{ flex: 1 }}
+              />
+              <button
+                className="btn btn-secondary btn-sm flex items-center gap-xs"
+                onClick={handleAddRepo}
+                disabled={!newRepoInput.trim()}
+              >
+                <Icon name="plus" size={16} />
+                Agregar
+              </button>
+            </div>
+            {repoError && <p className="text-xs mt-xs" style={{ color: 'var(--color-error)' }}>{repoError}</p>}
           </div>
         </div>
 

@@ -56,6 +56,10 @@ import RotateRightIcon from '@mui/icons-material/RotateRight';
 import ZoomOutMapIcon from '@mui/icons-material/ZoomOutMap';
 import MenuIcon from '@mui/icons-material/Menu';
 import SaveIcon from '@mui/icons-material/Save';
+import CallSplitIcon from '@mui/icons-material/CallSplit';
+import CodeIcon from '@mui/icons-material/Code';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import KeyIcon from '@mui/icons-material/Key';
 
 const Icon = ({ name, size = 20, className = '' }) => {
   const iconMap = {
@@ -116,7 +120,11 @@ const Icon = ({ name, size = 20, className = '' }) => {
     'rotate-cw': RotateRightIcon,
     'maximize': ZoomOutMapIcon,
     'menu': MenuIcon,
-    'save': SaveIcon
+    'save': SaveIcon,
+    'git-branch': CallSplitIcon,
+    'code': CodeIcon,
+    'external-link': OpenInNewIcon,
+    'key': KeyIcon
   };
 
   const IconComponent = iconMap[name] || FolderIcon;

@@ -7,6 +7,7 @@ import ColumnManager from './ColumnManager';
 import TaskDetailSidebar from './TaskDetailSidebar';
 import DemoUrlModal from '../modals/DemoUrlModal';
 import StoryPointsRequestModal from '../modals/StoryPointsRequestModal';
+import CreateBranchModal from '../modals/CreateBranchModal';
 import Icon from '../common/Icon';
 import Toast from '../common/Toast';
 import { useAuth } from '../../contexts/AuthContext';
@@ -40,6 +41,8 @@ const KanbanBoard = ({ activeSprintId = null, delayViewMode = 'optimistic', show
   const [toast, setToast] = useState({ isOpen: false, message: '', type: 'error' });
   const [pendingQaMove, setPendingQaMove] = useState(null);
   const [spRequestTask, setSpRequestTask] = useState(null);
+  const [selectedProjectId, setSelectedProjectId] = useState(null);
+  const [pendingBranchTask, setPendingBranchTask] = useState(null);
 
   // Build usersMap for quick lookup
   const usersMap = useMemo(() => {
@@ -47,6 +50,18 @@ const KanbanBoard = ({ activeSprintId = null, delayViewMode = 'optimistic', show
     users.forEach(user => { map[user.id] = user; });
     return map;
   }, [users]);
+
+  // Projects that have at least one task in the current board
+  const activeProjects = useMemo(() => {
+    const projectIds = new Set(tasks.map(t => t.projectId).filter(Boolean));
+    return projects.filter(p => projectIds.has(p.id));
+  }, [tasks, projects]);
+
+  // Tasks filtered by selected project
+  const visibleTasks = useMemo(() => {
+    if (!selectedProjectId) return tasks;
+    return tasks.filter(t => t.projectId === selectedProjectId);
+  }, [tasks, selectedProjectId]);
 
   // Inicializar columnas por defecto y suscribirse a cambios
   useEffect(() => {
@@ -230,6 +245,13 @@ const KanbanBoard = ({ activeSprintId = null, delayViewMode = 'optimistic', show
       }
 
       await executeColumnMove(active.id, newStatus, previousStatus);
+
+      if (newStatus === 'in-progress') {
+        const taskProject = projects.find(p => p.id === activeTask.projectId);
+        if (taskProject?.repositories?.length > 0) {
+          setPendingBranchTask({ task: activeTask, project: taskProject });
+        }
+      }
     }
     // Si se soltó sobre otra tarea (reordenar)
     else {
@@ -495,6 +517,27 @@ const KanbanBoard = ({ activeSprintId = null, delayViewMode = 'optimistic', show
       )}
 
       <div className="kanban-board">
+        {activeProjects.length > 1 && (
+          <div className="kanban-project-filter">
+            <button
+              className={`kanban-project-pill ${selectedProjectId === null ? 'active' : ''}`}
+              onClick={() => setSelectedProjectId(null)}
+            >
+              Todos
+            </button>
+            {activeProjects.map(project => (
+              <button
+                key={project.id}
+                className={`kanban-project-pill ${selectedProjectId === project.id ? 'active' : ''}`}
+                onClick={() => setSelectedProjectId(prev => prev === project.id ? null : project.id)}
+                style={{ '--project-color': project.color || '#6B7280' }}
+              >
+                <span className="kanban-project-pill-dot" />
+                {project.name}
+              </button>
+            ))}
+          </div>
+        )}
         <DndContext
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
@@ -505,7 +548,7 @@ const KanbanBoard = ({ activeSprintId = null, delayViewMode = 'optimistic', show
               <KanbanColumn
                 key={column.id}
                 column={column}
-                tasks={sortTasksByPriority(tasks.filter(task => task.status === column.id), column.id)}
+                tasks={sortTasksByPriority(visibleTasks.filter(task => task.status === column.id), column.id)}
                 onAddTask={handleAddTask}
                 onDeleteTask={archiveTask}
                 onCreateTask={handleCreateTaskInline}
@@ -563,6 +606,14 @@ const KanbanBoard = ({ activeSprintId = null, delayViewMode = 'optimistic', show
           onConfirm={handleQaConfirm}
           onCancel={handleQaCancel}
         />
+
+        {pendingBranchTask && (
+          <CreateBranchModal
+            task={pendingBranchTask.task}
+            project={pendingBranchTask.project}
+            onClose={() => setPendingBranchTask(null)}
+          />
+        )}
 
         <StoryPointsRequestModal
           isOpen={!!spRequestTask}

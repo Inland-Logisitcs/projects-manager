@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { subscribeToProjects, createProject, updateProject, deleteProject, updateProjectsOrder } from '../services/projectService';
 import { subscribeToTasks, updateTask } from '../services/taskService';
 import { subscribeToColumns } from '../services/columnService';
-import { subscribeToUsers } from '../services/userService';
+import { subscribeToUsers, updateUser } from '../services/userService';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -400,6 +400,7 @@ const SortableProjectCard = ({ project, index, onUpdate, onDelete, users, tasks,
 const ProjectCard = ({ project, index, onUpdate, onDelete, users, tasks, projectRisks, onRisksChange, dragHandleProps }) => {
   const navigate = useNavigate();
   const [showRiskModal, setShowRiskModal] = useState(false);
+  const [showUsersModal, setShowUsersModal] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
 
   const formatDate = (dateStr) => {
@@ -412,6 +413,7 @@ const ProjectCard = ({ project, index, onUpdate, onDelete, users, tasks, project
   const hasGeneralRisk = projectRisks.some(r => !r.usuarioId && !r.userId);
   const userSpecificRisksCount = projectRisks.filter(r => r.usuarioId || r.userId).length;
   const risksCount = userSpecificRisksCount + (hasGeneralRisk ? 1 : 0);
+  const assignedUsersCount = users.filter(u => (u.projectsAssigned || []).includes(project.id)).length;
 
   return (
     <>
@@ -472,6 +474,12 @@ const ProjectCard = ({ project, index, onUpdate, onDelete, users, tasks, project
                       {risksCount} {risksCount === 1 ? 'riesgo' : 'riesgos'}
                     </span>
                   )}
+                  {assignedUsersCount > 0 && (
+                    <span className="badge badge-info flex items-center gap-xs">
+                      <Icon name="users" size={12} />
+                      {assignedUsersCount} {assignedUsersCount === 1 ? 'usuario' : 'usuarios'}
+                    </span>
+                  )}
                 </div>
                 {project.description && (
                   <p className="text-sm text-secondary mb-sm">{project.description}</p>
@@ -491,6 +499,13 @@ const ProjectCard = ({ project, index, onUpdate, onDelete, users, tasks, project
             </div>
 
             <div className="flex gap-xs" onClick={e => e.stopPropagation()}>
+              <button
+                className="btn btn-icon btn-ghost"
+                onClick={() => setShowUsersModal(true)}
+                title="Gestionar usuarios asignados"
+              >
+                <Icon name="users" size={18} />
+              </button>
               <button
                 className="btn btn-icon btn-ghost"
                 onClick={() => setShowRiskModal(true)}
@@ -528,7 +543,109 @@ const ProjectCard = ({ project, index, onUpdate, onDelete, users, tasks, project
           onSave={onRisksChange}
         />
       )}
+
+      {showUsersModal && (
+        <ProjectUsersModal
+          project={project}
+          users={users}
+          onClose={() => setShowUsersModal(false)}
+        />
+      )}
     </>
+  );
+};
+
+const ProjectUsersModal = ({ project, users, onClose }) => {
+  const [updatingId, setUpdatingId] = useState(null);
+  const [error, setError] = useState('');
+
+  const isAssigned = (user) => (user.projectsAssigned || []).includes(project.id);
+
+  const handleToggle = async (user) => {
+    setUpdatingId(user.id);
+    setError('');
+    const current = user.projectsAssigned || [];
+    const next = current.includes(project.id)
+      ? current.filter(id => id !== project.id)
+      : [...current, project.id];
+    const result = await updateUser(user.id, { projectsAssigned: next });
+    if (!result.success) {
+      setError(result.error || 'Error al actualizar usuario');
+    }
+    setUpdatingId(null);
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content modal-md" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <h3 className="modal-title">Usuarios asignados</h3>
+            <p className="text-sm text-secondary">{project.name}</p>
+          </div>
+          <button className="modal-close" onClick={onClose}>
+            <Icon name="x" size={20} />
+          </button>
+        </div>
+
+        <div className="modal-body">
+          <p className="text-sm text-secondary mb-base">
+            El optimizador solo considerará a los usuarios seleccionados para asignar tareas de este proyecto. Si un usuario no tiene ningún proyecto asignado, puede tomar tareas de cualquier proyecto.
+          </p>
+
+          {users.length === 0 ? (
+            <div className="empty-state py-lg">
+              <Icon name="user-x" size={48} className="text-tertiary" />
+              <p className="text-base text-secondary">No hay usuarios disponibles</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-sm">
+              {users.map(user => {
+                const assigned = isAssigned(user);
+                return (
+                  <div key={user.id} className="card">
+                    <div className="card-body p-base flex items-center justify-between gap-base">
+                      <div className="flex-1">
+                        <p className="text-base text-primary font-medium mb-xs">
+                          {user.displayName || user.nombre || user.email}
+                        </p>
+                        <p className="text-xs text-tertiary">
+                          {(user.projectsAssigned || []).length === 0
+                            ? 'Sin restricciones (puede tomar cualquier proyecto)'
+                            : `${(user.projectsAssigned || []).length} proyecto(s) asignado(s)`}
+                        </p>
+                      </div>
+                      <button
+                        className={`btn btn-sm ${assigned ? 'btn-primary' : 'btn-secondary'}`}
+                        onClick={() => handleToggle(user)}
+                        disabled={updatingId === user.id}
+                      >
+                        {updatingId === user.id
+                          ? 'Guardando...'
+                          : assigned ? 'Asignado' : 'Asignar'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {error && (
+            <div className="flex items-center gap-sm error-message mt-base">
+              <Icon name="alert-circle" size={16} />
+              {error}
+            </div>
+          )}
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn btn-primary" onClick={onClose}>
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
   );
 };
 

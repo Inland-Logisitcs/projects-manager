@@ -2,6 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
+import { getFunctions } from 'firebase/functions';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -27,6 +28,9 @@ export const db = getFirestore(app, 'sync-projects');
 
 // Inicializar Storage
 export const storage = getStorage(app);
+
+// Inicializar Functions
+export const functions = getFunctions(app);
 
 // Log para debug (solo en desarrollo)
 if (import.meta.env.DEV) {

@@ -38,6 +38,7 @@ export const createNewUser = async (userData) => {
       disabled: false,
       dailyCapacity: userData.dailyCapacity || 1,
       workingDays: userData.workingDays || [1, 2, 3, 4, 5],
+      projectsAssigned: userData.projectsAssigned || [],
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
@@ -175,7 +176,7 @@ export const subscribeToUsers = (callback) => {
  */
 export const updateUser = async (uid, updates) => {
   try {
-    const { displayName, role, dailyCapacity, workingDays } = updates;
+    const { displayName, role, dailyCapacity, workingDays, projectsAssigned } = updates;
 
     if (role && !['admin', 'user'].includes(role)) {
       return { success: false, error: 'Rol inválido' };
@@ -199,6 +200,10 @@ export const updateUser = async (uid, updates) => {
 
     if (workingDays !== undefined) {
       firestoreUpdates.workingDays = workingDays;
+    }
+
+    if (projectsAssigned !== undefined) {
+      firestoreUpdates.projectsAssigned = projectsAssigned;
     }
 
     const userRef = doc(db, USERS_COLLECTION, uid);
