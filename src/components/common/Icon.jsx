@@ -60,6 +60,7 @@ import CallSplitIcon from '@mui/icons-material/CallSplit';
 import CodeIcon from '@mui/icons-material/Code';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import KeyIcon from '@mui/icons-material/Key';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 
 const Icon = ({ name, size = 20, className = '' }) => {
   const iconMap = {
@@ -124,7 +125,8 @@ const Icon = ({ name, size = 20, className = '' }) => {
     'git-branch': CallSplitIcon,
     'code': CodeIcon,
     'external-link': OpenInNewIcon,
-    'key': KeyIcon
+    'key': KeyIcon,
+    'copy': ContentCopyIcon
   };
 
   const IconComponent = iconMap[name] || FolderIcon;
