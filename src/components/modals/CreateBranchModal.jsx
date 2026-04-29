@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Icon from '../common/Icon';
-import { getDefaultBranchSha, createGithubBranch } from '../../services/githubService';
+import { getDefaultBranchSha, createGithubBranch, listRepoBranches } from '../../services/githubService';
+import { updateTask } from '../../services/taskService';
 import { useGitHubDeviceFlow } from '../../hooks/useGitHubDeviceFlow';
 
 const slugify = (text) =>
@@ -22,6 +23,12 @@ const CreateBranchModal = ({ task, project, onClose }) => {
   const [showPatInput, setShowPatInput] = useState(false);
   const [patValue, setPatValue] = useState('');
 
+  const [repoBaseBranches, setRepoBaseBranches] = useState(() => ({ ...(project.repoBranches || {}) }));
+  const [branchOptions, setBranchOptions] = useState({});
+  const [loadingBranches, setLoadingBranches] = useState({});
+  const [editingBranchRepo, setEditingBranchRepo] = useState(null);
+  const [branchSearch, setBranchSearch] = useState({});
+
   const { token, step, userCode, verificationUri, error, connect, disconnect, cancel, savePatToken } = useGitHubDeviceFlow();
 
   const copyCode = () => navigator.clipboard.writeText(userCode).catch(() => {});
@@ -34,6 +41,20 @@ const CreateBranchModal = ({ task, project, onClose }) => {
     });
   };
 
+  const fetchBranchesForRepo = async (repoFull) => {
+    if (branchOptions[repoFull] || !token) return;
+    setLoadingBranches(prev => ({ ...prev, [repoFull]: true }));
+    try {
+      const [owner, repo] = repoFull.split('/');
+      const branches = await listRepoBranches(token, owner, repo);
+      setBranchOptions(prev => ({ ...prev, [repoFull]: branches }));
+    } catch {
+      // silently fall back to current value
+    } finally {
+      setLoadingBranches(prev => ({ ...prev, [repoFull]: false }));
+    }
+  };
+
   const handleCreate = async () => {
     const trimmedBranch = branchName.trim();
     if (!token || !trimmedBranch) return;
@@ -42,8 +63,9 @@ const CreateBranchModal = ({ task, project, onClose }) => {
     for (const repoFull of repos) {
       if (!selectedRepos.has(repoFull)) continue;
       const [owner, repo] = repoFull.split('/');
+      const baseBranch = repoBaseBranches[repoFull] || null;
       try {
-        const { sha } = await getDefaultBranchSha(token, owner, repo);
+        const { sha } = await getDefaultBranchSha(token, owner, repo, baseBranch);
         await createGithubBranch(token, owner, repo, trimmedBranch, sha);
         newResults[repoFull] = {
           success: true,
@@ -55,6 +77,12 @@ const CreateBranchModal = ({ task, project, onClose }) => {
     }
     setResults(newResults);
     setCreating(false);
+    const successRepos = Object.entries(newResults).filter(([, r]) => r.success).map(([repo]) => repo);
+    if (successRepos.length > 0) {
+      const existing = task.featureBranchRepos || [];
+      const merged = [...new Set([...existing, ...successRepos])];
+      updateTask(task.id, { featureBranch: trimmedBranch, featureBranchRepos: merged }).catch(() => {});
+    }
   };
 
   const done = results !== null;
@@ -172,26 +200,121 @@ const CreateBranchModal = ({ task, project, onClose }) => {
               </label>
               <input type="text" className="input" value={branchName} onChange={e => setBranchName(e.target.value)} disabled={creating || done} />
             </div>
-            <div className="form-group">
-              <label className="label flex items-center gap-xs">
+            <div style={{ marginBottom: 'var(--space-base)' }}>
+              <div className="label flex items-center gap-xs" style={{ marginBottom: 'var(--space-xs)' }}>
                 <Icon name="code" size={14} />
                 Repositorios
-              </label>
-              <div className="flex flex-col gap-xs">
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', width: '100%' }}>
                 {repos.map(repo => {
                   const result = results?.[repo];
+                  const baseBranch = repoBaseBranches[repo] || 'main';
+                  const isEditing = editingBranchRepo === repo && !done && !creating;
                   return (
-                    <label key={repo} className="flex items-center gap-sm p-sm border-b-light" style={{ cursor: done ? 'default' : 'pointer', borderRadius: 'var(--radius-sm)' }}>
-                      <input type="checkbox" checked={selectedRepos.has(repo)} onChange={() => toggleRepo(repo)} disabled={creating || done} />
-                      <span className="text-sm text-primary" style={{ flex: 1 }}>{repo}</span>
-                      {result && (result.success ? (
-                        <a href={result.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-xs text-xs" style={{ color: 'var(--color-success)', textDecoration: 'none' }} onClick={e => e.stopPropagation()}>
-                          <Icon name="check" size={14} />Creada<Icon name="external-link" size={12} />
-                        </a>
-                      ) : (
-                        <span className="text-xs" style={{ color: 'var(--color-error)' }} title={result.error}>Error: {result.error}</span>
-                      ))}
-                    </label>
+                    <div key={repo} style={{ borderBottom: '1px solid var(--border-light)', padding: '0.5rem 0' }}>
+                      <div
+                        onClick={() => !done && !creating && !isEditing && toggleRepo(repo)}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          width: '100%',
+                          boxSizing: 'border-box',
+                          cursor: done || isEditing ? 'default' : 'pointer',
+                        }}
+                      >
+                        <input type="checkbox" checked={selectedRepos.has(repo)} onChange={() => {}} disabled={creating || done} style={{ flexShrink: 0, margin: 0, cursor: 'inherit' }} />
+                        <span style={{ flex: 1, fontSize: 'var(--font-sm)', color: 'var(--text-primary)' }}>{repo}</span>
+                        {result && (result.success ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }} onClick={e => e.stopPropagation()}>
+                            <a href={result.url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: 'var(--font-xs)', color: 'var(--color-success)', textDecoration: 'none' }}>
+                              <Icon name="check" size={14} />Creada<Icon name="external-link" size={12} />
+                            </a>
+                            <button
+                              className="btn btn-icon btn-ghost btn-sm"
+                              title="Copiar git checkout"
+                              onClick={() => navigator.clipboard.writeText(`git checkout ${branchName.trim()}`).catch(() => {})}
+                              style={{ width: 22, height: 22, minWidth: 22 }}
+                            >
+                              <Icon name="copy" size={12} />
+                            </button>
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: 'var(--font-xs)', color: 'var(--color-error)' }} title={result.error}>Error: {result.error}</span>
+                        ))}
+                      </div>
+
+                      {!done && (
+                        <div style={{ paddingLeft: '1.5rem', marginTop: '0.25rem', position: 'relative' }}>
+                          {isEditing ? (
+                            <>
+                              <div className="flex items-center gap-xs">
+                                {loadingBranches[repo] ? (
+                                  <span className="spinner" style={{ width: 12, height: 12 }} />
+                                ) : (
+                                  <input
+                                    type="text"
+                                    className="input"
+                                    style={{ fontSize: 'var(--font-xs)', padding: '0.2rem 0.5rem', height: 'auto', flex: 1 }}
+                                    placeholder={`Buscar rama (actual: ${baseBranch})`}
+                                    value={branchSearch[repo] ?? ''}
+                                    onChange={e => setBranchSearch(prev => ({ ...prev, [repo]: e.target.value }))}
+                                    onClick={e => e.stopPropagation()}
+                                    autoFocus
+                                  />
+                                )}
+                                <button
+                                  className="btn btn-ghost btn-sm text-xs"
+                                  onClick={e => { e.stopPropagation(); setEditingBranchRepo(null); setBranchSearch(prev => ({ ...prev, [repo]: undefined })); }}
+                                >
+                                  Cancelar
+                                </button>
+                              </div>
+                              {!loadingBranches[repo] && (() => {
+                                const q = (branchSearch[repo] ?? '').toLowerCase();
+                                const filtered = (branchOptions[repo] || [baseBranch]).filter(b => b.toLowerCase().includes(q));
+                                if (filtered.length === 0) return null;
+                                return (
+                                  <div style={{ position: 'absolute', top: '100%', left: '1.5rem', right: 0, zIndex: 50, background: 'var(--bg-primary)', border: '1px solid var(--border-medium)', borderRadius: 'var(--radius-sm)', boxShadow: 'var(--shadow-md)', maxHeight: 150, overflowY: 'auto', marginTop: 2 }}>
+                                    {filtered.map(b => (
+                                      <div
+                                        key={b}
+                                        onClick={e => {
+                                          e.stopPropagation();
+                                          setRepoBaseBranches(prev => ({ ...prev, [repo]: b }));
+                                          setEditingBranchRepo(null);
+                                          setBranchSearch(prev => ({ ...prev, [repo]: undefined }));
+                                        }}
+                                        style={{ padding: '0.35rem 0.65rem', fontSize: 'var(--font-xs)', cursor: 'pointer', color: b === baseBranch ? 'var(--color-primary)' : 'var(--text-primary)', fontWeight: b === baseBranch ? 600 : 400, background: 'transparent' }}
+                                        onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
+                                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                      >
+                                        {b}
+                                      </div>
+                                    ))}
+                                  </div>
+                                );
+                              })()}
+                            </>
+                          ) : (
+                            <button
+                              className="btn btn-ghost btn-sm flex items-center gap-xs"
+                              style={{ fontSize: 'var(--font-xs)', color: 'var(--text-tertiary)', padding: '0.1rem 0.25rem' }}
+                              onClick={e => {
+                                e.stopPropagation();
+                                setEditingBranchRepo(repo);
+                                fetchBranchesForRepo(repo);
+                              }}
+                            >
+                              <Icon name="git-branch" size={11} />
+                              desde: {baseBranch}
+                              <Icon name="edit" size={11} />
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
               </div>

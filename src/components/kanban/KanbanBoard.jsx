@@ -8,6 +8,8 @@ import TaskDetailSidebar from './TaskDetailSidebar';
 import DemoUrlModal from '../modals/DemoUrlModal';
 import StoryPointsRequestModal from '../modals/StoryPointsRequestModal';
 import CreateBranchModal from '../modals/CreateBranchModal';
+import CreatePRModal from '../modals/CreatePRModal';
+import DeleteBranchModal from '../modals/DeleteBranchModal';
 import Icon from '../common/Icon';
 import Toast from '../common/Toast';
 import { useAuth } from '../../contexts/AuthContext';
@@ -43,6 +45,8 @@ const KanbanBoard = ({ activeSprintId = null, delayViewMode = 'optimistic', show
   const [spRequestTask, setSpRequestTask] = useState(null);
   const [selectedProjectId, setSelectedProjectId] = useState(null);
   const [pendingBranchTask, setPendingBranchTask] = useState(null);
+  const [pendingPrTask, setPendingPrTask] = useState(null);
+  const [pendingDeleteBranchTask, setPendingDeleteBranchTask] = useState(null);
 
   // Build usersMap for quick lookup
   const usersMap = useMemo(() => {
@@ -239,7 +243,8 @@ const KanbanBoard = ({ activeSprintId = null, delayViewMode = 'optimistic', show
 
       // Si se mueve a QA y no viene de QA, pedir demo URL
       if (newStatus === 'qa' && previousStatus !== 'qa') {
-        setPendingQaMove({ taskId: active.id, previousStatus, task: activeTask });
+        const taskProject = projects.find(p => p.id === activeTask.projectId);
+        setPendingQaMove({ taskId: active.id, previousStatus, task: activeTask, project: taskProject || null });
         setActiveTask(null);
         return;
       }
@@ -248,11 +253,17 @@ const KanbanBoard = ({ activeSprintId = null, delayViewMode = 'optimistic', show
 
       if (newStatus === 'in-progress') {
         const taskProject = projects.find(p => p.id === activeTask.projectId);
-        if (taskProject?.repositories?.length > 0) {
+        if (activeTask.featureBranch) {
+          setToast({ isOpen: true, message: `Rama existente: ${activeTask.featureBranch}`, type: 'info' });
+        } else if (taskProject?.repositories?.length > 0) {
           setPendingBranchTask({ task: activeTask, project: taskProject });
         } else if (taskProject) {
           setToast({ isOpen: true, message: `El proyecto "${taskProject.name}" no tiene repositorios configurados. Agregalos en el detalle del proyecto.`, type: 'info' });
         }
+      }
+
+      if (newStatus === 'pending' && activeTask.featureBranch) {
+        setPendingDeleteBranchTask(activeTask);
       }
     }
     // Si se soltó sobre otra tarea (reordenar)
@@ -521,23 +532,30 @@ const KanbanBoard = ({ activeSprintId = null, delayViewMode = 'optimistic', show
       <div className="kanban-board">
         {activeProjects.length > 1 && (
           <div className="kanban-project-filter">
+            <span className="kanban-project-filter-label">Proyecto</span>
             <button
               className={`kanban-project-pill ${selectedProjectId === null ? 'active' : ''}`}
+              style={{ '--project-color': 'var(--color-primary)' }}
               onClick={() => setSelectedProjectId(null)}
             >
               Todos
+              <span className="kanban-project-pill-count">{tasks.length}</span>
             </button>
-            {activeProjects.map(project => (
-              <button
-                key={project.id}
-                className={`kanban-project-pill ${selectedProjectId === project.id ? 'active' : ''}`}
-                onClick={() => setSelectedProjectId(prev => prev === project.id ? null : project.id)}
-                style={{ '--project-color': project.color || '#6B7280' }}
-              >
-                <span className="kanban-project-pill-dot" />
-                {project.name}
-              </button>
-            ))}
+            {activeProjects.map(project => {
+              const count = tasks.filter(t => t.projectId === project.id).length;
+              return (
+                <button
+                  key={project.id}
+                  className={`kanban-project-pill ${selectedProjectId === project.id ? 'active' : ''}`}
+                  onClick={() => setSelectedProjectId(prev => prev === project.id ? null : project.id)}
+                  style={{ '--project-color': project.color || '#6B7280' }}
+                >
+                  <span className="kanban-project-pill-dot" />
+                  {project.name}
+                  <span className="kanban-project-pill-count">{count}</span>
+                </button>
+              );
+            })}
           </div>
         )}
         <DndContext
@@ -607,6 +625,8 @@ const KanbanBoard = ({ activeSprintId = null, delayViewMode = 'optimistic', show
           isOpen={!!pendingQaMove}
           onConfirm={handleQaConfirm}
           onCancel={handleQaCancel}
+          task={pendingQaMove?.task}
+          project={pendingQaMove?.project}
         />
 
         {pendingBranchTask && (
@@ -614,6 +634,14 @@ const KanbanBoard = ({ activeSprintId = null, delayViewMode = 'optimistic', show
             task={pendingBranchTask.task}
             project={pendingBranchTask.project}
             onClose={() => setPendingBranchTask(null)}
+          />
+        )}
+
+        {pendingDeleteBranchTask && (
+          <DeleteBranchModal
+            task={pendingDeleteBranchTask}
+            onClose={() => setPendingDeleteBranchTask(null)}
+            onSkip={() => setPendingDeleteBranchTask(null)}
           />
         )}
 

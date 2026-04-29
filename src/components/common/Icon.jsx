@@ -57,10 +57,13 @@ import ZoomOutMapIcon from '@mui/icons-material/ZoomOutMap';
 import MenuIcon from '@mui/icons-material/Menu';
 import SaveIcon from '@mui/icons-material/Save';
 import CallSplitIcon from '@mui/icons-material/CallSplit';
+import CallMergeIcon from '@mui/icons-material/CallMerge';
+import MergeTypeIcon from '@mui/icons-material/MergeType';
 import CodeIcon from '@mui/icons-material/Code';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import KeyIcon from '@mui/icons-material/Key';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 
 const Icon = ({ name, size = 20, className = '' }) => {
   const iconMap = {
@@ -123,6 +126,9 @@ const Icon = ({ name, size = 20, className = '' }) => {
     'menu': MenuIcon,
     'save': SaveIcon,
     'git-branch': CallSplitIcon,
+    'git-pull-request': MergeTypeIcon,
+    'git-merge': CallMergeIcon,
+    'trash-2': DeleteOutlineIcon,
     'code': CodeIcon,
     'external-link': OpenInNewIcon,
     'key': KeyIcon,

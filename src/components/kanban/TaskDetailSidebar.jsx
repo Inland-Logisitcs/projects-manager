@@ -11,6 +11,8 @@ import Toast from '../common/Toast';
 import ConfirmDialog from '../common/ConfirmDialog';
 import StoryPointsRequestModal from '../modals/StoryPointsRequestModal';
 import { updateTask, archiveTask } from '../../services/taskService';
+import { getPRStatus } from '../../services/githubService';
+import { useGitHubDeviceFlow } from '../../hooks/useGitHubDeviceFlow';
 import { createRequest } from '../../services/requestService';
 import { subscribeToUsers } from '../../services/userService';
 import { subscribeToProjects } from '../../services/projectService';
@@ -40,6 +42,9 @@ const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose, usersMap = {
   const [showSpRequestModal, setShowSpRequestModal] = useState(false);
   const { user, userProfile, isAdmin: isAdminFromAuth } = useAuth();
   const isAdmin = isAdminProp ?? isAdminFromAuth;
+  const [prStatuses, setPrStatuses] = useState({});
+  const [refreshingPRs, setRefreshingPRs] = useState(false);
+  const { token: githubToken } = useGitHubDeviceFlow();
 
   // Cargar usuarios
   useEffect(() => {
@@ -554,6 +559,100 @@ const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose, usersMap = {
                     <Icon name="edit" size={14} />
                   </button>
                 )}
+              </div>
+            )}
+
+            {/* Rama de feature */}
+            {task.featureBranch && (
+              <div className="flex flex-col gap-xs mt-sm">
+                <div className="flex items-center gap-xs">
+                  <Icon name="git-branch" size={14} className="text-secondary" />
+                  <span className="text-xs text-tertiary">Rama:</span>
+                  <span className="text-sm text-primary" style={{ fontFamily: 'monospace' }}>{task.featureBranch}</span>
+                </div>
+                {(task.featureBranchRepos?.length > 0 ? task.featureBranchRepos : [null]).map((repo, i) => (
+                  <div key={repo || i} className="flex items-center gap-xs" style={{ paddingLeft: '1.25rem' }}>
+                    {repo && <span className="text-xs text-tertiary" style={{ fontFamily: 'monospace' }}>{repo}</span>}
+                    <button
+                      className="btn btn-icon"
+                      style={{ width: 22, height: 22, minWidth: 22 }}
+                      title="Copiar git checkout"
+                      onClick={() => navigator.clipboard.writeText(`git checkout ${task.featureBranch}`).catch(() => {})}
+                    >
+                      <Icon name="copy" size={12} />
+                    </button>
+                    {repo && (
+                      <a
+                        href={`https://github.com/${repo}/tree/${encodeURIComponent(task.featureBranch)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn btn-icon"
+                        style={{ width: 22, height: 22, minWidth: 22 }}
+                        title="Ver en GitHub"
+                      >
+                        <Icon name="external-link" size={12} />
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Pull Requests */}
+            {task.pullRequests?.length > 0 && (
+              <div className="flex flex-col gap-xs mt-sm">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-xs">
+                    <Icon name="git-pull-request" size={14} className="text-secondary" />
+                    <span className="text-xs text-tertiary">Pull Requests</span>
+                  </div>
+                  {githubToken && (
+                    <button
+                      className="btn btn-icon"
+                      style={{ width: 20, height: 20, minWidth: 20 }}
+                      title="Actualizar estados"
+                      disabled={refreshingPRs}
+                      onClick={async () => {
+                        setRefreshingPRs(true);
+                        const updated = {};
+                        for (const pr of task.pullRequests) {
+                          try {
+                            const [owner, repo] = pr.repo.split('/');
+                            const status = await getPRStatus(githubToken, owner, repo, pr.number);
+                            updated[pr.repo] = status.state;
+                          } catch { updated[pr.repo] = pr.state; }
+                        }
+                        setPrStatuses(updated);
+                        const updatedPRs = task.pullRequests.map(pr => ({ ...pr, state: updated[pr.repo] ?? pr.state }));
+                        updateTask(task.id, { pullRequests: updatedPRs }).catch(() => {});
+                        setRefreshingPRs(false);
+                      }}
+                    >
+                      {refreshingPRs ? <span className="spinner" style={{ width: 12, height: 12 }} /> : <Icon name="refresh-cw" size={12} />}
+                    </button>
+                  )}
+                </div>
+                {task.pullRequests.map(pr => {
+                  const state = prStatuses[pr.repo] ?? pr.state;
+                  const stateColor = state === 'merged' ? 'var(--color-primary)' : state === 'closed' ? 'var(--color-error)' : 'var(--color-success)';
+                  const stateLabel = state === 'merged' ? 'Merged' : state === 'closed' ? 'Cerrado' : 'Abierto';
+                  return (
+                    <div key={pr.repo} className="flex items-center gap-xs" style={{ paddingLeft: '1.25rem' }}>
+                      <span className="text-xs text-tertiary" style={{ fontFamily: 'monospace', flex: 1 }}>{pr.repo}</span>
+                      <span style={{ fontSize: 'var(--font-xs)', color: stateColor, fontWeight: 600 }}>{stateLabel}</span>
+                      <a
+                        href={pr.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn btn-icon"
+                        style={{ width: 22, height: 22, minWidth: 22 }}
+                        title="Ver PR en GitHub"
+                      >
+                        <Icon name="external-link" size={12} />
+                      </a>
+                    </div>
+                  );
+                })}
               </div>
             )}
 

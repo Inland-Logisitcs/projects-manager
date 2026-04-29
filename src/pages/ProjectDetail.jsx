@@ -11,7 +11,7 @@ import Toast from '../components/common/Toast';
 import UserAvatar from '../components/common/UserAvatar';
 import TaskDetailSidebar from '../components/kanban/TaskDetailSidebar';
 import { useGitHubDeviceFlow } from '../hooks/useGitHubDeviceFlow';
-import { listUserRepos } from '../services/githubService';
+import { listUserRepos, listRepoBranches } from '../services/githubService';
 import '../styles/ProjectDetail.css';
 
 const ProjectDetail = () => {
@@ -43,6 +43,10 @@ const ProjectDetail = () => {
   const [showRepoPicker, setShowRepoPicker] = useState(false);
   const [showPatInput, setShowPatInput] = useState(false);
   const [patValue, setPatValue] = useState('');
+  const [branchOptions, setBranchOptions] = useState({});
+  const [loadingBranches, setLoadingBranches] = useState({});
+  const [editingBranchRepo, setEditingBranchRepo] = useState(null);
+  const [branchSearch, setBranchSearch] = useState({});
 
   useEffect(() => {
     const unsubProjects = subscribeToProjects((fetchedProjects) => {
@@ -183,7 +187,30 @@ const ProjectDetail = () => {
 
   const handleRemoveRepo = async (repo) => {
     const currentRepos = project.repositories || [];
-    await handleUpdateProject({ repositories: currentRepos.filter(r => r !== repo) });
+    const currentBranches = { ...(project.repoBranches || {}) };
+    delete currentBranches[repo];
+    await handleUpdateProject({ repositories: currentRepos.filter(r => r !== repo), repoBranches: currentBranches });
+  };
+
+  const fetchBranchesForRepo = async (repoFull) => {
+    if (branchOptions[repoFull] || !githubToken) return;
+    setLoadingBranches(prev => ({ ...prev, [repoFull]: true }));
+    try {
+      const [owner, repo] = repoFull.split('/');
+      const branches = await listRepoBranches(githubToken, owner, repo);
+      setBranchOptions(prev => ({ ...prev, [repoFull]: branches }));
+    } catch {
+      setBranchOptions(prev => ({ ...prev, [repoFull]: [] }));
+    } finally {
+      setLoadingBranches(prev => ({ ...prev, [repoFull]: false }));
+    }
+  };
+
+  const handleSetRepoBranch = async (repoFull, branch) => {
+    const currentBranches = { ...(project.repoBranches || {}) };
+    currentBranches[repoFull] = branch;
+    await handleUpdateProject({ repoBranches: currentBranches });
+    setEditingBranchRepo(null);
   };
 
   const handleCreateTask = async (taskData) => {
@@ -422,21 +449,91 @@ const ProjectDetail = () => {
               {(project.repositories || []).length === 0 ? (
                 <p className="text-sm text-tertiary">Sin repositorios configurados</p>
               ) : (
-                (project.repositories || []).map(repo => (
-                  <div key={repo} className="flex items-center justify-between gap-sm p-xs border-b-light">
-                    <span className="text-sm text-primary flex items-center gap-xs">
-                      <Icon name="code" size={14} />
-                      {repo}
-                    </span>
-                    <button
-                      className="btn btn-icon btn-ghost btn-sm"
-                      onClick={() => handleRemoveRepo(repo)}
-                      title="Eliminar"
-                    >
-                      <Icon name="x" size={14} />
-                    </button>
-                  </div>
-                ))
+                (project.repositories || []).map(repo => {
+                  const baseBranch = (project.repoBranches || {})[repo] || 'main';
+                  const isEditingBranch = editingBranchRepo === repo;
+                  return (
+                    <div key={repo} className="flex flex-col gap-xs p-xs" style={{ borderBottom: '1px solid var(--border-light)' }}>
+                      <div className="flex items-center justify-between gap-sm">
+                        <span className="text-sm text-primary flex items-center gap-xs">
+                          <Icon name="code" size={14} />
+                          {repo}
+                        </span>
+                        <button
+                          className="btn btn-icon btn-ghost btn-sm"
+                          onClick={() => handleRemoveRepo(repo)}
+                          title="Eliminar"
+                        >
+                          <Icon name="x" size={14} />
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-xs">
+                        <span className="text-xs text-tertiary">Rama base:</span>
+                        {isEditingBranch ? (
+                          <div style={{ flex: 1, position: 'relative' }}>
+                            {loadingBranches[repo] ? (
+                              <div className="flex items-center gap-xs">
+                                <span className="spinner" style={{ width: 12, height: 12 }} />
+                                <span className="text-xs text-tertiary">Cargando ramas...</span>
+                              </div>
+                            ) : (
+                              <>
+                                <div className="flex items-center gap-xs">
+                                  <input
+                                    type="text"
+                                    className="input"
+                                    style={{ fontSize: 'var(--font-xs)', padding: '0.2rem 0.5rem', height: 'auto', flex: 1 }}
+                                    placeholder={`Buscar rama (actual: ${baseBranch})`}
+                                    value={branchSearch[repo] ?? ''}
+                                    onChange={e => setBranchSearch(prev => ({ ...prev, [repo]: e.target.value }))}
+                                    autoFocus
+                                  />
+                                  <button className="btn btn-ghost btn-sm text-xs" onClick={() => { setEditingBranchRepo(null); setBranchSearch(prev => ({ ...prev, [repo]: undefined })); }}>
+                                    Cancelar
+                                  </button>
+                                </div>
+                                {(() => {
+                                  const q = (branchSearch[repo] ?? '').toLowerCase();
+                                  const filtered = (branchOptions[repo] || [baseBranch]).filter(b => b.toLowerCase().includes(q));
+                                  if (filtered.length === 0) return null;
+                                  return (
+                                    <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50, background: 'var(--bg-primary)', border: '1px solid var(--border-medium)', borderRadius: 'var(--radius-sm)', boxShadow: 'var(--shadow-md)', maxHeight: 160, overflowY: 'auto', marginTop: 2 }}>
+                                      {filtered.map(b => (
+                                        <div
+                                          key={b}
+                                          onClick={() => { handleSetRepoBranch(repo, b); setBranchSearch(prev => ({ ...prev, [repo]: undefined })); }}
+                                          style={{ padding: '0.35rem 0.65rem', fontSize: 'var(--font-xs)', cursor: 'pointer', color: b === baseBranch ? 'var(--color-primary)' : 'var(--text-primary)', fontWeight: b === baseBranch ? 600 : 400, background: 'transparent' }}
+                                          onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
+                                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                        >
+                                          {b}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  );
+                                })()}
+                              </>
+                            )}
+                          </div>
+                        ) : (
+                          <button
+                            className="btn btn-ghost btn-sm text-xs flex items-center gap-xs"
+                            style={{ color: 'var(--color-primary)' }}
+                            onClick={() => {
+                              setEditingBranchRepo(repo);
+                              fetchBranchesForRepo(repo);
+                            }}
+                            disabled={!githubToken}
+                          >
+                            <Icon name="git-branch" size={12} />
+                            {baseBranch}
+                            <Icon name="edit" size={12} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
               )}
             </div>
 
