@@ -10,6 +10,8 @@ import Icon from '../components/common/Icon';
 import Toast from '../components/common/Toast';
 import UserAvatar from '../components/common/UserAvatar';
 import TaskDetailSidebar from '../components/kanban/TaskDetailSidebar';
+import { useGitHubDeviceFlow } from '../hooks/useGitHubDeviceFlow';
+import { listUserRepos } from '../services/githubService';
 import '../styles/ProjectDetail.css';
 
 const ProjectDetail = () => {
@@ -32,8 +34,15 @@ const ProjectDetail = () => {
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterAssignee, setFilterAssignee] = useState('all');
   const [showCreateTask, setShowCreateTask] = useState(false);
-  const [newRepoInput, setNewRepoInput] = useState('');
-  const [repoError, setRepoError] = useState('');
+
+  const { token: githubToken, step: githubStep, userCode, verificationUri, error: githubError, connect: connectGitHub, disconnect: disconnectGitHub, cancel: cancelGitHub, savePatToken } = useGitHubDeviceFlow();
+  const [repoSearch, setRepoSearch] = useState('');
+  const [availableRepos, setAvailableRepos] = useState([]);
+  const [loadingRepos, setLoadingRepos] = useState(false);
+  const [repoFetchError, setRepoFetchError] = useState('');
+  const [showRepoPicker, setShowRepoPicker] = useState(false);
+  const [showPatInput, setShowPatInput] = useState(false);
+  const [patValue, setPatValue] = useState('');
 
   useEffect(() => {
     const unsubProjects = subscribeToProjects((fetchedProjects) => {
@@ -153,21 +162,23 @@ const ProjectDetail = () => {
     }
   };
 
-  const handleAddRepo = async () => {
-    const trimmed = newRepoInput.trim();
-    const parts = trimmed.split('/');
-    if (parts.length !== 2 || !parts[0] || !parts[1]) {
-      setRepoError('Formato invalido. Usa: propietario/repositorio');
-      return;
+  const fetchRepos = async (tok) => {
+    setLoadingRepos(true);
+    setRepoFetchError('');
+    try {
+      const repos = await listUserRepos(tok || githubToken);
+      setAvailableRepos(repos);
+    } catch (err) {
+      setRepoFetchError(err.message);
+    } finally {
+      setLoadingRepos(false);
     }
+  };
+
+  const handleAddRepo = async (repoFull) => {
     const currentRepos = project.repositories || [];
-    if (currentRepos.includes(trimmed)) {
-      setRepoError('Este repositorio ya esta configurado');
-      return;
-    }
-    setRepoError('');
-    const result = await handleUpdateProject({ repositories: [...currentRepos, trimmed] });
-    if (result.success) setNewRepoInput('');
+    if (currentRepos.includes(repoFull)) return;
+    await handleUpdateProject({ repositories: [...currentRepos, repoFull] });
   };
 
   const handleRemoveRepo = async (repo) => {
@@ -399,7 +410,14 @@ const ProjectDetail = () => {
                 <Icon name="git-branch" size={16} />
                 Repositorios de GitHub
               </h3>
+              {githubToken && (
+                <button className="btn btn-ghost text-xs text-tertiary" onClick={disconnectGitHub}>
+                  Cambiar cuenta
+                </button>
+              )}
             </div>
+
+            {/* Configured repos list */}
             <div className="flex flex-col gap-xs mb-sm">
               {(project.repositories || []).length === 0 ? (
                 <p className="text-sm text-tertiary">Sin repositorios configurados</p>
@@ -413,7 +431,7 @@ const ProjectDetail = () => {
                     <button
                       className="btn btn-icon btn-ghost btn-sm"
                       onClick={() => handleRemoveRepo(repo)}
-                      title="Eliminar repositorio"
+                      title="Eliminar"
                     >
                       <Icon name="x" size={14} />
                     </button>
@@ -421,26 +439,154 @@ const ProjectDetail = () => {
                 ))
               )}
             </div>
-            <div className="flex gap-xs">
-              <input
-                type="text"
-                className="input"
-                placeholder="propietario/repositorio"
-                value={newRepoInput}
-                onChange={e => { setNewRepoInput(e.target.value); setRepoError(''); }}
-                onKeyDown={e => e.key === 'Enter' && handleAddRepo()}
-                style={{ flex: 1 }}
-              />
-              <button
-                className="btn btn-secondary btn-sm flex items-center gap-xs"
-                onClick={handleAddRepo}
-                disabled={!newRepoInput.trim()}
-              >
-                <Icon name="plus" size={16} />
-                Agregar
-              </button>
-            </div>
-            {repoError && <p className="text-xs mt-xs" style={{ color: 'var(--color-error)' }}>{repoError}</p>}
+
+            {/* Add repo section */}
+            {!githubToken ? (
+              /* Not connected — show device flow */
+              <div className="flex flex-col gap-sm">
+                {githubStep === 'idle' && !showPatInput && (
+                  <div className="flex flex-col items-center gap-sm p-sm text-center" style={{ background: 'var(--bg-secondary)', borderRadius: 'var(--radius-sm)' }}>
+                    <p className="text-xs text-secondary">Conecta GitHub para seleccionar repositorios</p>
+                    <button className="btn btn-primary btn-sm flex items-center gap-xs" onClick={connectGitHub}>
+                      <Icon name="git-branch" size={14} />
+                      Conectar con GitHub
+                    </button>
+                    <button className="btn btn-ghost text-xs text-tertiary" onClick={() => setShowPatInput(true)}>
+                      o usar token personal
+                    </button>
+                  </div>
+                )}
+                {githubStep === 'loading' && (
+                  <div className="flex items-center gap-sm p-sm text-secondary text-sm">
+                    <div className="spinner" style={{ width: 16, height: 16 }} />
+                    Iniciando autenticacion...
+                  </div>
+                )}
+                {githubStep === 'waiting' && (
+                  <div className="flex flex-col gap-sm p-sm" style={{ background: 'var(--bg-secondary)', borderRadius: 'var(--radius-sm)' }}>
+                    <p className="text-xs text-secondary">Ingresa este codigo en GitHub:</p>
+                    <div className="flex items-center gap-sm">
+                      <span style={{ fontFamily: 'monospace', fontSize: '1.1rem', fontWeight: 700, letterSpacing: '0.1em', color: 'var(--text-primary)' }}>
+                        {userCode}
+                      </span>
+                      <button className="btn btn-icon btn-ghost btn-sm" onClick={() => navigator.clipboard.writeText(userCode).catch(() => {})} title="Copiar">
+                        <Icon name="save" size={14} />
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-sm">
+                      <a href={verificationUri} target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-sm flex items-center gap-xs">
+                        <Icon name="external-link" size={14} />
+                        Abrir GitHub
+                      </a>
+                      <button className="btn btn-ghost btn-sm text-xs text-tertiary" onClick={cancelGitHub}>Cancelar</button>
+                    </div>
+                    <p className="text-xs text-tertiary flex items-center gap-xs">
+                      <span className="spinner" style={{ width: 10, height: 10 }} />
+                      Esperando autorizacion...
+                    </p>
+                  </div>
+                )}
+                {githubStep === 'error' && (
+                  <div className="flex items-center gap-sm p-sm">
+                    <span className="text-xs text-secondary" style={{ flex: 1 }}>{githubError}</span>
+                    <button className="btn btn-secondary btn-sm" onClick={connectGitHub}>Reintentar</button>
+                  </div>
+                )}
+                {showPatInput && (
+                  <div className="flex flex-col gap-xs">
+                    <input
+                      type="password"
+                      className="input"
+                      placeholder="ghp_..."
+                      value={patValue}
+                      onChange={e => setPatValue(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && patValue.trim()) {
+                          savePatToken(patValue.trim());
+                          setShowPatInput(false);
+                          setPatValue('');
+                          fetchRepos(patValue.trim());
+                        }
+                      }}
+                      autoFocus
+                    />
+                    <div className="flex gap-xs justify-end">
+                      <button className="btn btn-ghost btn-sm" onClick={() => { setShowPatInput(false); setPatValue(''); }}>Cancelar</button>
+                      <button className="btn btn-primary btn-sm" disabled={!patValue.trim()} onClick={() => {
+                        savePatToken(patValue.trim());
+                        setShowPatInput(false);
+                        fetchRepos(patValue.trim());
+                        setPatValue('');
+                      }}>Guardar</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Connected — show repo picker */
+              <div className="flex flex-col gap-xs">
+                {!showRepoPicker ? (
+                  <button
+                    className="btn btn-secondary btn-sm flex items-center gap-xs"
+                    onClick={() => {
+                      setShowRepoPicker(true);
+                      if (availableRepos.length === 0) fetchRepos();
+                    }}
+                  >
+                    <Icon name="plus" size={14} />
+                    Agregar repositorio
+                  </button>
+                ) : (
+                  <div className="flex flex-col gap-xs">
+                    <div className="flex gap-xs">
+                      <input
+                        type="text"
+                        className="input"
+                        placeholder="Buscar repositorio..."
+                        value={repoSearch}
+                        onChange={e => setRepoSearch(e.target.value)}
+                        autoFocus
+                        style={{ flex: 1 }}
+                      />
+                      <button className="btn btn-icon btn-ghost btn-sm" onClick={() => { setShowRepoPicker(false); setRepoSearch(''); }}>
+                        <Icon name="x" size={14} />
+                      </button>
+                    </div>
+                    {repoFetchError && (
+                      <p className="text-xs" style={{ color: 'var(--color-error)' }}>{repoFetchError}</p>
+                    )}
+                    {loadingRepos ? (
+                      <div className="flex items-center gap-xs p-xs text-secondary text-xs">
+                        <div className="spinner" style={{ width: 12, height: 12 }} />
+                        Cargando repositorios...
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-xs" style={{ maxHeight: 200, overflowY: 'auto' }}>
+                        {availableRepos
+                          .filter(r => r.toLowerCase().includes(repoSearch.toLowerCase()) && !(project.repositories || []).includes(r))
+                          .slice(0, 20)
+                          .map(repo => (
+                            <button
+                              key={repo}
+                              className="flex items-center gap-xs p-xs text-sm text-primary"
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', borderRadius: 'var(--radius-sm)' }}
+                              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
+                              onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                              onClick={() => { handleAddRepo(repo); setShowRepoPicker(false); setRepoSearch(''); }}
+                            >
+                              <Icon name="code" size={14} />
+                              {repo}
+                            </button>
+                          ))}
+                        {availableRepos.filter(r => r.toLowerCase().includes(repoSearch.toLowerCase()) && !(project.repositories || []).includes(r)).length === 0 && !loadingRepos && (
+                          <p className="text-xs text-tertiary p-xs">Sin resultados</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

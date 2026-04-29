@@ -29,3 +29,19 @@ export const createGithubBranch = async (token, owner, repo, branchName, sha) =>
   }
   return res.json();
 };
+
+export const listUserRepos = async (token) => {
+  const all = [];
+  let page = 1;
+  while (true) {
+    const res = await fetch(`${GITHUB_API}/user/repos?per_page=100&page=${page}&sort=updated&type=all`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' }
+    });
+    if (!res.ok) throw new Error(`Error ${res.status} al obtener repositorios`);
+    const data = await res.json();
+    all.push(...data.map(r => r.full_name));
+    if (data.length < 100) break;
+    page++;
+  }
+  return all;
+};
