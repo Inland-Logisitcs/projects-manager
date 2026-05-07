@@ -151,6 +151,17 @@
   text-align: center;
 }
 
+.column-sp-total {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 0.2rem 0.5rem;
+  white-space: nowrap;
+}
+
 .add-task-btn {
   width: 32px;
   height: 32px;

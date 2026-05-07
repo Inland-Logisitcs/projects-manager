@@ -60,6 +60,11 @@ const KanbanColumn = ({ column, tasks, onAddTask, onDeleteTask, onCreateTask, us
           <h3>{column.title}</h3>
           <span className="task-count">{tasks.length}</span>
         </div>
+        {tasks.some(t => t.storyPoints > 0) && (
+          <span className="column-sp-total has-tooltip" data-tooltip="Story Points totales">
+            {tasks.reduce((sum, t) => sum + (t.storyPoints || 0), 0)} SP
+          </span>
+        )}
         <button
           className="add-task-btn has-tooltip"
           onClick={handleStartInlineCreate}
