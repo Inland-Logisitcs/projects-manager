@@ -8,6 +8,7 @@ import { subscribeToHolidays } from '../services/holidayService';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import Icon from '../components/common/Icon';
 import TaskDetailSidebar from '../components/kanban/TaskDetailSidebar';
+import { timestampToDate, formatShortDate } from '../utils/dateUtils';
 import '../styles/UserStats.css';
 
 const UserStatsDetail = () => {
@@ -114,13 +115,6 @@ const UserStatsDetail = () => {
     };
   }, [isAdmin, navigate, userId]);
 
-  const getTimestamp = (ts) => {
-    if (!ts) return null;
-    if (ts.toDate) return ts.toDate();
-    if (ts instanceof Date) return ts;
-    return new Date(ts);
-  };
-
   // Set de fechas feriadas para busqueda rapida
   const holidayDates = useMemo(() => {
     return new Set(holidays.map(h => h.date));
@@ -173,10 +167,10 @@ const UserStatsDetail = () => {
     for (const entry of history) {
       if (entry.type === 'status_change') {
         if (entry.to === 'in-progress' && !startTime) {
-          startTime = getTimestamp(entry.timestamp);
+          startTime = timestampToDate(entry.timestamp);
         }
         if ((entry.to === 'qa' || entry.to === 'completed') && !endTime) {
-          endTime = getTimestamp(entry.timestamp);
+          endTime = timestampToDate(entry.timestamp);
         }
       }
     }
@@ -217,9 +211,19 @@ const UserStatsDetail = () => {
     const startEntry = (task.movementHistory || []).find(
       e => e.type === 'status_change' && e.to === 'in-progress'
     );
-    const startDate = startEntry ? getTimestamp(startEntry.timestamp) : null;
+    const startDate = startEntry ? timestampToDate(startEntry.timestamp) : null;
     if (!startDate) return null;
     return countWorkingDays(startDate, new Date(), getUserWorkingDays());
+  };
+
+  const getCompletionDate = (task) => {
+    const history = task.movementHistory || [];
+    for (const entry of history) {
+      if (entry.type === 'status_change' && (entry.to === 'qa' || entry.to === 'completed')) {
+        return timestampToDate(entry.timestamp);
+      }
+    }
+    return null;
   };
 
   // Mapa de usuarios para TaskDetailSidebar
@@ -241,12 +245,6 @@ const UserStatsDetail = () => {
     if (days === null || days === undefined) return '-';
     if (days < 1) return `${Math.round(days * 24)}h`;
     return `${days.toFixed(1)}d`;
-  };
-
-  const formatDate = (ts) => {
-    const d = getTimestamp(ts);
-    if (!d) return '-';
-    return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
   };
 
   const allTasks = useMemo(() => [...tasks, ...archivedTasks], [tasks, archivedTasks]);
@@ -274,10 +272,13 @@ const UserStatsDetail = () => {
     const assigned = allTasks.filter(t => t.assignedTo === userId);
     if (!dateRange) return assigned;
     return assigned.filter(t => {
-      const updated = getTimestamp(t.updatedAt);
-      if (!updated) return false;
-      if (dateRange.from && updated < dateRange.from) return false;
-      if (dateRange.to && updated > dateRange.to) return false;
+      const isCompleted = t.status === 'completed' || t.status === 'qa' || t.archived;
+      const relevantDate = isCompleted
+        ? (getCompletionDate(t) || timestampToDate(t.updatedAt))
+        : timestampToDate(t.updatedAt);
+      if (!relevantDate) return false;
+      if (dateRange.from && relevantDate < dateRange.from) return false;
+      if (dateRange.to && relevantDate > dateRange.to) return false;
       return true;
     });
   }, [allTasks, userId, dateRange]);
@@ -326,6 +327,67 @@ const UserStatsDetail = () => {
     };
   }, [userTasks]);
 
+  const comparisonData = useMemo(() => {
+    const now = new Date();
+    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    const periodAStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30, 0, 0, 0, 0);
+    const periodBEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 31, 23, 59, 59, 999);
+    const periodBStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 61, 0, 0, 0, 0);
+
+    const userAllTasks = allTasks.filter(t => t.assignedTo === userId);
+
+    const getCompletedInRange = (from, to) =>
+      userAllTasks
+        .filter(t => t.status === 'completed' || t.status === 'qa' || t.archived)
+        .filter(t => {
+          const d = getCompletionDate(t) || timestampToDate(t.updatedAt);
+          return d && d >= from && d <= to;
+        });
+
+    const getCapacidadSP = (from, to) => {
+      const wDays = getUserWorkingDays();
+      if (!user?.dailyCapacity || wDays.length === 0) return null;
+      // countWorkingDays es exclusivo del dia final, sumar 1 dia para incluirlo
+      const toInclusive = new Date(to.getFullYear(), to.getMonth(), to.getDate() + 1);
+      const days = countWorkingDays(from, toInclusive, wDays);
+      return days !== null ? Math.round(days * user.dailyCapacity * 10) / 10 : null;
+    };
+
+    const computePeriodStats = (completed, capacidadSP) => {
+      const sp = completed.reduce((s, t) => s + (t.storyPoints || 0), 0);
+      const delayed = completed.filter(t => isTaskDelayed(t) === true);
+      const onTime = completed.filter(t => isTaskDelayed(t) === false);
+      const withEstimate = completed.filter(t => isTaskDelayed(t) !== null);
+      const delayAmounts = delayed
+        .map(t => {
+          const actual = getCompletionTime(t);
+          const expected = getExpectedDuration(t);
+          return actual !== null && expected !== null ? actual - expected : null;
+        })
+        .filter(v => v !== null);
+      const avgDelay = delayAmounts.length > 0 ? delayAmounts.reduce((a, b) => a + b, 0) / delayAmounts.length : null;
+      const eficiencia = capacidadSP && capacidadSP > 0 ? Math.round((sp / capacidadSP) * 100) : null;
+      return {
+        count: completed.length,
+        sp,
+        delayRate: withEstimate.length > 0 ? (delayed.length / withEstimate.length) * 100 : null,
+        onTime: onTime.length,
+        delayed: delayed.length,
+        avgDelay,
+        capacidadSP,
+        eficiencia,
+      };
+    };
+
+    const capA = getCapacidadSP(periodAStart, todayEnd);
+    const capB = getCapacidadSP(periodBStart, periodBEnd);
+
+    return {
+      periodA: { start: periodAStart, end: todayEnd, stats: computePeriodStats(getCompletedInRange(periodAStart, todayEnd), capA) },
+      periodB: { start: periodBStart, end: periodBEnd, stats: computePeriodStats(getCompletedInRange(periodBStart, periodBEnd), capB) },
+    };
+  }, [allTasks, userId, user, holidayDates]);
+
   if (loading) {
     return (
       <div className="page-container page-container-narrow">
@@ -356,6 +418,7 @@ const UserStatsDetail = () => {
   const tabs = [
     { id: 'resumen', label: 'Resumen' },
     { id: 'calendario', label: 'Calendario' },
+    { id: 'comparar', label: 'Comparar 30d' },
     { id: 'en-progreso', label: `En Progreso (${stats.inProgress.length})` },
     { id: 'completadas', label: `Completadas (${stats.completed.length})` },
     { id: 'pendientes', label: `Pendientes (${stats.pending.length})` },
@@ -512,23 +575,26 @@ const UserStatsDetail = () => {
             stats={stats}
             projectMap={projectMap}
             formatDays={formatDays}
-            formatDate={formatDate}
             getCompletionTime={getCompletionTime}
             isTaskDelayed={isTaskDelayed}
-            getTimestamp={getTimestamp}
           />
         )}
         {activeTab === 'calendario' && (
           <CalendarTab
             tasks={[...stats.completed, ...stats.inProgress]}
             projectMap={projectMap}
-            getTimestamp={getTimestamp}
             formatDays={formatDays}
             getCompletionTime={getCompletionTime}
             getExpectedDuration={getExpectedDuration}
             holidayDates={holidayDates}
             holidays={holidays}
             userWorkingDays={getUserWorkingDays()}
+          />
+        )}
+        {activeTab === 'comparar' && (
+          <ComparacionTab
+            comparisonData={comparisonData}
+            formatDays={formatDays}
           />
         )}
         {activeTab === 'en-progreso' && (
@@ -538,8 +604,6 @@ const UserStatsDetail = () => {
             projectMap={projectMap}
             columnMap={columnMap}
             formatDays={formatDays}
-            formatDate={formatDate}
-            getTimestamp={getTimestamp}
             getWorkingDaysActive={getWorkingDaysActive}
             getExpectedDuration={getExpectedDuration}
             onTaskClick={setSelectedTask}
@@ -552,8 +616,6 @@ const UserStatsDetail = () => {
             projectMap={projectMap}
             columnMap={columnMap}
             formatDays={formatDays}
-            formatDate={formatDate}
-            getTimestamp={getTimestamp}
             getCompletionTime={getCompletionTime}
             isTaskDelayed={isTaskDelayed}
             getExpectedDuration={getExpectedDuration}
@@ -567,8 +629,6 @@ const UserStatsDetail = () => {
             projectMap={projectMap}
             columnMap={columnMap}
             formatDays={formatDays}
-            formatDate={formatDate}
-            getTimestamp={getTimestamp}
             onTaskClick={setSelectedTask}
           />
         )}
@@ -589,7 +649,7 @@ const UserStatsDetail = () => {
 };
 
 /* ---- Resumen Tab ---- */
-const ResumenTab = ({ stats, projectMap, formatDays, formatDate, getCompletionTime, isTaskDelayed, getTimestamp }) => {
+const ResumenTab = ({ stats, projectMap, formatDays, getCompletionTime, isTaskDelayed }) => {
   const projectGroups = Object.entries(stats.byProject)
     .map(([pid, tasks]) => ({
       id: pid,
@@ -717,7 +777,7 @@ const ResumenTab = ({ stats, projectMap, formatDays, formatDate, getCompletionTi
 
 /* ---- Calendar Tab ---- */
 const CalendarTab = ({
-  tasks, projectMap, getTimestamp, formatDays,
+  tasks, projectMap, formatDays,
   getCompletionTime, getExpectedDuration, holidayDates, holidays, userWorkingDays
 }) => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -731,10 +791,10 @@ const CalendarTab = ({
       for (const entry of history) {
         if (entry.type === 'status_change') {
           if (entry.to === 'in-progress' && !start) {
-            start = getTimestamp(entry.timestamp);
+            start = timestampToDate(entry.timestamp);
           }
           if ((entry.to === 'qa' || entry.to === 'completed') && !end) {
-            end = getTimestamp(entry.timestamp);
+            end = timestampToDate(entry.timestamp);
           }
         }
       }
@@ -941,15 +1001,153 @@ const CalendarTab = ({
   );
 };
 
+/* ---- Comparacion Tab ---- */
+const ComparacionTab = ({ comparisonData, formatDays }) => {
+  const { periodA, periodB } = comparisonData;
+
+  const fmtDate = (d) => d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+
+  const getDelta = (current, previous, lowerIsBetter = false) => {
+    if (current === null || previous === null) return null;
+    const diff = current - previous;
+    if (diff === 0) return { diff: 0, improved: null };
+    return { diff, improved: lowerIsBetter ? diff < 0 : diff > 0 };
+  };
+
+  const metrics = [
+    {
+      label: 'Tareas completadas',
+      icon: 'check-circle',
+      a: periodA.stats.count,
+      b: periodB.stats.count,
+      lowerIsBetter: false,
+      format: (v) => v !== null ? String(v) : '-',
+      formatDiff: (d) => `${d > 0 ? '+' : ''}${d}`,
+    },
+    {
+      label: 'Story Points',
+      icon: 'zap',
+      a: periodA.stats.sp,
+      b: periodB.stats.sp,
+      lowerIsBetter: false,
+      format: (v) => v !== null ? String(v) : '-',
+      formatDiff: (d) => `${d > 0 ? '+' : ''}${d}`,
+    },
+    {
+      label: 'Capacidad SP',
+      icon: 'bar-chart',
+      a: periodA.stats.capacidadSP,
+      b: periodB.stats.capacidadSP,
+      lowerIsBetter: false,
+      format: (v) => v !== null ? String(v) : '-',
+      formatDiff: (d) => `${d > 0 ? '+' : ''}${Math.round(d)}`,
+    },
+    {
+      label: '% Capacidad utilizada',
+      icon: 'star',
+      a: periodA.stats.eficiencia,
+      b: periodB.stats.eficiencia,
+      lowerIsBetter: false,
+      format: (v) => v !== null ? `${v}%` : '-',
+      formatDiff: (d) => `${d > 0 ? '+' : ''}${Math.round(d)}%`,
+    },
+    {
+      label: 'Tasa de retraso',
+      icon: 'alert-triangle',
+      a: periodA.stats.delayRate,
+      b: periodB.stats.delayRate,
+      lowerIsBetter: true,
+      format: (v) => v !== null ? `${v.toFixed(0)}%` : '-',
+      formatDiff: (d) => `${d > 0 ? '+' : ''}${Math.abs(d).toFixed(0)}%`,
+    },
+    {
+      label: 'A tiempo',
+      icon: 'check',
+      a: periodA.stats.onTime,
+      b: periodB.stats.onTime,
+      lowerIsBetter: false,
+      format: (v) => v !== null ? String(v) : '-',
+      formatDiff: (d) => `${d > 0 ? '+' : ''}${d}`,
+    },
+    {
+      label: 'Retrasadas',
+      icon: 'warning',
+      a: periodA.stats.delayed,
+      b: periodB.stats.delayed,
+      lowerIsBetter: true,
+      format: (v) => v !== null ? String(v) : '-',
+      formatDiff: (d) => `${d > 0 ? '+' : ''}${d}`,
+    },
+    {
+      label: 'Retraso promedio',
+      icon: 'clock',
+      a: periodA.stats.avgDelay,
+      b: periodB.stats.avgDelay,
+      lowerIsBetter: true,
+      format: (v) => v !== null ? formatDays(v) : '-',
+      formatDiff: (d) => `${d > 0 ? '+' : ''}${formatDays(Math.abs(d))}`,
+    },
+  ];
+
+  return (
+    <div className="stats-comparacion">
+      <div className="stats-comparacion-periods">
+        <div />
+        <div className="stats-comparacion-col-header stats-comparacion-col-current">
+          <span className="text-sm font-bold text-primary">Ultimos 30 dias</span>
+          <span className="text-xs text-secondary">{fmtDate(periodA.start)} - {fmtDate(periodA.end)}</span>
+        </div>
+        <div className="stats-comparacion-col-header">
+          <span className="text-xs font-bold text-tertiary">Cambio</span>
+        </div>
+        <div className="stats-comparacion-col-header">
+          <span className="text-sm font-bold text-tertiary">30 dias anteriores</span>
+          <span className="text-xs text-tertiary">{fmtDate(periodB.start)} - {fmtDate(periodB.end)}</span>
+        </div>
+      </div>
+
+      <div className="stats-comparacion-table">
+        {metrics.map((m) => {
+          const delta = getDelta(m.a, m.b, m.lowerIsBetter);
+          return (
+            <div key={m.label} className="stats-comparacion-row">
+              <div className="stats-comparacion-metric">
+                <Icon name={m.icon} size={15} />
+                <span className="text-sm text-secondary">{m.label}</span>
+              </div>
+              <div className="stats-comparacion-val-current">
+                {m.format(m.a)}
+              </div>
+              <div className="stats-comparacion-delta-cell">
+                {delta === null || delta.diff === 0 ? (
+                  <span className="text-xs text-tertiary">—</span>
+                ) : (
+                  <span className={`stats-comparacion-badge ${delta.improved ? 'stats-comparacion-improved' : 'stats-comparacion-worse'}`}>
+                    <Icon name={delta.diff > 0 ? 'arrow-up' : 'arrow-down'} size={11} />
+                    {m.formatDiff(delta.diff)}
+                  </span>
+                )}
+              </div>
+              <div className="stats-comparacion-val-prev">
+                {m.format(m.b)}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 /* ---- Task List Tab ---- */
 const TaskListTab = ({
-  tasks, type, projectMap, columnMap, formatDays, formatDate, getTimestamp,
+  tasks, type, projectMap, columnMap, formatDays,
   getCompletionTime, isTaskDelayed, getWorkingDaysActive, getExpectedDuration, onTaskClick
 }) => {
   const sorted = useMemo(() => {
     return [...tasks].sort((a, b) => {
-      const da = getTimestamp(a.updatedAt) || new Date(0);
-      const db2 = getTimestamp(b.updatedAt) || new Date(0);
+      const da = timestampToDate(a.updatedAt) || new Date(0);
+      const db2 = timestampToDate(b.updatedAt) || new Date(0);
       return db2 - da;
     });
   }, [tasks]);
@@ -1006,10 +1204,10 @@ const TaskListTab = ({
             for (const entry of history) {
               if (entry.type === 'status_change') {
                 if (entry.to === 'in-progress' && !startDate) {
-                  startDate = getTimestamp(entry.timestamp);
+                  startDate = timestampToDate(entry.timestamp);
                 }
                 if ((entry.to === 'qa' || entry.to === 'completed') && !endDate) {
-                  endDate = getTimestamp(entry.timestamp);
+                  endDate = timestampToDate(entry.timestamp);
                 }
               }
             }
@@ -1058,12 +1256,12 @@ const TaskListTab = ({
                   )}
                 </td>
                 <td className="stats-td stats-td-center">
-                  <span className="text-xs text-tertiary">{startDate ? formatDate(startDate) : '-'}</span>
+                  <span className="text-xs text-tertiary">{startDate ? formatShortDate(startDate) : '-'}</span>
                 </td>
                 {(type === 'completed' || type === 'in-progress') && (
                   <td className="stats-td stats-td-center">
                     <span className="text-xs text-tertiary">
-                      {type === 'completed' ? (endDate ? formatDate(endDate) : '-') : '-'}
+                      {type === 'completed' ? (endDate ? formatShortDate(endDate) : '-') : '-'}
                     </span>
                   </td>
                 )}

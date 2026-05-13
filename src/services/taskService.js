@@ -45,6 +45,7 @@ export const createTask = async (taskData) => {
       projectId: taskData.projectId || null,
       assignee: taskData.assignee || null,
       storyPoints: taskData.storyPoints || null,
+      preliminaryStoryPoints: taskData.preliminaryStoryPoints || null,
       order: taskData.order || 0,
       archived: false,
       createdAt: serverTimestamp(),

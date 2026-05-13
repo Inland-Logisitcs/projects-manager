@@ -30,14 +30,17 @@ const transformarDatos = (proyectos, usuarios, tareas, factoresRiesgo = []) => {
       proyectosAsignados: u.projectsAssigned || u.proyectosAsignados || [],
       diasLaborables: u.workingDays || [1, 2, 3, 4, 5]
     })),
-    tareas: tareas.map(t => ({
-      id: t.id,
-      nombre: t.title || t.nombre,
-      proyectoId: t.projectId || t.proyectoId,
-      storyPoints: Number(t.storyPoints || 3),
-      dependencias: t.dependencies || t.dependencias || [],
-      usuarioForzado: t.assignedTo || t.usuarioForzado || null
-    })),
+    tareas: tareas.map(t => {
+      const spEfectivo = (t.storyPoints > 0) ? t.storyPoints : (t.preliminaryStoryPoints || 3);
+      return {
+        id: t.id,
+        nombre: t.title || t.nombre,
+        proyectoId: t.projectId || t.proyectoId,
+        storyPoints: Number(spEfectivo),
+        dependencias: t.dependencies || t.dependencias || [],
+        usuarioForzado: t.assignedTo || t.usuarioForzado || null
+      };
+    }),
     factoresRiesgo: factoresRiesgo.map(r => ({
       usuarioId: r.userId || r.usuarioId,
       proyectoId: r.projectId || r.proyectoId,

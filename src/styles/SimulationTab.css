@@ -1,0 +1,503 @@
+.sim-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-base);
+  padding: var(--space-4xl);
+  color: var(--text-tertiary);
+  text-align: center;
+}
+
+/* ---- Setup ---- */
+
+.sim-setup-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-base);
+  margin-bottom: var(--space-lg);
+}
+
+.sim-projects-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.sim-project-card {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
+  border-left: 4px solid var(--color-primary);
+  border-radius: var(--radius-base);
+  padding: var(--space-base);
+  transition: box-shadow 0.15s ease;
+}
+
+.sim-project-card:hover {
+  box-shadow: var(--shadow-base);
+}
+
+.sim-project-card-warning {
+  background: color-mix(in srgb, var(--color-warning) 5%, var(--bg-primary));
+}
+
+.sim-project-card-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-base);
+  margin-bottom: var(--space-sm);
+}
+
+.sim-priority-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  flex-shrink: 0;
+}
+
+.sim-priority-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  color: white;
+  font-size: var(--font-sm);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.sim-drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+  color: var(--text-tertiary);
+  cursor: grab;
+  padding: 0;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.sim-drag-handle:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-color: var(--border-medium);
+}
+
+.sim-drag-handle:active {
+  cursor: grabbing;
+}
+
+.sim-project-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.sim-user-selection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding-left: calc(2rem + var(--space-base) + 1.25rem + var(--space-xs));
+}
+
+.sim-user-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.sim-user-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 0.25rem 0.625rem;
+  border: 1.5px solid var(--border-medium);
+  border-radius: var(--radius-lg);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: var(--font-xs);
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.sim-user-chip:hover {
+  border-color: var(--border-dark);
+  color: var(--text-primary);
+}
+
+.sim-user-chip.active {
+  font-weight: 500;
+}
+
+.sim-user-chip-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  background: var(--bg-tertiary);
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  flex-shrink: 0;
+}
+
+.sim-user-chip-name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spinner-sm {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ---- Results ---- */
+
+.sim-results-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-base);
+  margin-bottom: var(--space-lg);
+}
+
+.sim-view-toggle {
+  display: flex;
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-base);
+  overflow: hidden;
+}
+
+.sim-view-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 0.375rem 0.875rem;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: var(--font-sm);
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.sim-view-btn + .sim-view-btn {
+  border-left: 1px solid var(--border-medium);
+}
+
+.sim-view-btn.active {
+  background: var(--color-primary);
+  color: white;
+}
+
+.sim-summary-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-sm);
+  margin-bottom: var(--space-lg);
+}
+
+.sim-summary-card {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
+  border-left: 4px solid var(--color-primary);
+  border-radius: var(--radius-base);
+  padding: var(--space-base);
+}
+
+.sim-summary-card-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-sm);
+}
+
+.sim-summary-color-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.sim-summary-stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.sim-summary-stats > span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ---- Gantt Chart ---- */
+
+.sim-gantt-container {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-base);
+  padding: var(--space-base);
+  overflow: hidden;
+}
+
+.sim-gantt {
+  display: flex;
+  gap: 0;
+  overflow-x: auto;
+}
+
+.sim-gantt-labels {
+  flex-shrink: 0;
+  width: 160px;
+  border-right: 1px solid var(--border-light);
+}
+
+.sim-gantt-header-label {
+  height: 32px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.sim-gantt-row-label {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 44px;
+  padding: var(--space-xs) var(--space-sm);
+  border-bottom: 1px solid var(--border-light);
+  overflow: hidden;
+}
+
+.sim-gantt-user-label {
+  padding: 0 var(--space-xs);
+  height: 28px;
+  display: flex;
+  align-items: center;
+}
+
+.sim-expand-btn {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--text-tertiary);
+  padding: 0;
+}
+
+.sim-expand-btn:hover {
+  color: var(--text-primary);
+}
+
+.sim-gantt-chart {
+  flex: 1;
+  position: relative;
+  min-width: 0;
+  overflow-x: auto;
+  min-width: 500px;
+}
+
+.sim-gantt-header-row {
+  position: relative;
+  height: 32px;
+  border-bottom: 1px solid var(--border-light);
+  background: var(--bg-secondary);
+}
+
+.sim-gantt-day-label {
+  position: absolute;
+  top: 6px;
+  transform: translateX(-50%);
+  font-size: var(--font-xs);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.sim-gantt-day-tick {
+  position: absolute;
+  bottom: -1px;
+  left: 50%;
+  width: 1px;
+  height: 6px;
+  background: var(--border-medium);
+}
+
+.sim-gantt-project-group {
+  border-bottom: 1px solid var(--border-light);
+}
+
+.sim-gantt-row {
+  position: relative;
+  height: 44px;
+  background: var(--bg-primary);
+}
+
+.sim-gantt-user-row {
+  height: 28px;
+  background: var(--bg-secondary);
+}
+
+.sim-gantt-span-line {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 4px;
+  border-radius: 2px;
+  opacity: 0.25;
+  pointer-events: none;
+}
+
+.sim-gantt-bar {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 28px;
+  border-radius: var(--radius-base);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-xs);
+  overflow: hidden;
+  cursor: default;
+  min-width: 4px;
+}
+
+.sim-gantt-bar-label {
+  font-size: var(--font-xs);
+  color: white;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+.sim-gantt-bar-days {
+  font-size: 0.65rem;
+  color: rgba(255, 255, 255, 0.85);
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-left: var(--space-xs);
+  background: rgba(0, 0, 0, 0.15);
+  padding: 1px 4px;
+  border-radius: var(--radius-sm);
+}
+
+.sim-gantt-task-bar {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 18px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid;
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+  overflow: hidden;
+  cursor: default;
+  min-width: 4px;
+}
+
+.sim-gantt-task-label {
+  font-size: 0.6rem;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sim-gantt-end-marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.sim-gantt-end-tick {
+  width: 2px;
+  height: 100%;
+  opacity: 0.7;
+}
+
+.sim-gantt-end-label {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%) translateX(4px);
+  left: 2px;
+  font-size: var(--font-xs);
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  background: var(--bg-primary);
+  padding: 1px 4px;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+}
+
+.sim-gantt-today-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--color-error);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sim-user-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-base);
+}
+
+.sim-legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.sim-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { subscribeToUsers, createNewUser, updateUser, toggleUserStatus } from '../services/userService';
 import { useNavigate } from 'react-router-dom';
+import { formatDateTime } from '../utils/dateUtils';
 import Table from '../components/tables/Table';
 import TableActions from '../components/tables/TableActions';
 import CreateUserModal from '../components/modals/CreateUserModal';
@@ -81,18 +82,6 @@ const Users = () => {
     if (!result.success) {
       console.error('Error al cambiar estado del usuario:', result.error);
     }
-  };
-
-  const formatDate = (timestamp) => {
-    if (!timestamp) return '-';
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return date.toLocaleDateString('es-ES', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
   };
 
   const getRoleBadgeClass = (role) => {
@@ -195,10 +184,10 @@ const Users = () => {
         );
 
       case 'createdAt':
-        return <span className="user-date">{formatDate(user.createdAt)}</span>;
+        return <span className="user-date">{formatDateTime(user.createdAt)}</span>;
 
       case 'updatedAt':
-        return <span className="user-date">{formatDate(user.updatedAt)}</span>;
+        return <span className="user-date">{formatDateTime(user.updatedAt)}</span>;
 
       case 'actions':
         return (

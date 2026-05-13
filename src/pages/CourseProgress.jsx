@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, Fragment } from 'react';
 import { subscribeToCourses, subscribeToAllCourseProgress, subscribeToLessons } from '../services/courseService';
 import { subscribeToUsers } from '../services/userService';
 import Icon from '../components/common/Icon';
+import { timestampToDate, formatShortDate } from '../utils/dateUtils';
 import '../styles/CourseProgress.css';
 
 const CourseProgress = () => {
@@ -59,9 +60,9 @@ const CourseProgress = () => {
             attempts: lp?.attempts || 0,
             bestScore: lp?.bestScore || 0,
             totalQuestions: lp?.totalQuestions || 0,
-            firstAttemptAt: lp?.firstAttemptAt ? toDate(lp.firstAttemptAt) : null,
-            passedAt: lp?.passedAt ? toDate(lp.passedAt) : null,
-            lastAttemptAt: lp?.lastAttemptAt ? toDate(lp.lastAttemptAt) : null,
+            firstAttemptAt: lp?.firstAttemptAt ? timestampToDate(lp.firstAttemptAt) : null,
+            passedAt: lp?.passedAt ? timestampToDate(lp.passedAt) : null,
+            lastAttemptAt: lp?.lastAttemptAt ? timestampToDate(lp.lastAttemptAt) : null,
             timeSpentSeconds: lp?.timeSpentSeconds || null,
           };
         });
@@ -78,8 +79,8 @@ const CourseProgress = () => {
           totalLessons,
           percent,
           courseCompleted: progress?.courseCompleted || false,
-          startedAt: progress?.createdAt ? toDate(progress.createdAt) : null,
-          completedAt: progress?.completedAt ? toDate(progress.completedAt) : null,
+          startedAt: progress?.createdAt ? timestampToDate(progress.createdAt) : null,
+          completedAt: progress?.completedAt ? timestampToDate(progress.completedAt) : null,
         };
       })
       .sort((a, b) => b.percent - a.percent);
@@ -203,8 +204,8 @@ const CourseProgress = () => {
                           <div className="cp-lessons-detail">
                             {startedAt && (
                               <p className="text-xs text-tertiary mb-sm">
-                                Inicio: {formatDate(startedAt)}
-                                {completedAt && <> | Finalizo: {formatDate(completedAt)} | Duracion total: {formatDuration(startedAt, completedAt)}</>}
+                                Inicio: {formatShortDate(startedAt)}
+                                {completedAt && <> | Finalizo: {formatShortDate(completedAt)} | Duracion total: {formatDuration(startedAt, completedAt)}</>}
                               </p>
                             )}
                             <table className="cp-lessons-table">
@@ -279,19 +280,6 @@ const CourseProgress = () => {
 };
 
 // Helpers
-
-const toDate = (val) => {
-  if (!val) return null;
-  if (val instanceof Date) return val;
-  if (val.toDate) return val.toDate(); // Firestore Timestamp
-  if (typeof val === 'string' || typeof val === 'number') return new Date(val);
-  return null;
-};
-
-const formatDate = (date) => {
-  if (!date) return '-';
-  return date.toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' });
-};
 
 const formatSeconds = (totalSeconds) => {
   if (!totalSeconds || totalSeconds < 60) return 'Menos de 1 min';

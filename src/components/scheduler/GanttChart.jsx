@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Gantt, ViewMode } from 'gantt-task-react';
 import 'gantt-task-react/dist/index.css';
 import Icon from '../common/Icon';
+import { getProjectColor } from '../../utils/colorUtils';
 import '../../styles/GanttChart.css';
 
 /**
@@ -13,34 +14,6 @@ const GanttChart = ({ solucion, makespan, proyectos, onTaskClick }) => {
   const [hoveredTask, setHoveredTask] = useState(null);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
   const ganttWrapperRef = useRef(null);
-
-  // Generar color consistente para un proyecto basado en su ID (misma lógica que DependenciesFlow)
-  const getProjectColor = useCallback((projectId) => {
-    if (!projectId) return '#6B7280'; // Color gris por defecto
-
-    // Paleta de colores suaves y diferenciables
-    const colors = [
-      '#3B82F6', // Azul
-      '#10B981', // Verde
-      '#F59E0B', // Naranja
-      '#EF4444', // Rojo
-      '#8B5CF6', // Púrpura
-      '#EC4899', // Rosa
-      '#14B8A6', // Teal
-      '#F97316', // Naranja oscuro
-      '#6366F1', // Índigo
-      '#84CC16', // Lima
-    ];
-
-    // Generar un índice consistente basado en el projectId
-    let hash = 0;
-    for (let i = 0; i < projectId.length; i++) {
-      hash = projectId.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    const index = Math.abs(hash) % colors.length;
-
-    return colors[index];
-  }, []);
 
   // Formatear duración con decimales (días y horas)
   const formatDuration = useCallback((dias) => {

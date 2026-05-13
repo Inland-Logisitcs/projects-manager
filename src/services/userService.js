@@ -176,7 +176,7 @@ export const subscribeToUsers = (callback) => {
  */
 export const updateUser = async (uid, updates) => {
   try {
-    const { displayName, role, dailyCapacity, workingDays, projectsAssigned } = updates;
+    const { displayName, role, dailyCapacity, workingDays, projectsAssigned, disabled } = updates;
 
     if (role && !['admin', 'user'].includes(role)) {
       return { success: false, error: 'Rol inválido' };
@@ -204,6 +204,10 @@ export const updateUser = async (uid, updates) => {
 
     if (projectsAssigned !== undefined) {
       firestoreUpdates.projectsAssigned = projectsAssigned;
+    }
+
+    if (disabled !== undefined) {
+      firestoreUpdates.disabled = disabled;
     }
 
     const userRef = doc(db, USERS_COLLECTION, uid);

@@ -1,6 +1,54 @@
 /**
- * Date utilities for scheduling and working day calculations
+ * Date utilities for scheduling, working day calculations, and display formatting
  */
+
+/**
+ * Convert a Firestore Timestamp, Date, string, or number to a JS Date.
+ * Returns null if the value is falsy or unrecognized.
+ * @param {*} ts
+ * @returns {Date|null}
+ */
+export const timestampToDate = (ts) => {
+  if (!ts) return null;
+  if (ts.toDate) return ts.toDate();
+  if (ts instanceof Date) return ts;
+  if (typeof ts === 'string' || typeof ts === 'number') return new Date(ts);
+  return null;
+};
+
+/**
+ * Format a Firestore timestamp or Date to a human-readable date+time string.
+ * Example: "12 may. 2026, 10:30"
+ * @param {*} ts
+ * @returns {string}
+ */
+export const formatDateTime = (ts) => {
+  const date = timestampToDate(ts);
+  if (!date) return '-';
+  return date.toLocaleDateString('es-ES', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
+/**
+ * Format a Firestore timestamp or Date to a short date string without time.
+ * Example: "12 may. 2026"
+ * @param {*} ts
+ * @returns {string}
+ */
+export const formatShortDate = (ts) => {
+  const date = timestampToDate(ts);
+  if (!date) return '-';
+  return date.toLocaleDateString('es-ES', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+};
 
 /**
  * Parse a date string in YYYY-MM-DD format to a Date object

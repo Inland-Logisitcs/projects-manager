@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo } from 'react';
+import { useClickOutside } from '../../hooks/useClickOutside';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import Icon from '../common/Icon';
@@ -15,21 +16,7 @@ const KanbanCard = ({ task, isDragging, onDelete, usersMap, delayViewMode, isAdm
   const [showUserSelect, setShowUserSelect] = useState(false);
   const userSelectRef = useRef(null);
 
-  // Cerrar menú al hacer click fuera
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (userSelectRef.current && !userSelectRef.current.contains(event.target)) {
-        setShowUserSelect(false);
-      }
-    };
-
-    if (showUserSelect) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-      };
-    }
-  }, [showUserSelect]);
+  useClickOutside(userSelectRef, () => setShowUserSelect(false), { enabled: showUserSelect });
 
   const {
     attributes,

@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { getProjectColor } from '../utils/colorUtils';
+import { useClickOutside } from '../hooks/useClickOutside';
 import { subscribeToTasks, updateTask, createTask, archiveTask, moveTaskToSprint } from '../services/taskService';
 import { subscribeToSprints, createSprint, startSprint } from '../services/sprintService';
 import { subscribeToColumns } from '../services/columnService';
@@ -168,34 +170,6 @@ const Backlog = () => {
     if (!projectId) return null;
     const project = projects.find(p => p.id === projectId);
     return project ? project.name : 'Proyecto desconocido';
-  };
-
-  // Generar un color consistente para un proyecto basado en su ID
-  const getProjectColor = (projectId) => {
-    if (!projectId) return '#6B7280'; // Color gris por defecto
-
-    // Paleta de colores suaves y diferenciables
-    const colors = [
-      '#3B82F6', // Azul
-      '#10B981', // Verde
-      '#F59E0B', // Naranja
-      '#EF4444', // Rojo
-      '#8B5CF6', // Púrpura
-      '#EC4899', // Rosa
-      '#14B8A6', // Teal
-      '#F97316', // Naranja oscuro
-      '#6366F1', // Índigo
-      '#84CC16', // Lima
-    ];
-
-    // Generar un índice consistente basado en el projectId
-    let hash = 0;
-    for (let i = 0; i < projectId.length; i++) {
-      hash = projectId.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    const index = Math.abs(hash) % colors.length;
-
-    return colors[index];
   };
 
   // Auto-scroll durante el drag
@@ -1337,21 +1311,7 @@ const TaskCardMobile = ({ task, onDragStart, onDragEnd, onArchive, onUpdateTask,
   const [showActionsMenu, setShowActionsMenu] = useState(false);
   const actionsMenuRef = useRef(null);
 
-  // Cerrar menú de acciones al hacer click fuera
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (actionsMenuRef.current && !actionsMenuRef.current.contains(event.target)) {
-        setShowActionsMenu(false);
-      }
-    };
-
-    if (showActionsMenu) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-      };
-    }
-  }, [showActionsMenu]);
+  useClickOutside(actionsMenuRef, () => setShowActionsMenu(false), { enabled: showActionsMenu });
 
   const handleMoveToBacklog = async () => {
     await onMoveToSprint(task.id, null, false);
@@ -1510,53 +1470,9 @@ const TaskRow = ({ task, onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop
   const projectSelectRef = useRef(null);
   const actionsMenuRef = useRef(null);
 
-  // Cerrar menú de usuario al hacer click fuera
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (userSelectRef.current && !userSelectRef.current.contains(event.target)) {
-        setShowUserSelect(false);
-      }
-    };
-
-    if (showUserSelect) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-      };
-    }
-  }, [showUserSelect]);
-
-  // Cerrar menú de proyecto al hacer click fuera
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (projectSelectRef.current && !projectSelectRef.current.contains(event.target)) {
-        setShowProjectSelect(false);
-      }
-    };
-
-    if (showProjectSelect) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-      };
-    }
-  }, [showProjectSelect]);
-
-  // Cerrar menú de acciones al hacer click fuera
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (actionsMenuRef.current && !actionsMenuRef.current.contains(event.target)) {
-        setShowActionsMenu(false);
-      }
-    };
-
-    if (showActionsMenu) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-      };
-    }
-  }, [showActionsMenu]);
+  useClickOutside(userSelectRef, () => setShowUserSelect(false), { enabled: showUserSelect });
+  useClickOutside(projectSelectRef, () => setShowProjectSelect(false), { enabled: showProjectSelect });
+  useClickOutside(actionsMenuRef, () => setShowActionsMenu(false), { enabled: showActionsMenu });
 
   const handleArchive = () => {
     setShowConfirm(true);
@@ -1999,25 +1915,9 @@ const BulkActionsBar = ({ selectedCount, onClear, onMoveToSprint, onMoveToBacklo
   const userMenuRef = useRef(null);
   const projectMenuRef = useRef(null);
 
-  // Cerrar menús al hacer click fuera
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (sprintMenuRef.current && !sprintMenuRef.current.contains(event.target)) {
-        setShowSprintMenu(false);
-      }
-      if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
-        setShowUserMenu(false);
-      }
-      if (projectMenuRef.current && !projectMenuRef.current.contains(event.target)) {
-        setShowProjectMenu(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
+  useClickOutside(sprintMenuRef, () => setShowSprintMenu(false));
+  useClickOutside(userMenuRef, () => setShowUserMenu(false));
+  useClickOutside(projectMenuRef, () => setShowProjectMenu(false));
 
   return (
     <div className="bulk-actions-bar">

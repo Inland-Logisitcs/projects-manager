@@ -85,10 +85,13 @@ const avanzarDiasLaborables = (diaInicio, diasTrabajo, diasLaborables) => {
  * @param {Array} factoresRiesgo - Factores de riesgo del sistema
  * @returns {Object} { duracionBase, tiempoRiesgo, tiempoRiesgoUsuario, tiempoRiesgoProyecto, tiempoRedondeo, duracionTotal }
  */
+const getSpEfectivo = (tarea) =>
+  (tarea.storyPoints > 0) ? tarea.storyPoints : (tarea.preliminaryStoryPoints || 0);
+
 const calcularDuracionConRiesgos = (tarea, usuario, factoresRiesgo) => {
   const rawCapacidad = usuario?.dailyCapacity ?? usuario?.capacidadDiaria;
   const capacidad = (typeof rawCapacidad === 'number' && rawCapacidad > 0) ? rawCapacidad : 1;
-  const storyPoints = Number(tarea.storyPoints) || 0;
+  const storyPoints = Number(getSpEfectivo(tarea)) || 0;
   const duracionBase = storyPoints / capacidad;
 
   let porcentajeUsuario = 0;
@@ -153,7 +156,8 @@ const calcularPosicionesParaGantt = ({
   factoresRiesgo,
   proyectos,
   calcularRiesgos,
-  optimista = false
+  optimista = false,
+  idsConSpPreliminar = new Set()
 }) => {
   const resultado = [];
 
@@ -241,7 +245,8 @@ const calcularPosicionesParaGantt = ({
       tiempoRiesgoUsuario: riesgos.tiempoRiesgoUsuario,
       tiempoRiesgoProyecto: riesgos.tiempoRiesgoProyecto,
       tiempoRedondeo: riesgos.tiempoRedondeo,
-      storyPoints: t.storyPoints,
+      storyPoints: getSpEfectivo(t),
+      usePreliminarysp: !(t.storyPoints > 0) && (t.preliminaryStoryPoints > 0),
       enProgreso: true,
       forzado: false,
       dependencias: t.dependencies || [],
@@ -304,7 +309,8 @@ const calcularPosicionesParaGantt = ({
         tiempoRiesgoUsuario,
         tiempoRiesgoProyecto,
         tiempoRedondeo,
-        storyPoints: t.storyPoints,
+        storyPoints: getSpEfectivo(t),
+        usePreliminarysp: !(t.storyPoints > 0) && (t.preliminaryStoryPoints > 0),
         enProgreso: false,
         forzado: true,
         dependencias: t.dependencies || [],
@@ -360,6 +366,7 @@ const calcularPosicionesParaGantt = ({
       tiempoRiesgoProyecto: riesgos.tiempoRiesgoProyecto,
       tiempoRedondeo: riesgos.tiempoRedondeo,
       storyPoints: t.storyPoints,
+      usePreliminarysp: idsConSpPreliminar.has(t.id || t.taskId),
       enProgreso: false,
       forzado: t.forzado || false,
       dependencias: t.dependencias || []
@@ -466,7 +473,8 @@ const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {}, isA
       factoresRiesgo: optimizacionRaw.todosLosRiesgos,
       proyectos,
       calcularRiesgos: calcularDuracionConRiesgos,
-      optimista: vistaOptimista
+      optimista: vistaOptimista,
+      idsConSpPreliminar: optimizacionRaw.idsConSpPreliminar || new Set()
     });
 
     setTareasDoing(tareasGantt);
@@ -479,15 +487,15 @@ const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {}, isA
       return 'No hay usuarios disponibles. Crea usuarios en la página de administración.';
     }
 
-    // Filtrar tareas con story points y que no estén terminadas
+    // Filtrar tareas con story points (oficial o preliminar) y que no estén terminadas
     const tareasValidas = tareas.filter(t => {
-      const tieneStoryPoints = t.storyPoints && t.storyPoints > 0;
+      const tieneStoryPoints = getSpEfectivo(t) > 0;
       const estadoValido = t.status !== 'qa' && t.status !== 'completed';
       return tieneStoryPoints && estadoValido;
     });
 
     if (tareasValidas.length === 0) {
-      return 'No hay tareas pendientes para optimizar. Las tareas deben tener story points y no estar terminadas (QA/Completadas).';
+      return 'No hay tareas pendientes para optimizar. Las tareas deben tener story points (oficial o preliminar) y no estar terminadas (QA/Completadas).';
     }
 
     return null;
@@ -508,12 +516,12 @@ const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {}, isA
     // Separar tareas en doing y pendientes, filtrando por proyectos seleccionados
     const tareasDoingRaw = tareas.filter(t =>
       t.status === 'in-progress' &&
-      t.storyPoints && t.storyPoints > 0 &&
+      getSpEfectivo(t) > 0 &&
       selectedProyectos.includes(t.projectId || t.proyectoId)
     );
 
     const todasLasPendientes = tareas.filter(t => {
-      const tieneStoryPoints = t.storyPoints && t.storyPoints > 0;
+      const tieneStoryPoints = getSpEfectivo(t) > 0;
       const estadoValido = t.status !== 'qa' && t.status !== 'completed' && t.status !== 'in-progress';
       return tieneStoryPoints && estadoValido && selectedProyectos.includes(t.projectId || t.proyectoId);
     });
@@ -626,8 +634,15 @@ const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {}, isA
     });
 
     if (resultado) {
+      // Tareas que usaron SP preliminar en esta optimización
+      const idsConSpPreliminar = new Set(
+        [...tareasPendientes, ...tareasDoingRaw]
+          .filter(t => !(t.storyPoints > 0) && t.preliminaryStoryPoints > 0)
+          .map(t => t.id)
+      );
+
       // Guardar datos crudos para recalcular al cambiar vista
-      setOptimizacionRaw({ tareasDoingRaw, tareasYaOptimizadas, todosLosRiesgos });
+      setOptimizacionRaw({ tareasDoingRaw, tareasYaOptimizadas, todosLosRiesgos, idsConSpPreliminar });
 
       // Calcular posiciones en el frontend (unica fuente de verdad)
       const todasLasTareasGantt = calcularPosicionesParaGantt({
@@ -638,7 +653,8 @@ const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {}, isA
         factoresRiesgo: todosLosRiesgos,
         proyectos,
         calcularRiesgos: calcularDuracionConRiesgos,
-        optimista: vistaOptimista
+        optimista: vistaOptimista,
+        idsConSpPreliminar
       });
 
       setTareasDoing(todasLasTareasGantt);
@@ -856,7 +872,8 @@ const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {}, isA
       factoresRiesgo: resultado ? baseData.todosLosRiesgos : [],
       proyectos,
       calcularRiesgos: calcularDuracionConRiesgos,
-      optimista: true
+      optimista: true,
+      idsConSpPreliminar: resultado ? baseData.idsConSpPreliminar || new Set() : new Set()
     });
     return tareasOpt.length > 0 ? calcularFechasFinPorProyecto(tareasOpt) : {};
   }, [tareasGantt, vistaOptimista]);
@@ -873,7 +890,8 @@ const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {}, isA
       factoresRiesgo: resultado ? baseData.todosLosRiesgos : [],
       proyectos,
       calcularRiesgos: calcularDuracionConRiesgos,
-      optimista: false
+      optimista: false,
+      idsConSpPreliminar: resultado ? baseData.idsConSpPreliminar || new Set() : new Set()
     });
     return tareasRisk.length > 0 ? calcularFechasFinPorProyecto(tareasRisk) : {};
   }, [tareasGantt, vistaOptimista]);
@@ -1239,8 +1257,7 @@ const TaskScheduler = ({ proyectos, tareas, columns = [], projectRisks = {}, isA
                 {proyectos.map(proyecto => {
                   const tareasProyecto = tareas.filter(t =>
                     (t.projectId || t.proyectoId) === proyecto.id &&
-                    t.storyPoints &&
-                    t.storyPoints > 0 &&
+                    getSpEfectivo(t) > 0 &&
                     t.status !== 'qa' &&
                     t.status !== 'completed' &&
                     !t.archived

@@ -58,6 +58,31 @@ npm run build
 
 # Preview production build
 npm run preview
+
+# Deploy frontend to GitHub Pages
+npm run deploy
+
+# Run Playwright E2E tests
+npx playwright test
+
+# Run a single test file
+npx playwright test tests/test-optimizer-gantt.spec.ts
+```
+
+### Firebase Cloud Functions (Python)
+
+```bash
+# Install Python dependencies (run from functions/)
+cd functions && pip install -r requirements.txt
+
+# Run functions emulator locally (from project root)
+firebase emulators:start --only functions
+
+# Deploy functions to Firebase
+firebase deploy --only functions
+
+# Run Python unit tests for the optimizer
+cd functions && python -m pytest test_optimizer.py
 ```
 
 ## Firebase Configuration
@@ -73,6 +98,10 @@ Create a `.env` file in the root directory with these variables (see `.env.examp
 - `VITE_FIREBASE_STORAGE_BUCKET`
 - `VITE_FIREBASE_MESSAGING_SENDER_ID`
 - `VITE_FIREBASE_APP_ID`
+- `VITE_OPTIMIZER_FUNCTION_URL` - Cloud Function URL for task optimization (local: `http://localhost:5001/sync-projects/us-central1/optimize_tasks`)
+- `VITE_GITHUB_CLIENT_ID` - GitHub OAuth app client ID (safe for frontend)
+- `VITE_GITHUB_OAUTH_FUNCTION_URL` - Cloud Function URL that handles GitHub OAuth token exchange
+- `VITE_SLACK_WEBHOOK_URL` - (Optional) Slack webhook for QA notifications
 
 ### Firestore Collections and Rules
 The app uses these Firestore collections:
@@ -80,7 +109,11 @@ The app uses these Firestore collections:
 - `sprints` - Sprint planning with start/end dates and goals
 - `projects` - Projects for Gantt timeline view
 - `columns` - Kanban board columns (customizable)
-- `users` - User profiles with roles (admin/user) for access control
+- `users` - User profiles with roles (admin/user), capacity, and `workingDays` config
+- `holidays` - Holiday dates that affect capacity calculations (admin-write only)
+- `requests` - Change requests / task modification requests (users create, admins delete)
+- `courses` / `lessons` / `courseProgress` - Training course system
+- `planningPoker` - Planning Poker estimation sessions
 
 **IMPORTANT**: Whenever Firebase security rules need to be updated or created, always write them to the [firestore.rules](firestore.rules) file in the root directory. This file contains the complete Firestore security rules configuration that must be deployed to Firebase Console. All operations require authenticated users.
 
@@ -91,6 +124,21 @@ Users cannot self-register. Create users manually in Firebase Console > Authenti
 - User profiles are auto-created on first login with 'user' role
 
 ## Architecture
+
+### Source Structure
+
+```
+src/
+├── components/      # UI components by domain (see below)
+├── pages/           # Route-level page components (Dashboard, Backlog, Projects, etc.)
+├── services/        # All Firebase/API business logic
+├── contexts/        # React contexts (AuthContext)
+├── hooks/           # Custom hooks (useOptimizer, useGitHubDeviceFlow)
+├── utils/           # Pure utilities (dateUtils, delayCalculation, imageCleanup)
+├── data/courses/    # Static course content data (8 course modules)
+├── config/          # Firebase initialization
+└── styles/          # All CSS (utilities/ + component-specific files)
+```
 
 ### Component Organization
 Components are organized by domain/functionality in a modular structure:
@@ -104,6 +152,7 @@ src/components/
 ├── layout/          # Layout components (MainLayout, Sidebar)
 ├── modals/          # Modal dialogs (CreateUserModal)
 ├── routing/         # Route guards (ProtectedRoute, AdminRoute)
+├── scheduler/       # Task scheduling and Gantt chart components (TaskScheduler, CustomGanttChart)
 ├── tables/          # Table components (Table, TableActions)
 └── timeline/        # Gantt timeline (GanttTimeline)
 ```
@@ -117,12 +166,21 @@ src/components/
 ### Core Data Flow
 1. **Real-time subscriptions**: All data syncing uses Firestore's `onSnapshot` for real-time updates
 2. **Service layer pattern**: Business logic is centralized in `src/services/`:
-   - [taskService.js](src/services/taskService.js) - Task CRUD, archiving, sprint assignment
+   - [taskService.js](src/services/taskService.js) - Task CRUD, archiving, sprint assignment, save optimization results
    - [sprintService.js](src/services/sprintService.js) - Sprint lifecycle management
    - [columnService.js](src/services/columnService.js) - Dynamic Kanban columns with default initialization
    - [storageService.js](src/services/storageService.js) - File uploads (images, PDFs, attachments)
    - [projectService.js](src/services/projectService.js) - Projects for Gantt view
-   - [userService.js](src/services/userService.js) - User profile management and role updates
+   - [userService.js](src/services/userService.js) - User profile management, roles, and working days config
+   - [capacityService.js](src/services/capacityService.js) - Daily/weekly user capacity calculations
+   - [holidayService.js](src/services/holidayService.js) - Holiday date management (affects capacity)
+   - [schedulingService.js](src/services/schedulingService.js) - Date range and scheduling calculations
+   - [optimizerApi.js](src/services/optimizerApi.js) - Wrapper for the Cloud Function optimizer (data transformation + API call)
+   - [planningPokerService.js](src/services/planningPokerService.js) - Planning Poker session management
+   - [requestService.js](src/services/requestService.js) - Change request workflows
+   - [slackService.js](src/services/slackService.js) - Slack webhook notifications
+   - [githubService.js](src/services/githubService.js) - GitHub API integration
+   - [courseService.js](src/services/courseService.js) - Training course progress tracking
 3. **Optimistic updates**: UI updates immediately before Firebase confirms changes (see [KanbanBoard.jsx](src/components/kanban/KanbanBoard.jsx#L28))
 
 ### Routing Structure
@@ -130,9 +188,17 @@ The app uses React Router with protected routes wrapped in [MainLayout](src/comp
 - `/login` - Authentication page
 - `/dashboard` - Kanban board for the **active sprint only**
 - `/backlog` - Sprint planning and task backlog (tasks with `sprintId: null`)
-- `/projects` - Gantt timeline view
+- `/projects` - Project list with Gantt timeline view
+- `/projects/:id` - Individual project detail page
 - `/archived` - Archived tasks (soft delete)
-- `/users` - User management table (admin only, protected by [AdminRoute](src/components/AdminRoute.jsx))
+- `/users` - User management table (admin only)
+- `/holidays` - Holiday configuration (admin only)
+- `/solicitudes` - Change request management
+- `/planning-poker` - Story point estimation sessions
+- `/courses` - Training course catalog
+- `/courses/:id` - Course detail and lessons
+- `/stats` - User statistics and productivity metrics
+- `/github-callback` - GitHub OAuth callback handler
 
 ### Sprint System
 - **Sprint states**: `planned`, `active`, `completed`
@@ -184,6 +250,20 @@ Uses `@dnd-kit` library with custom collision detection:
 - Sizes: small, medium, large
 - Layouts: horizontal, vertical
 - Currently used in: Users page (role toggle), Archived Tasks page (restore/delete)
+
+### Cloud Functions (Python Backend)
+
+The `functions/` directory contains Python 3.13 Firebase Cloud Functions:
+
+- **`optimize_tasks`** (HTTP, public) - Task scheduling optimizer called via `VITE_OPTIMIZER_FUNCTION_URL`. Accepts projects, users, tasks, risk factors, and in-progress tasks; returns an optimized schedule. Uses Google OR-Tools CP-SAT solver in [optimizer.py](functions/optimizer.py).
+- **`optimize_tasks_secure`** (Callable, Firebase-authenticated) - Same optimizer but requires auth.
+- **`github_oauth`** (Callable, Firebase-authenticated) - Exchanges GitHub OAuth codes for access tokens. Requires `GITHUB_CLIENT_SECRET` environment variable in Firebase Functions config.
+
+The optimizer uses a constraint satisfaction model where tasks are assigned to users and scheduled in half-day time units. Key constraints: task dependencies, user availability, in-progress task remaining duration, and per-user working days.
+
+### Material-UI Usage
+
+Some components (primarily in `src/pages/`) use Material-UI (`@mui/material`) for complex data display components. When working in pages that already use MUI, continue using MUI for consistency. For new components, prefer the project's custom utility classes over MUI to maintain visual consistency with the design system.
 
 ## Key Implementation Details
 
@@ -404,7 +484,6 @@ Only create custom CSS in `src/styles/[ComponentName].css` for:
 }
 ```
 
-**Migration status:** 100% of components have been migrated to use utilities where applicable (see [CSS_MIGRATION.md](CSS_MIGRATION.md)).
 
 ## Common Patterns
 

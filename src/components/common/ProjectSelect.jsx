@@ -15,7 +15,7 @@ const ProjectSelect = ({
 
   useEffect(() => {
     const unsubscribe = subscribeToProjects((fetchedProjects) => {
-      setProjects(fetchedProjects);
+      setProjects(fetchedProjects.filter(p => p.status !== 'completed'));
       setLoading(false);
     });
 

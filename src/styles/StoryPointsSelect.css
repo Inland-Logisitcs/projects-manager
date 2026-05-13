@@ -54,6 +54,28 @@
   transform: translateY(-1px);
 }
 
+/* SP Preliminar */
+.story-points-badge.preliminary.has-value {
+  background-color: transparent;
+  color: var(--text-secondary);
+  border: 1.5px dashed var(--accent-color);
+}
+
+.story-points-badge.preliminary.has-value:hover {
+  background-color: rgba(0, 153, 204, 0.08);
+  box-shadow: none;
+}
+
+.story-points-badge.preliminary.empty {
+  border-color: #d1d5db;
+  color: #9ca3af;
+}
+
+.story-points-badge.preliminary.empty:hover {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
 /* Input de edición */
 .story-points-input {
   border-radius: 8px;

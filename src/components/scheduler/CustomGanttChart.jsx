@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect, useMemo, memo } from 'react';
 import Icon from '../common/Icon';
+import { getProjectColor } from '../../utils/colorUtils';
 import '../../styles/CustomGanttChart.css';
 
 /**
@@ -13,22 +14,6 @@ const CustomGanttChart = ({ solucion, makespan, proyectos, usuarios, onTaskClick
   const [viewportWidth, setViewportWidth] = useState(window.innerWidth);
   const [hoveredLabel, setHoveredLabel] = useState(null);
   const [labelTooltipPosition, setLabelTooltipPosition] = useState({ x: 0, y: 0 });
-
-  // Generar color consistente para un proyecto
-  const getProjectColor = useCallback((projectId) => {
-    if (!projectId) return '#6B7280';
-
-    const colors = [
-      '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
-      '#EC4899', '#14B8A6', '#F97316', '#6366F1', '#84CC16',
-    ];
-
-    let hash = 0;
-    for (let i = 0; i < projectId.length; i++) {
-      hash = projectId.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    return colors[Math.abs(hash) % colors.length];
-  }, []);
 
   // Formatear duración con decimales
   const formatDuration = useCallback((dias, decimals = 1) => {
@@ -265,7 +250,7 @@ const CustomGanttChart = ({ solucion, makespan, proyectos, usuarios, onTaskClick
 
     return (
       <div
-        className={`gantt-task-bar ${task.enProgreso ? 'in-progress' : ''} ${hoveredTask === task.id ? 'hovered' : ''}`}
+        className={`gantt-task-bar ${task.enProgreso ? 'in-progress' : ''} ${task.usePreliminarysp ? 'preliminary-sp' : ''} ${hoveredTask === task.id ? 'hovered' : ''}`}
         style={{
           left: `${x}px`,
           width: `${width}px`,
@@ -309,7 +294,7 @@ const CustomGanttChart = ({ solucion, makespan, proyectos, usuarios, onTaskClick
 
         <span className="gantt-task-label">
           {task.name}
-          {task.storyPoints > 0 && ` (${task.storyPoints} SP)`}
+          {task.storyPoints > 0 && ` (${task.usePreliminarysp ? '~' : ''}${task.storyPoints} SP)`}
         </span>
 
         {task.enProgreso && (
@@ -669,7 +654,9 @@ const CustomGanttChart = ({ solucion, makespan, proyectos, usuarios, onTaskClick
             {task.storyPoints > 0 && (
               <div className="gantt-tooltip-item">
                 <Icon name="zap" size={14} />
-                <span>{task.storyPoints} SP</span>
+                <span>
+                  {task.usePreliminarysp ? `~${task.storyPoints} SP (preliminar)` : `${task.storyPoints} SP`}
+                </span>
               </div>
             )}
             {task.enProgreso && (
@@ -701,6 +688,12 @@ const CustomGanttChart = ({ solucion, makespan, proyectos, usuarios, onTaskClick
             <div className="flex items-center gap-xs">
               <div className="legend-indicator with-risk" />
               <span className="text-secondary">Tiempo de riesgo</span>
+            </div>
+          )}
+          {solucion.some(t => t.usePreliminarysp) && (
+            <div className="flex items-center gap-xs">
+              <div className="legend-indicator preliminary-sp-indicator" />
+              <span className="text-secondary">SP Preliminar (estimado)</span>
             </div>
           )}
           <div className="flex items-center gap-xs">

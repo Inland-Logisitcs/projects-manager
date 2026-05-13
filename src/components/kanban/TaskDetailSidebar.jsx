@@ -1,4 +1,5 @@
-import { useEffect, useRef, useMemo, useState, useCallback } from 'react';
+import { useRef, useMemo, useState, useCallback, useEffect } from 'react';
+import { useClickOutside } from '../../hooks/useClickOutside';
 import Icon from '../common/Icon';
 import RichTextEditor from '../editors/RichTextEditor';
 import AttachmentsList from '../files/AttachmentsList';
@@ -76,56 +77,9 @@ const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose, usersMap = {
     onClose();
   }, [isEditingDescription, description, task.description, task.id, onClose]);
 
-  // Cerrar menú de usuario al hacer click fuera
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (userSelectRef.current && !userSelectRef.current.contains(event.target)) {
-        setShowUserSelect(false);
-      }
-    };
-
-    if (showUserSelect) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-      };
-    }
-  }, [showUserSelect]);
-
-  // Cerrar menú de proyecto al hacer click fuera
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (projectSelectRef.current && !projectSelectRef.current.contains(event.target)) {
-        setShowProjectSelect(false);
-      }
-    };
-
-    if (showProjectSelect) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-      };
-    }
-  }, [showProjectSelect]);
-
-  // Cerrar al hacer click fuera
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (sidebarRef.current && !sidebarRef.current.contains(event.target)) {
-        handleClose();
-      }
-    };
-
-    // Pequeño delay para evitar que el click de apertura cierre el sidebar
-    const timer = setTimeout(() => {
-      document.addEventListener('mousedown', handleClickOutside);
-    }, 100);
-
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [handleClose]);
+  useClickOutside(userSelectRef, () => setShowUserSelect(false), { enabled: showUserSelect });
+  useClickOutside(projectSelectRef, () => setShowProjectSelect(false), { enabled: showProjectSelect });
+  useClickOutside(sidebarRef, handleClose, { delay: 100 });
 
   // Cerrar con tecla Escape
   useEffect(() => {
@@ -458,6 +412,18 @@ const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose, usersMap = {
                 size="small"
                 disabled={!isAdmin}
                 onRequestChange={!isAdmin ? () => setShowSpRequestModal(true) : undefined}
+              />
+              <StoryPointsSelect
+                value={task.preliminaryStoryPoints}
+                onChange={async (preliminaryStoryPoints) => {
+                  const result = await updateTask(task.id, { preliminaryStoryPoints });
+                  if (!result.success) {
+                    setToast({ message: 'Error al actualizar SP preliminar: ' + result.error, type: 'error' });
+                  }
+                }}
+                size="small"
+                disabled={!isAdmin}
+                preliminary
               />
               {showUserSelect && (
                 <div className="user-select-dropdown-sidebar">

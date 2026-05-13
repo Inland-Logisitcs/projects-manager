@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { subscribeToSprints } from '../services/sprintService';
+import { formatDate } from '../utils/dateUtils';
 import { subscribeToTasks, updateTask } from '../services/taskService';
 import { subscribeToUsers } from '../services/userService';
 import { subscribeToProjects } from '../services/projectService';
@@ -390,13 +391,6 @@ const CompleteSprintModal = ({ sprint, tasks, onClose }) => {
       // Pasar la opción directamente
       handleComplete(option);
     }
-  };
-
-  const formatDate = (date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
   };
 
   const handleComplete = async (targetOption = null) => {

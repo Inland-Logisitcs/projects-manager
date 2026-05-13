@@ -18,6 +18,57 @@
   text-align: center;
 }
 
+/* Project filter sub-tabs */
+.project-filter-tabs {
+  display: flex;
+  gap: var(--space-xs);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.project-filter-tab {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-base);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  font-size: var(--font-sm);
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.project-filter-tab:hover {
+  color: var(--text-primary);
+}
+
+.project-filter-tab.active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+}
+
+.project-filter-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  background-color: var(--bg-tertiary);
+  border-radius: 10px;
+  font-size: var(--font-xs);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.project-filter-tab.active .project-filter-count {
+  background-color: var(--color-primary-lighter);
+  color: var(--color-primary);
+}
+
 /* Projects Tabs */
 .projects-tabs {
   display: flex;
@@ -310,7 +361,12 @@
   height: 100%;
   background-color: var(--color-accent);
   border-radius: 3px;
-  transition: width 0.3s ease;
+  transition: width 0.3s ease, background-color 0.3s ease;
+}
+
+.progress-label-done {
+  color: var(--color-success-dark);
+  font-weight: 600;
 }
 
 /* Project Status Selector */

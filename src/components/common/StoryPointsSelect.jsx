@@ -7,7 +7,8 @@ const StoryPointsSelect = ({
   onChange,
   size = 'medium', // 'small', 'medium', 'large'
   disabled = false,
-  onRequestChange = null
+  onRequestChange = null,
+  preliminary = false
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [tempValue, setTempValue] = useState('');
@@ -78,20 +79,20 @@ const StoryPointsSelect = ({
 
   const canRequest = disabled && onRequestChange;
   const tooltipText = !disabled
-    ? "Story Points (click para editar)"
+    ? preliminary ? "SP Preliminar (click para editar)" : "Story Points (click para editar)"
     : canRequest
       ? "Solicitar cambio de Story Points"
-      : undefined;
+      : preliminary ? "SP Preliminar" : undefined;
 
   return (
     <div
-      className={`story-points-badge story-points-${size} ${value !== null && value !== undefined ? 'has-value' : 'empty'}${tooltipText ? ' has-tooltip' : ''}`}
+      className={`story-points-badge story-points-${size} ${value !== null && value !== undefined ? 'has-value' : 'empty'}${preliminary ? ' preliminary' : ''}${tooltipText ? ' has-tooltip' : ''}`}
       onClick={handleClick}
       style={disabled && !canRequest ? { cursor: 'default' } : undefined}
       data-tooltip={tooltipText}
     >
       <Icon name="zap" size={12} />
-      <span>{value !== null && value !== undefined ? value : 'SP'}</span>
+      <span>{value !== null && value !== undefined ? (preliminary ? `~${value}` : value) : (preliminary ? '~SP' : 'SP')}</span>
     </div>
   );
 };

@@ -9,6 +9,7 @@ import { PROJECT_STATUSES, STATUS_LABELS, STATUS_COLORS } from './Projects';
 import Icon from '../components/common/Icon';
 import Toast from '../components/common/Toast';
 import UserAvatar from '../components/common/UserAvatar';
+import StoryPointsSelect from '../components/common/StoryPointsSelect';
 import TaskDetailSidebar from '../components/kanban/TaskDetailSidebar';
 import { useGitHubDeviceFlow } from '../hooks/useGitHubDeviceFlow';
 import { listUserRepos, listRepoBranches } from '../services/githubService';
@@ -777,8 +778,27 @@ const ProjectDetail = () => {
                     <span className="project-task-col-assignee">
                       <UserAvatar userId={assigneeId} size={24} showName={false} />
                     </span>
-                    <span className="project-task-col-sp text-sm text-secondary">
-                      {task.storyPoints || '-'}
+                    <span
+                      className="project-task-col-sp"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <StoryPointsSelect
+                        value={task.storyPoints}
+                        onChange={async (storyPoints) => {
+                          await updateTask(task.id, { storyPoints });
+                        }}
+                        size="small"
+                        disabled={!isAdmin}
+                      />
+                      <StoryPointsSelect
+                        value={task.preliminaryStoryPoints}
+                        onChange={async (preliminaryStoryPoints) => {
+                          await updateTask(task.id, { preliminaryStoryPoints });
+                        }}
+                        size="small"
+                        disabled={!isAdmin}
+                        preliminary
+                      />
                     </span>
                   </div>
                 );

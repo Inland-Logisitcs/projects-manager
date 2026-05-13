@@ -13,12 +13,14 @@ import Toast from '../components/common/Toast';
 import DependenciesFlow from '../components/projects/DependenciesFlow';
 import TaskDetailSidebar from '../components/kanban/TaskDetailSidebar';
 import TaskScheduler from '../components/scheduler/TaskScheduler';
+import SimulationTab from '../components/projects/SimulationTab';
 import '../styles/Projects.css';
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard', icon: 'layout' },
   { id: 'dependencies', label: 'Dependencias', icon: 'git-branch' },
-  { id: 'planning', label: 'Planificacion', icon: 'calendar' }
+  { id: 'planning', label: 'Planificacion', icon: 'calendar' },
+  { id: 'simulation', label: 'Simulacion', icon: 'bar-chart-2' }
 ];
 
 const Projects = () => {
@@ -29,6 +31,7 @@ const Projects = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [projectFilter, setProjectFilter] = useState('active');
   const [showModal, setShowModal] = useState(false);
   const [toast, setToast] = useState({ isOpen: false, message: '', type: 'error' });
   const [selectedTask, setSelectedTask] = useState(null);
@@ -186,7 +189,17 @@ const Projects = () => {
 
   const renderTabContent = () => {
     switch (activeTab) {
-      case 'dashboard':
+      case 'dashboard': {
+        const ACTIVE_STATUSES = ['planning', 'ready-to-implement', 'in-progress'];
+        const INACTIVE_STATUSES = ['idle', 'completed'];
+        const filteredProjects = projects.filter(p =>
+          projectFilter === 'active'
+            ? ACTIVE_STATUSES.includes(p.status)
+            : INACTIVE_STATUSES.includes(p.status)
+        );
+        const activeCount = projects.filter(p => ACTIVE_STATUSES.includes(p.status)).length;
+        const inactiveCount = projects.filter(p => INACTIVE_STATUSES.includes(p.status)).length;
+
         return (
           <>
             {projects.length === 0 ? (
@@ -205,50 +218,75 @@ const Projects = () => {
               </div>
             ) : (
               <>
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragEnd={handleDragEnd}
-                >
-                  <SortableContext
-                    items={projects.map(p => p.id)}
-                    strategy={verticalListSortingStrategy}
+                <div className="project-filter-tabs mb-base">
+                  <button
+                    className={`project-filter-tab ${projectFilter === 'active' ? 'active' : ''}`}
+                    onClick={() => setProjectFilter('active')}
                   >
-                    <div className="projects-list">
-                      {projects.map((project, index) => (
-                        <SortableProjectCard
-                          key={project.id}
-                          project={project}
-                          index={index}
-                          onUpdate={handleUpdateProject}
-                          onDelete={handleDeleteProject}
-                          users={users}
-                          tasks={tasks}
-                          projectRisks={projectRisks[project.id] || []}
-                          onRisksChange={async (risks) => {
-                            // Actualizar estado local
-                            setProjectRisks({ ...projectRisks, [project.id]: risks });
-                            // Guardar en Firebase
-                            const result = await updateProject(project.id, { risks });
-                            if (!result.success) {
-                              setToast({
-                                isOpen: true,
-                                message: `Error al guardar riesgos: ${result.error}`,
-                                type: 'error'
-                              });
-                            } else {
-                              setToast({
-                                isOpen: true,
-                                message: 'Riesgos guardados correctamente',
-                                type: 'success'
-                              });
-                            }
-                          }}
-                        />
-                      ))}
-                    </div>
-                  </SortableContext>
-                </DndContext>
+                    Activos
+                    <span className="project-filter-count">{activeCount}</span>
+                  </button>
+                  <button
+                    className={`project-filter-tab ${projectFilter === 'inactive' ? 'active' : ''}`}
+                    onClick={() => setProjectFilter('inactive')}
+                  >
+                    En pausa / Completados
+                    <span className="project-filter-count">{inactiveCount}</span>
+                  </button>
+                </div>
+
+                {filteredProjects.length === 0 ? (
+                  <div className="empty-state py-xl">
+                    <Icon name="folder" size={48} className="text-tertiary" />
+                    <p className="text-base text-secondary">
+                      {projectFilter === 'active' ? 'No hay proyectos activos' : 'No hay proyectos en pausa ni completados'}
+                    </p>
+                  </div>
+                ) : (
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleDragEnd}
+                  >
+                    <SortableContext
+                      items={filteredProjects.map(p => p.id)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      <div className="projects-list">
+                        {filteredProjects.map((project, index) => (
+                          <SortableProjectCard
+                            key={project.id}
+                            project={project}
+                            index={projects.indexOf(project)}
+                            onUpdate={handleUpdateProject}
+                            onDelete={handleDeleteProject}
+                            users={users}
+                            tasks={tasks}
+                            columns={columns}
+                            projectRisks={projectRisks[project.id] || []}
+                            onRisksChange={async (risks) => {
+                              setProjectRisks({ ...projectRisks, [project.id]: risks });
+                              const result = await updateProject(project.id, { risks });
+                              if (!result.success) {
+                                setToast({
+                                  isOpen: true,
+                                  message: `Error al guardar riesgos: ${result.error}`,
+                                  type: 'error'
+                                });
+                              } else {
+                                setToast({
+                                  isOpen: true,
+                                  message: 'Riesgos guardados correctamente',
+                                  type: 'success'
+                                });
+                              }
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </SortableContext>
+                  </DndContext>
+                )}
 
                 <UnassignedTasksSection
                   tasks={tasks}
@@ -261,6 +299,7 @@ const Projects = () => {
             )}
           </>
         );
+      }
 
       case 'dependencies':
         return (
@@ -280,6 +319,16 @@ const Projects = () => {
             columns={columns}
             projectRisks={projectRisks}
             isAdmin={isAdmin}
+          />
+        );
+
+      case 'simulation':
+        return (
+          <SimulationTab
+            proyectos={projects}
+            tareas={tasks}
+            users={users}
+            projectRisks={projectRisks}
           />
         );
 
@@ -364,7 +413,7 @@ export const PROJECT_STATUSES = [
 export const STATUS_LABELS = Object.fromEntries(PROJECT_STATUSES.map(s => [s.id, s.label]));
 export const STATUS_COLORS = Object.fromEntries(PROJECT_STATUSES.map(s => [s.id, s.color]));
 
-const SortableProjectCard = ({ project, index, onUpdate, onDelete, users, tasks, projectRisks, onRisksChange }) => {
+const SortableProjectCard = ({ project, index, onUpdate, onDelete, users, tasks, columns, projectRisks, onRisksChange }) => {
   const {
     attributes,
     listeners,
@@ -389,6 +438,7 @@ const SortableProjectCard = ({ project, index, onUpdate, onDelete, users, tasks,
         onDelete={onDelete}
         users={users}
         tasks={tasks}
+        columns={columns}
         projectRisks={projectRisks}
         onRisksChange={onRisksChange}
         dragHandleProps={{ ...attributes, ...listeners }}
@@ -397,7 +447,7 @@ const SortableProjectCard = ({ project, index, onUpdate, onDelete, users, tasks,
   );
 };
 
-const ProjectCard = ({ project, index, onUpdate, onDelete, users, tasks, projectRisks, onRisksChange, dragHandleProps }) => {
+const ProjectCard = ({ project, index, onUpdate, onDelete, users, tasks, columns, projectRisks, onRisksChange, dragHandleProps }) => {
   const navigate = useNavigate();
   const [showRiskModal, setShowRiskModal] = useState(false);
   const [showUsersModal, setShowUsersModal] = useState(false);
@@ -410,6 +460,15 @@ const ProjectCard = ({ project, index, onUpdate, onDelete, users, tasks, project
   };
 
   const projectTasks = tasks.filter(t => (t.projectId || t.proyectoId) === project.id);
+
+  const qaColumn = columns.find(c => c.id === 'qa');
+  const qaOrder = qaColumn ? (qaColumn.order ?? 2) : 2;
+  const completedTasks = projectTasks.filter(t => {
+    const col = columns.find(c => c.id === t.status);
+    return col ? (col.order ?? 0) >= qaOrder : (t.status === 'qa' || t.status === 'completed');
+  });
+  const progress = projectTasks.length > 0 ? Math.round((completedTasks.length / projectTasks.length) * 100) : 0;
+
   const hasGeneralRisk = projectRisks.some(r => !r.usuarioId && !r.userId);
   const userSpecificRisksCount = projectRisks.filter(r => r.usuarioId || r.userId).length;
   const risksCount = userSpecificRisksCount + (hasGeneralRisk ? 1 : 0);
@@ -522,12 +581,27 @@ const ProjectCard = ({ project, index, onUpdate, onDelete, users, tasks, project
               </button>
             </div>
           </div>
-          {project.progress > 0 && (
+          {projectTasks.length > 0 && (
             <div className="project-progress mt-sm">
               <div className="progress-bar">
-                <div className="progress-fill" style={{ width: `${project.progress}%` }}></div>
+                <div
+                  className="progress-fill"
+                  style={{
+                    width: `${progress}%`,
+                    backgroundColor: progress === 100
+                      ? 'var(--color-success)'
+                      : progress >= 50
+                        ? 'var(--color-primary-light)'
+                        : 'var(--color-warning)'
+                  }}
+                ></div>
               </div>
-              <span className="text-xs text-tertiary">{project.progress}%</span>
+              <span className={`text-xs ${progress === 100 ? 'progress-label-done' : 'text-tertiary'}`}>
+                {completedTasks.length}/{projectTasks.length}
+              </span>
+              <span className={`text-xs ${progress === 100 ? 'progress-label-done' : 'text-tertiary'}`}>
+                {progress}%
+              </span>
             </div>
           )}
         </div>
@@ -691,9 +765,11 @@ const UnassignedTasksSection = ({ tasks, columns, projects, onTaskClick, onTaskU
               >
                 <span className="text-sm text-primary">{task.title}</span>
                 <span className="badge badge-secondary text-xs">{getColumnName(task.status)}</span>
-                {task.storyPoints > 0 && (
+                {task.storyPoints > 0 ? (
                   <span className="text-xs text-tertiary">{task.storyPoints} SP</span>
-                )}
+                ) : task.preliminaryStoryPoints > 0 ? (
+                  <span className="text-xs text-tertiary" style={{ fontStyle: 'italic' }}>~{task.preliminaryStoryPoints} SP</span>
+                ) : null}
               </div>
               <div className="unassigned-task-assign">
                 {assigningTaskId === task.id ? (

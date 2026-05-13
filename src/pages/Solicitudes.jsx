@@ -5,6 +5,7 @@ import {
   rejectRequest
 } from '../services/requestService';
 import Icon from '../components/common/Icon';
+import { formatDateTime } from '../utils/dateUtils';
 import Table from '../components/tables/Table';
 import TableActions from '../components/tables/TableActions';
 import ConfirmDialog from '../components/common/ConfirmDialog';
@@ -68,17 +69,6 @@ const Solicitudes = () => {
     }
   };
 
-  const formatDate = (timestamp) => {
-    if (!timestamp) return 'N/A';
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return date.toLocaleDateString('es-ES', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
 
   if (loading) {
     return (
@@ -162,7 +152,7 @@ const Solicitudes = () => {
                   </span>
                 );
               case 'createdAt':
-                return <span className="text-sm">{formatDate(request.createdAt)}</span>;
+                return <span className="text-sm">{formatDateTime(request.createdAt)}</span>;
               case 'actions':
                 return (
                   <TableActions

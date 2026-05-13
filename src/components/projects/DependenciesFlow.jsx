@@ -1,4 +1,5 @@
 import { useMemo, useCallback, useEffect } from 'react';
+import { getProjectColor } from '../../utils/colorUtils';
 import {
   ReactFlow,
   Background,
@@ -767,34 +768,6 @@ const getLayoutedElements = (nodes, edges) => {
 };
 
 const DependenciesFlow = ({ projects, tasks, onTaskClick, isAdmin = false }) => {
-  // Generar un color consistente para un proyecto basado en su ID
-  const getProjectColor = useCallback((projectId) => {
-    if (!projectId) return '#6B7280'; // Color gris por defecto
-
-    // Paleta de colores suaves y diferenciables
-    const colors = [
-      '#3B82F6', // Azul
-      '#10B981', // Verde
-      '#F59E0B', // Naranja
-      '#EF4444', // Rojo
-      '#8B5CF6', // Púrpura
-      '#EC4899', // Rosa
-      '#14B8A6', // Teal
-      '#F97316', // Naranja oscuro
-      '#6366F1', // Índigo
-      '#84CC16', // Lima
-    ];
-
-    // Generar un índice consistente basado en el projectId
-    let hash = 0;
-    for (let i = 0; i < projectId.length; i++) {
-      hash = projectId.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    const index = Math.abs(hash) % colors.length;
-
-    return colors[index];
-  }, []);
-
   // Calcular la ruta crítica (critical path) para un conjunto de tareas
   const calculateCriticalPath = useCallback((projectTasks) => {
     if (!projectTasks || projectTasks.length === 0) return new Set();
