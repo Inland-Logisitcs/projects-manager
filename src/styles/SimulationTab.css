@@ -269,7 +269,7 @@
 
 .sim-gantt-labels {
   flex-shrink: 0;
-  width: 160px;
+  width: 220px;
   border-right: 1px solid var(--border-light);
 }
 
@@ -283,7 +283,7 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  min-height: 44px;
+  height: 56px;
   padding: var(--space-xs) var(--space-sm);
   border-bottom: 1px solid var(--border-light);
   overflow: hidden;
@@ -351,13 +351,13 @@
 }
 
 .sim-gantt-project-group {
-  border-bottom: 1px solid var(--border-light);
 }
 
 .sim-gantt-row {
   position: relative;
-  height: 44px;
+  height: 56px;
   background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-light);
 }
 
 .sim-gantt-user-row {

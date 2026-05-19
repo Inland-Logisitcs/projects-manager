@@ -4,7 +4,7 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import KanbanCard from './KanbanCard';
 import Icon from '../common/Icon';
 
-const KanbanColumn = ({ column, tasks, onAddTask, onDeleteTask, onCreateTask, usersMap, delayViewMode, isAdmin = false, onRequestSpChange }) => {
+const KanbanColumn = ({ column, tasks, onAddTask, onDeleteTask, onCreateTask, usersMap, tasksMap, delayViewMode, isAdmin = false, onRequestSpChange }) => {
   const { setNodeRef, isOver } = useDroppable({
     id: column.id
   });
@@ -111,6 +111,7 @@ const KanbanColumn = ({ column, tasks, onAddTask, onDeleteTask, onCreateTask, us
                 task={task}
                 onDelete={onDeleteTask}
                 usersMap={usersMap}
+                tasksMap={tasksMap}
                 delayViewMode={delayViewMode}
                 isAdmin={isAdmin}
                 onRequestSpChange={onRequestSpChange}

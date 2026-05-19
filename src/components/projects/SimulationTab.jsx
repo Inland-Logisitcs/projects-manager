@@ -202,7 +202,8 @@ const SimulationTab = ({ proyectos, tareas, users: allUsers, projectRisks = {} }
     const map = {};
     pendingTasks.forEach(t => {
       const pid = t.projectId || t.proyectoId;
-      if (pid) map[pid] = (map[pid] || 0) + (Number(t.storyPoints) || 0);
+      const sp = Number(t.storyPoints) > 0 ? Number(t.storyPoints) : (Number(t.preliminaryStoryPoints) || 3);
+      if (pid) map[pid] = (map[pid] || 0) + sp;
     });
     return map;
   }, [pendingTasks]);
@@ -486,7 +487,7 @@ const SimulationTab = ({ proyectos, tareas, users: allUsers, projectRisks = {} }
                 <div key={project.id} className="sim-gantt-row-label">
                   <span className="text-sm text-primary font-medium truncate">{project.name}</span>
                   {hayEsperas ? (
-                    <span className="text-xs text-tertiary">{diasTrabajados}h&nbsp;/&nbsp;{diasCalendario}c</span>
+                    <span className="text-xs text-tertiary">{diasTrabajados} háb. / {diasCalendario} cal.</span>
                   ) : (
                     <span className="text-xs text-tertiary">{diasTrabajados} días háb.</span>
                   )}

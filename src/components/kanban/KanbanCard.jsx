@@ -10,7 +10,7 @@ import { updateTask } from '../../services/taskService';
 import { calculateDelay } from '../../utils/delayCalculation';
 import { useAuth } from '../../contexts/AuthContext';
 
-const KanbanCard = ({ task, isDragging, onDelete, usersMap, delayViewMode, isAdmin: isAdminProp, onRequestSpChange }) => {
+const KanbanCard = ({ task, isDragging, onDelete, usersMap, tasksMap, delayViewMode, isAdmin: isAdminProp, onRequestSpChange }) => {
   const { isAdmin: isAdminFromAuth } = useAuth();
   const isAdmin = isAdminProp ?? isAdminFromAuth;
   const [showUserSelect, setShowUserSelect] = useState(false);
@@ -39,6 +39,23 @@ const KanbanCard = ({ task, isDragging, onDelete, usersMap, delayViewMode, isAdm
   const delayInfo = useMemo(() => {
     return calculateDelay(task, user, delayViewMode);
   }, [task, user, delayViewMode]);
+
+  // Calcular estado de dependencias
+  const depStatus = useMemo(() => {
+    const deps = task.dependencies;
+    if (!deps || deps.length === 0) return null;
+    const completed = deps.filter(id => {
+      const depTask = tasksMap?.[id];
+      // No encontrada = archivada (completada), o columna 'completed'
+      return !depTask || depTask.status === 'completed';
+    }).length;
+    const total = deps.length;
+    let color;
+    if (completed === total) color = 'green';
+    else if (completed === 0) color = 'red';
+    else color = 'yellow';
+    return { completed, total, color };
+  }, [task.dependencies, tasksMap]);
 
   const handleAssignUser = async (userId) => {
     const updates = { assignedTo: userId };
@@ -103,30 +120,39 @@ const KanbanCard = ({ task, isDragging, onDelete, usersMap, delayViewMode, isAdm
               </div>
             )}
           </div>
-          <div className="card-story-points"
-            onPointerDown={(e) => {
-              e.stopPropagation();
-            }}
-          >
-            <StoryPointsSelect
-              value={task.storyPoints}
-              onChange={async (storyPoints) => {
-                await updateTask(task.id, { storyPoints });
-              }}
-              size="small"
-              disabled={!isAdmin}
-              onRequestChange={!isAdmin && onRequestSpChange ? () => onRequestSpChange(task) : undefined}
-            />
-          </div>
-          {delayInfo && (
-            <span
-              className={`card-delay-indicator delay-${delayInfo.status} has-tooltip`}
-              data-tooltip={`Esperado: ${delayInfo.expectedDuration.toFixed(1)}d | Transcurrido: ${delayInfo.elapsedWorkingDays.toFixed(1)}d`}
+          <div className="card-info-chips">
+            <div
+              onPointerDown={(e) => e.stopPropagation()}
             >
-              <Icon name={delayInfo.status === 'on-track' ? 'check-circle' : 'alert-triangle'} size={12} />
-              {delayInfo.label}
-            </span>
-          )}
+              <StoryPointsSelect
+                value={task.storyPoints}
+                onChange={async (storyPoints) => {
+                  await updateTask(task.id, { storyPoints });
+                }}
+                size="small"
+                disabled={!isAdmin}
+                onRequestChange={!isAdmin && onRequestSpChange ? () => onRequestSpChange(task) : undefined}
+              />
+            </div>
+            {depStatus && (
+              <span
+                className={`card-dep-indicator dep-${depStatus.color} has-tooltip`}
+                data-tooltip={`Dependencias: ${depStatus.completed}/${depStatus.total} completadas`}
+              >
+                <Icon name="git-merge" size={11} />
+                {depStatus.completed}/{depStatus.total}
+              </span>
+            )}
+            {delayInfo && (
+              <span
+                className={`card-delay-indicator delay-${delayInfo.status} has-tooltip`}
+                data-tooltip={`Esperado: ${delayInfo.expectedDuration.toFixed(1)}d | Transcurrido: ${delayInfo.elapsedWorkingDays.toFixed(1)}d`}
+              >
+                <Icon name={delayInfo.status === 'on-track' ? 'check-circle' : 'alert-triangle'} size={12} />
+                {delayInfo.label}
+              </span>
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -32,6 +32,7 @@ const KanbanBoard = ({ activeSprintId = null, delayViewMode = 'optimistic', show
   const { isAdmin, userProfile } = useAuth();
   const [columns, setColumns] = useState([]);
   const [tasks, setTasks] = useState([]);
+  const [allTasks, setAllTasks] = useState([]);
   const [projects, setProjects] = useState([]);
   const [users, setUsers] = useState([]);
   const [activeTask, setActiveTask] = useState(null);
@@ -54,6 +55,13 @@ const KanbanBoard = ({ activeSprintId = null, delayViewMode = 'optimistic', show
     users.forEach(user => { map[user.id] = user; });
     return map;
   }, [users]);
+
+  // Build tasksMap for dependency status lookups (uses allTasks to cover cross-sprint deps)
+  const tasksMap = useMemo(() => {
+    const map = {};
+    allTasks.forEach(task => { map[task.id] = task; });
+    return map;
+  }, [allTasks]);
 
   // Projects that have at least one task in the current board
   const activeProjects = useMemo(() => {
@@ -98,6 +106,7 @@ const KanbanBoard = ({ activeSprintId = null, delayViewMode = 'optimistic', show
   // Suscribirse a cambios en tiempo real de tareas
   useEffect(() => {
     const unsubscribe = subscribeToTasks((fetchedTasks) => {
+      setAllTasks(fetchedTasks);
       // Filtrar solo tareas del sprint activo (si hay uno)
       const filteredTasks = activeSprintId
         ? fetchedTasks.filter(task => task.sprintId === activeSprintId)
@@ -573,6 +582,7 @@ const KanbanBoard = ({ activeSprintId = null, delayViewMode = 'optimistic', show
                 onDeleteTask={archiveTask}
                 onCreateTask={handleCreateTaskInline}
                 usersMap={usersMap}
+                tasksMap={tasksMap}
                 delayViewMode={delayViewMode}
                 isAdmin={isAdmin}
                 onRequestSpChange={!isAdmin ? setSpRequestTask : undefined}
@@ -583,7 +593,7 @@ const KanbanBoard = ({ activeSprintId = null, delayViewMode = 'optimistic', show
           <DragOverlay>
             {activeTask && (
               <div className="drag-overlay">
-                <KanbanCard task={activeTask} isDragging usersMap={usersMap} delayViewMode={delayViewMode} isAdmin={isAdmin} />
+                <KanbanCard task={activeTask} isDragging usersMap={usersMap} tasksMap={tasksMap} delayViewMode={delayViewMode} isAdmin={isAdmin} />
               </div>
             )}
           </DragOverlay>
@@ -614,6 +624,7 @@ const KanbanBoard = ({ activeSprintId = null, delayViewMode = 'optimistic', show
           <TaskDetailSidebar
             task={selectedTask}
             columns={columns}
+            allTasks={allTasks}
             onClose={() => setSelectedTask(null)}
             usersMap={usersMap}
             delayViewMode={delayViewMode}

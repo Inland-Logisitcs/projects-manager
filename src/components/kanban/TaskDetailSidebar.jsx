@@ -11,7 +11,7 @@ import TaskComments from './TaskComments';
 import Toast from '../common/Toast';
 import ConfirmDialog from '../common/ConfirmDialog';
 import StoryPointsRequestModal from '../modals/StoryPointsRequestModal';
-import { updateTask, archiveTask } from '../../services/taskService';
+import { updateTask, archiveTask, getTaskById } from '../../services/taskService';
 import { getPRStatus } from '../../services/githubService';
 import { useGitHubDeviceFlow } from '../../hooks/useGitHubDeviceFlow';
 import { createRequest } from '../../services/requestService';
@@ -46,6 +46,7 @@ const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose, usersMap = {
   const [prStatuses, setPrStatuses] = useState({});
   const [refreshingPRs, setRefreshingPRs] = useState(false);
   const { token: githubToken } = useGitHubDeviceFlow();
+  const [fetchedDepTasks, setFetchedDepTasks] = useState({});
 
   // Cargar usuarios
   useEffect(() => {
@@ -62,6 +63,18 @@ const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose, usersMap = {
     });
     return () => unsubscribe();
   }, []);
+
+  // Buscar en Firestore las dependencias que no estén en allTasks (tareas antiguas sin campo archived)
+  useEffect(() => {
+    if (!task.dependencies || task.dependencies.length === 0) return;
+    const missing = task.dependencies.filter(id => !allTasks.find(t => t.id === id));
+    if (missing.length === 0) return;
+    Promise.all(missing.map(id => getTaskById(id))).then(results => {
+      const map = {};
+      results.forEach(t => { if (t) map[t.id] = t; });
+      setFetchedDepTasks(prev => ({ ...prev, ...map }));
+    });
+  }, [task.dependencies, allTasks]);
 
   // Actualizar descripción cuando cambia la tarea externamente
   useEffect(() => {
@@ -121,12 +134,14 @@ const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose, usersMap = {
     return project ? project.name : 'Proyecto desconocido';
   };
 
-  // Obtener las tareas que dependen de esta tarea
+  // Obtener las tareas que dependen de esta tarea con su estado de completado
   const getDependentTasks = () => {
     if (!task.dependencies || task.dependencies.length === 0) return [];
     return task.dependencies.map(depId => {
-      const depTask = allTasks.find(t => t.id === depId);
-      return depTask || { id: depId, title: 'Tarea no encontrada' };
+      const depTask = allTasks.find(t => t.id === depId) || fetchedDepTasks[depId];
+      if (!depTask) return { id: depId, title: 'Cargando...', isDone: false };
+      const isDone = depTask.archived === true || depTask.status === 'completed';
+      return { ...depTask, isDone };
     });
   };
 
@@ -632,8 +647,17 @@ const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose, usersMap = {
                 <div className="dependencies-list flex flex-col gap-xs">
                   {getDependentTasks().map((depTask) => (
                     <div key={depTask.id} className="dependency-item flex items-center gap-sm p-sm border-b-light">
-                      <Icon name="list" size={14} className="text-secondary" />
-                      <span className="text-sm text-secondary">{depTask.title}</span>
+                      <Icon
+                        name={depTask.isDone ? 'check-circle' : 'clock'}
+                        size={14}
+                        style={{ color: depTask.isDone ? 'var(--color-success)' : 'var(--text-tertiary)', flexShrink: 0 }}
+                      />
+                      <span className="text-sm" style={{ color: depTask.isDone ? 'var(--text-secondary)' : 'var(--text-primary)', textDecoration: depTask.isDone ? 'line-through' : 'none' }}>
+                        {depTask.title}
+                      </span>
+                      {depTask.archived && (
+                        <span className="text-xs text-tertiary" style={{ marginLeft: 'auto' }}>archivada</span>
+                      )}
                     </div>
                   ))}
                 </div>

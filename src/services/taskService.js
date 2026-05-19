@@ -202,6 +202,19 @@ export const deleteComment = async (taskId, commentId) => {
   }
 };
 
+// Obtener una tarea por ID directamente (sin filtro de archivado)
+export const getTaskById = async (taskId) => {
+  try {
+    const taskRef = doc(db, TASKS_COLLECTION, taskId);
+    const taskSnap = await getDoc(taskRef);
+    if (!taskSnap.exists()) return null;
+    return { id: taskSnap.id, ...taskSnap.data() };
+  } catch (error) {
+    console.error('Error al obtener tarea:', error);
+    return null;
+  }
+};
+
 // Escuchar cambios en tiempo real (excluye tareas archivadas)
 export const subscribeToTasks = (callback) => {
   try {
