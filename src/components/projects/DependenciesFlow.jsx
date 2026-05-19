@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useEffect } from 'react';
+import { useMemo, useCallback, useEffect, useState } from 'react';
 import { getProjectColor } from '../../utils/colorUtils';
 import {
   ReactFlow,
@@ -768,6 +768,36 @@ const getLayoutedElements = (nodes, edges) => {
 };
 
 const DependenciesFlow = ({ projects, tasks, onTaskClick, isAdmin = false }) => {
+  const [selectedProjectIds, setSelectedProjectIds] = useState(new Set());
+  const [rfInstance, setRfInstance] = useState(null);
+
+  const toggleProject = useCallback((id) => {
+    setSelectedProjectIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const filteredProjects = useMemo(() => {
+    if (selectedProjectIds.size === 0) return projects;
+    return projects.filter(p => selectedProjectIds.has(p.id));
+  }, [projects, selectedProjectIds]);
+
+  const filteredTasks = useMemo(() => {
+    if (selectedProjectIds.size === 0) return tasks;
+    return tasks.filter(t => selectedProjectIds.has(t.projectId));
+  }, [tasks, selectedProjectIds]);
+
+  useEffect(() => {
+    if (!rfInstance) return;
+    const timer = setTimeout(() => {
+      rfInstance.fitView({ padding: 0.2, duration: 300 });
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [selectedProjectIds, rfInstance]);
+
   // Calcular la ruta crítica (critical path) para un conjunto de tareas
   const calculateCriticalPath = useCallback((projectTasks) => {
     if (!projectTasks || projectTasks.length === 0) return new Set();
@@ -888,16 +918,16 @@ const DependenciesFlow = ({ projects, tasks, onTaskClick, isAdmin = false }) => 
     const edges = [];
 
     // Create a map of all tasks by ID for quick lookup
-    const taskMap = new Map(tasks.map(t => [t.id, t]));
+    const taskMap = new Map(filteredTasks.map(t => [t.id, t]));
 
     // Group tasks by projectId
     const tasksByProject = {};
-    projects.forEach(p => {
+    filteredProjects.forEach(p => {
       tasksByProject[p.id] = [];
     });
     tasksByProject['unassigned'] = [];
 
-    tasks.forEach(task => {
+    filteredTasks.forEach(task => {
       const projectId = task.projectId || 'unassigned';
       if (tasksByProject[projectId]) {
         tasksByProject[projectId].push(task);
@@ -908,7 +938,7 @@ const DependenciesFlow = ({ projects, tasks, onTaskClick, isAdmin = false }) => 
 
     // Build list of groups to render
     const groups = [
-      ...projects.map(p => ({
+      ...filteredProjects.map(p => ({
         id: p.id,
         type: 'project',
         data: p,
@@ -916,7 +946,7 @@ const DependenciesFlow = ({ projects, tasks, onTaskClick, isAdmin = false }) => 
       }))
     ];
 
-    if (tasksByProject['unassigned'].length > 0) {
+    if (selectedProjectIds.size === 0 && tasksByProject['unassigned'].length > 0) {
       groups.push({
         id: 'unassigned',
         type: 'unassigned',
@@ -1315,7 +1345,7 @@ const DependenciesFlow = ({ projects, tasks, onTaskClick, isAdmin = false }) => 
     });
 
     return { rawNodes: nodes, rawEdges: edges };
-  }, [projects, tasks, getProjectColor]);
+  }, [filteredProjects, filteredTasks, selectedProjectIds, getProjectColor]);
 
   // Apply dagre layout
   const { initialNodes, initialEdges } = useMemo(() => {
@@ -1478,10 +1508,34 @@ const DependenciesFlow = ({ projects, tasks, onTaskClick, isAdmin = false }) => 
   }
 
   return (
-    <div className="dependencies-flow-container">
-      <ReactFlow
+    <div className="dependencies-wrapper">
+      <div className="dependencies-toolbar">
+        <span className="text-sm text-secondary">Proyectos:</span>
+        <div className="dependencies-project-filters">
+          {projects.filter(p => p.status !== 'idle' && p.status !== 'completed').map(p => (
+            <button
+              key={p.id}
+              className={`dependencies-filter-chip${selectedProjectIds.has(p.id) ? ' active' : ''}`}
+              onClick={() => toggleProject(p.id)}
+            >
+              {p.name}
+            </button>
+          ))}
+        </div>
+        {selectedProjectIds.size > 0 && (
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={() => setSelectedProjectIds(new Set())}
+          >
+            Limpiar
+          </button>
+        )}
+      </div>
+      <div className="dependencies-flow-container">
+        <ReactFlow
         nodes={nodes}
         edges={edges}
+        onInit={setRfInstance}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={isAdmin ? onConnect : undefined}
@@ -1511,7 +1565,8 @@ const DependenciesFlow = ({ projects, tasks, onTaskClick, isAdmin = false }) => 
           }}
           maskColor="rgba(0, 0, 0, 0.1)"
         />
-      </ReactFlow>
+        </ReactFlow>
+      </div>
     </div>
   );
 };
