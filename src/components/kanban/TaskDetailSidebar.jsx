@@ -40,6 +40,7 @@ const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose, usersMap = {
   const [editedTitle, setEditedTitle] = useState(task.title || '');
   const [isEditingDemoUrl, setIsEditingDemoUrl] = useState(false);
   const [editedDemoUrl, setEditedDemoUrl] = useState(task.demoUrl || '');
+  const [previewImage, setPreviewImage] = useState(null);
   const [showSpRequestModal, setShowSpRequestModal] = useState(false);
   const { user, userProfile, isAdmin: isAdminFromAuth } = useAuth();
   const isAdmin = isAdminProp ?? isAdminFromAuth;
@@ -98,13 +99,18 @@ const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose, usersMap = {
   useEffect(() => {
     const handleEscape = (event) => {
       if (event.key === 'Escape') {
+        // Si el lightbox esta abierto, Esc solo lo cierra a el
+        if (previewImage) {
+          setPreviewImage(null);
+          return;
+        }
         handleClose();
       }
     };
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [handleClose]);
+  }, [handleClose, previewImage]);
 
   // Obtener el nombre de la columna por su ID
   const getColumnName = (columnId) => {
@@ -704,7 +710,14 @@ const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose, usersMap = {
               ) : (
                 <div
                   className="description-content"
-                  onClick={() => setIsEditingDescription(true)}
+                  onClick={(e) => {
+                    // Si se hace click en una imagen, mostrarla en grande en vez de editar
+                    if (e.target.tagName === 'IMG') {
+                      setPreviewImage(e.target.src);
+                      return;
+                    }
+                    setIsEditingDescription(true);
+                  }}
                   style={{ cursor: 'pointer' }}
                   title="Click para editar"
                 >
@@ -994,6 +1007,25 @@ const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose, usersMap = {
           />
         )}
       </div>
+
+      {/* Lightbox para ver imagenes de la descripcion en grande */}
+      {previewImage && (
+        <div className="image-lightbox-overlay" onClick={() => setPreviewImage(null)}>
+          <button
+            className="image-lightbox-close btn btn-icon"
+            onClick={() => setPreviewImage(null)}
+            title="Cerrar"
+          >
+            <Icon name="x" />
+          </button>
+          <img
+            src={previewImage}
+            alt="Vista previa"
+            className="image-lightbox-img"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 };
