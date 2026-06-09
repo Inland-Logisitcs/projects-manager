@@ -2,6 +2,7 @@ import { useState } from 'react';
 import Icon from '../common/Icon';
 import { createGithubPR, listRepoBranches } from '../../services/githubService';
 import { useGitHubDeviceFlow } from '../../hooks/useGitHubDeviceFlow';
+import { htmlToMarkdown } from '../../utils/htmlToMarkdown';
 
 const slugify = (text) =>
   (text || '')
@@ -53,6 +54,7 @@ const CreatePRModal = ({ task, project, onClose }) => {
   const handleCreate = async () => {
     if (!token || !prTitle.trim() || !headBranch.trim()) return;
     setCreating(true);
+    const prBody = htmlToMarkdown(task.description);
     const newResults = {};
     for (const repoFull of repos) {
       if (!selectedRepos.has(repoFull)) continue;
@@ -61,6 +63,7 @@ const CreatePRModal = ({ task, project, onClose }) => {
       try {
         const pr = await createGithubPR(token, owner, repo, {
           title: prTitle.trim(),
+          body: prBody,
           head: headBranch.trim(),
           base,
         });

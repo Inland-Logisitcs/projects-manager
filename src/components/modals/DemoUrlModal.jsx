@@ -3,6 +3,20 @@ import Icon from '../common/Icon';
 import { createGithubPR, listRepoBranches } from '../../services/githubService';
 import { useGitHubDeviceFlow } from '../../hooks/useGitHubDeviceFlow';
 import { updateTask } from '../../services/taskService';
+import { htmlToMarkdown } from '../../utils/htmlToMarkdown';
+
+const buildPrBody = (task, demoUrl) => {
+  const parts = [];
+  const description = htmlToMarkdown(task?.description);
+  if (description) {
+    parts.push('## Definicion de la tarea', '', description);
+  }
+  if (demoUrl) {
+    if (parts.length) parts.push('');
+    parts.push(`**Demo:** ${demoUrl}`);
+  }
+  return parts.join('\n');
+};
 
 const DemoUrlModal = ({ isOpen, onConfirm, onCancel, task, project }) => {
   const [demoUrl, setDemoUrl] = useState('');
@@ -73,13 +87,14 @@ const DemoUrlModal = ({ isOpen, onConfirm, onCancel, task, project }) => {
     let collectedResults = null;
 
     if (showPrSection && selectedRepos.size > 0 && task?.featureBranch) {
+      const prBody = buildPrBody(task, trimmed);
       const newResults = {};
       for (const repoFull of repos) {
         if (!selectedRepos.has(repoFull)) continue;
         const [owner, repo] = repoFull.split('/');
         const base = repoBaseBranches[repoFull] || 'main';
         try {
-          const pr = await createGithubPR(token, owner, repo, { title: task.title, head: task.featureBranch, base });
+          const pr = await createGithubPR(token, owner, repo, { title: task.title, body: prBody, head: task.featureBranch, base });
           newResults[repoFull] = { success: true, url: pr.html_url, number: pr.number };
         } catch (err) {
           newResults[repoFull] = { success: false, error: err.message };
