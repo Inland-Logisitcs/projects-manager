@@ -140,7 +140,7 @@ const TaskDetailSidebar = ({ task, columns, allTasks = [], onClose, usersMap = {
     return task.dependencies.map(depId => {
       const depTask = allTasks.find(t => t.id === depId) || fetchedDepTasks[depId];
       if (!depTask) return { id: depId, title: 'Cargando...', isDone: false };
-      const isDone = depTask.archived === true || depTask.status === 'completed';
+      const isDone = depTask.archived === true || depTask.status === 'completed' || depTask.status === 'qa';
       return { ...depTask, isDone };
     });
   };

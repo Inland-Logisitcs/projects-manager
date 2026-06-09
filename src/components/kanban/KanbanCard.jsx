@@ -46,8 +46,8 @@ const KanbanCard = ({ task, isDragging, onDelete, usersMap, tasksMap, delayViewM
     if (!deps || deps.length === 0) return null;
     const completed = deps.filter(id => {
       const depTask = tasksMap?.[id];
-      // No encontrada = archivada (completada), o columna 'completed'
-      return !depTask || depTask.status === 'completed';
+      // No encontrada = archivada (completada), o columna 'qa'/'completed'
+      return !depTask || depTask.status === 'completed' || depTask.status === 'qa';
     }).length;
     const total = deps.length;
     let color;
